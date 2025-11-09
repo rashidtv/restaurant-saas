@@ -37,7 +37,6 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
   };
 
   const markTableForCleaning = (tableNumber) => {
-    // In a real app, this would update the table status
     console.log(`Table ${tableNumber} marked for cleaning`);
   };
 
@@ -107,9 +106,44 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
   const getOrderTotal = (order) => {
     if (order.total) return order.total;
     if (order.items) {
-      return order.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
+      return order.items.reduce((sum, item) => {
+        const itemPrice = item.price || item.menuItem?.price || 0;
+        const itemQuantity = item.quantity || 1;
+        return sum + (itemPrice * itemQuantity);
+      }, 0);
     }
     return 0;
+  };
+
+  // Get item name safely - handles both data formats
+  const getItemName = (item) => {
+    // Handle Table Management format (item has menuItem object)
+    if (item.menuItem && item.menuItem.name) {
+      return item.menuItem.name;
+    }
+    // Handle Digital Menu format (item has direct name)
+    if (item.name) {
+      return item.name;
+    }
+    return 'Unknown Item';
+  };
+
+  // Get item price safely - handles both data formats
+  const getItemPrice = (item) => {
+    // Handle Table Management format (item has menuItem object)
+    if (item.menuItem && item.menuItem.price) {
+      return item.menuItem.price;
+    }
+    // Handle Digital Menu format (item has direct price)
+    if (item.price) {
+      return item.price;
+    }
+    return 0;
+  };
+
+  // Get item quantity safely
+  const getItemQuantity = (item) => {
+    return item.quantity || 1;
   };
 
   return (
@@ -225,9 +259,9 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
 
               <div className="kitchen-order-items">
                 {(order.items || []).map((item, index) => {
-                  const itemName = item.name || item.menuItem?.name || 'Unknown Item';
-                  const itemPrice = item.price || 0;
-                  const itemQuantity = item.quantity || 1;
+                  const itemName = getItemName(item);
+                  const itemPrice = getItemPrice(item);
+                  const itemQuantity = getItemQuantity(item);
                   
                   return (
                     <div key={index} className="kitchen-order-item">
@@ -292,19 +326,10 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
 
         {filteredOrders.length === 0 && (
           <div className="empty-state">
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '3rem', 
-              color: '#64748b',
-              background: 'white',
-              borderRadius: '12px',
-              border: '1px solid #e2e8f0'
-            }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>👨‍🍳</div>
-              <h3 style={{ margin: '0 0 0.5rem 0', color: '#374151' }}>
-                No Orders Found
-              </h3>
-              <p style={{ margin: 0 }}>
+            <div className="empty-kitchen-state">
+              <div className="empty-kitchen-icon">👨‍🍳</div>
+              <h3 className="empty-kitchen-title">No Orders Found</h3>
+              <p className="empty-kitchen-message">
                 {activeFilter === 'all' 
                   ? 'No orders in the kitchen right now.' 
                   : `No ${activeFilter} orders at the moment.`

@@ -122,12 +122,19 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
               <span>Table:</span>
               <span>{orderDetails.orderType === 'dine-in' ? `Table ${orderDetails.table}` : 'Takeaway'}</span>
             </div>
-            {orderDetails.items.map((item, index) => (
-              <div key={index} className="summary-row">
-                <span>{item.quantity}x {isMobile ? `${item.name.substring(0, 15)}...` : item.name}</span>
-                <span>RM {(item.price * item.quantity).toFixed(2)}</span>
-              </div>
-            ))}
+            {orderDetails.items.map((item, index) => {
+  const itemName = item.name || item.menuItem?.name || 'Unknown Item';
+  const displayName = isMobile ? `${itemName.substring(0, 15)}...` : itemName;
+  const itemPrice = item.price || item.menuItem?.price || 0;
+  const itemQuantity = item.quantity || 1;
+  
+  return (
+    <div key={index} className="summary-row">
+      <span>{itemQuantity}x {displayName}</span>
+      <span>RM {(itemPrice * itemQuantity).toFixed(2)}</span>
+    </div>
+  );
+})}
             <div className="summary-divider"></div>
             <div className="summary-row">
               <span>Subtotal:</span>
