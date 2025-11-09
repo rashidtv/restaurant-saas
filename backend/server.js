@@ -9,20 +9,38 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Enhanced CORS for production
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "https://restaurant-saas-frontend.onrender.com",
+      process.env.FRONTEND_URL
+    ].filter(Boolean),
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://restaurant-saas-frontend.onrender.com",
+    process.env.FRONTEND_URL
+  ].filter(Boolean),
+  credentials: true
+}));
+
 app.use(express.json());
 
-// Connect to MongoDB (using local MongoDB for demo)
-mongoose.connect('mongodb://localhost:27017/mesra_pos', {
+// MongoDB connection with fallback
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/mesra_pos';
+
+mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+}).catch(err => {
+  console.log('MongoDB connection error:', err);
 });
 
 // Malaysian-themed Schemas
@@ -63,8 +81,30 @@ const orderSchema = new mongoose.Schema({
   completedAt: Date
 });
 
+const tableSchema = new mongoose.Schema({
+  number: { type: String, required: true, unique: true },
+  status: { 
+    type: String, 
+    enum: ['available', 'occupied', 'reserved', 'needs_cleaning'],
+    default: 'available'
+  },
+  capacity: { type: Number, required: true },
+  orderId: String,
+  lastCleaned: { type: Date, default: Date.now }
+});
+
+const paymentSchema = new mongoose.Schema({
+  orderId: { type: String, required: true },
+  amount: { type: Number, required: true },
+  method: { type: String, enum: ['cash', 'card', 'touchngo', 'qrpay'], required: true },
+  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  paidAt: { type: Date, default: Date.now }
+});
+
 const MenuItem = mongoose.model('MenuItem', menuItemSchema);
 const Order = mongoose.model('Order', orderSchema);
+const Table = mongoose.model('Table', tableSchema);
+const Payment = mongoose.model('Payment', paymentSchema);
 
 // Generate order number (MESRA001, MESRA002, etc.)
 function generateOrderNumber() {
@@ -170,20 +210,84 @@ const malaysianMenu = [
   }
 ];
 
-// Initialize menu data
-async function initializeMenu() {
-  const count = await MenuItem.countDocuments();
-  if (count === 0) {
-    await MenuItem.insertMany(malaysianMenu);
-    console.log('🍛 Malaysian menu initialized!');
+// Sample tables data
+const sampleTables = [
+  { number: 'T01', status: 'available', capacity: 4 },
+  { number: 'T02', status: 'available', capacity: 2 },
+  { number: 'T03', status: 'available', capacity: 6 },
+  { number: 'T04', status: 'available', capacity: 4 },
+  { number: 'T05', status: 'available', capacity: 4 },
+  { number: 'T06', status: 'available', capacity: 2 },
+  { number: 'T07', status: 'available', capacity: 4 },
+  { number: 'T08', status: 'available', capacity: 8 }
+];
+
+// Initialize data
+async function initializeData() {
+  try {
+    const menuCount = await MenuItem.countDocuments();
+    if (menuCount === 0) {
+      await MenuItem.insertMany(malaysianMenu);
+      console.log('🍛 Malaysian menu initialized!');
+    }
+
+    const tableCount = await Table.countDocuments();
+    if (tableCount === 0) {
+      await Table.insertMany(sampleTables);
+      console.log('🪑 Tables initialized!');
+    }
+  } catch (error) {
+    console.log('Initialization error:', error);
   }
 }
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Restaurant SaaS API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Initialize data endpoint
+app.post('/api/init', async (req, res) => {
+  try {
+    await initializeData();
+    res.json({ message: 'Sample data initialized successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // API Routes
 app.get('/api/menu', async (req, res) => {
   try {
     const menu = await MenuItem.find({ isAvailable: true });
     res.json(menu);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/tables', async (req, res) => {
+  try {
+    const tables = await Table.find().sort({ number: 1 });
+    res.json(tables);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/tables/:id', async (req, res) => {
+  try {
+    const table = await Table.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    res.json(table);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -225,6 +329,12 @@ app.post('/api/orders', async (req, res) => {
     await order.save();
     await order.populate('items.menuItem');
     
+    // Update table status
+    await Table.findOneAndUpdate(
+      { number: tableId },
+      { status: 'occupied', orderId: order._id }
+    );
+    
     io.emit('newOrder', order);
     console.log(`📦 New order: ${order.orderNumber} for Table ${tableId}`);
     
@@ -246,6 +356,14 @@ app.put('/api/orders/:id/status', async (req, res) => {
       { new: true }
     ).populate('items.menuItem');
     
+    // If order completed, free the table
+    if (status === 'completed') {
+      await Table.findOneAndUpdate(
+        { orderId: req.params.id },
+        { status: 'needs_cleaning', orderId: null }
+      );
+    }
+    
     io.emit('orderUpdated', order);
     res.json(order);
   } catch (error) {
@@ -253,25 +371,63 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
+// Payments endpoints
+app.get('/api/payments', async (req, res) => {
+  try {
+    const payments = await Payment.find().sort({ paidAt: -1 });
+    res.json(payments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/payments', async (req, res) => {
+  try {
+    const { orderId, amount, method } = req.body;
+    
+    const payment = new Payment({
+      orderId,
+      amount,
+      method,
+      status: 'completed'
+    });
+    
+    await payment.save();
+    
+    // Update order payment status
+    await Order.findOneAndUpdate(
+      { orderNumber: orderId },
+      { paymentStatus: 'paid', paymentMethod: method }
+    );
+    
+    res.json(payment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Socket.io for real-time updates
 io.on('connection', (socket) => {
-  console.log('🔌 Kitchen display connected');
+  console.log('🔌 Client connected');
   
   socket.on('disconnect', () => {
-    console.log('❌ Kitchen display disconnected');
+    console.log('❌ Client disconnected');
   });
 });
 
 const PORT = process.env.PORT || 5000;
 
 // Start server
-mongoose.connection.once('open', async () => {
-  console.log('✅ Connected to MongoDB');
-  await initializeMenu();
+server.listen(PORT, '0.0.0.0', async () => {
+  console.log(`🚀 Mesra POS Server running on port ${PORT}`);
+  console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🍛 Serving authentic Malaysian cuisine!`);
+  console.log(`💵 Currency: Malaysian Ringgit (MYR)`);
   
-  server.listen(PORT, () => {
-    console.log(`🚀 Mesra POS Server running on http://localhost:${PORT}`);
-    console.log(`🍛 Serving authentic Malaysian cuisine!`);
-    console.log(`💵 Currency: Malaysian Ringgit (MYR)`);
-  });
+  // Initialize data after server starts
+  try {
+    await initializeData();
+  } catch (error) {
+    console.log('Data initialization warning:', error.message);
+  }
 });

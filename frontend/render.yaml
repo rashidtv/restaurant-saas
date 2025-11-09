@@ -1,0 +1,7 @@
+static_sites:
+  - name: restaurant-saas-frontend
+    buildCommand: npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://restaurant-saas-backend.onrender.com
