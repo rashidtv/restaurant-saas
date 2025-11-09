@@ -122,9 +122,10 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
               <span>Table:</span>
               <span>{orderDetails.orderType === 'dine-in' ? `Table ${orderDetails.table}` : 'Takeaway'}</span>
             </div>
-            {orderDetails.items.map((item, index) => {
+           {orderDetails.items.map((item, index) => {
+  // Safe item name extraction for both data formats
   const itemName = item.name || item.menuItem?.name || 'Unknown Item';
-  const displayName = isMobile ? `${itemName.substring(0, 15)}...` : itemName;
+  const displayName = isMobile ? truncateText(itemName, 15) : itemName;
   const itemPrice = item.price || item.menuItem?.price || 0;
   const itemQuantity = item.quantity || 1;
   

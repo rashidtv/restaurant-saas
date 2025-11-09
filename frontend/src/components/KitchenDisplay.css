@@ -447,3 +447,26 @@
     justify-content: center;
   }
 }
+.empty-kitchen-state {
+  text-align: center;
+  padding: 3rem;
+  color: #64748b;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  grid-column: 1 / -1;
+}
+
+.empty-kitchen-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.empty-kitchen-title {
+  margin: 0 0 0.5rem 0;
+  color: #374151;
+}
+
+.empty-kitchen-message {
+  margin: 0;
+}

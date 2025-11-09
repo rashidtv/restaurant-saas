@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './KitchenDisplay.css';
+import { truncateText, getSafeString } from '../utils/stringUtils';
 
 const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onUpdateOrderStatus, apiConnected }) => {
   const [activeFilter, setActiveFilter] = useState('all');
@@ -80,16 +81,10 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return '#ef4444';
   };
 
-  // Safe string truncation for mobile
-  const truncateText = (text, maxLength = 20) => {
-    if (!text || typeof text !== 'string') return 'Unknown Item';
-    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
-  };
-
   // Safe order type display
   const getOrderTypeDisplay = (orderType) => {
-    if (!orderType) return 'Dine In';
-    return isMobile ? orderType.substring(0, 3) : orderType;
+    const type = getSafeString(orderType, 'dine-in');
+    return isMobile ? type.substring(0, 3) : type;
   };
 
   // Get table number safely
@@ -99,7 +94,7 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
 
   // Get order ID safely
   const getOrderId = (order) => {
-    return order.id || order._id || order.orderNumber || 'Unknown';
+    return order.id || order._id || order.orderNumber || `ORD-${Date.now()}`;
   };
 
   // Get order total safely
@@ -119,11 +114,11 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
   const getItemName = (item) => {
     // Handle Table Management format (item has menuItem object)
     if (item.menuItem && item.menuItem.name) {
-      return item.menuItem.name;
+      return getSafeString(item.menuItem.name);
     }
     // Handle Digital Menu format (item has direct name)
     if (item.name) {
-      return item.name;
+      return getSafeString(item.name);
     }
     return 'Unknown Item';
   };
@@ -186,7 +181,7 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
             className={`kitchen-filter-btn ${activeFilter === filter.id ? 'active' : ''}`}
             onClick={() => setActiveFilter(filter.id)}
           >
-            {isMobile ? filter.label.split(' ')[0] : filter.label}
+            {isMobile ? getSafeString(filter.label).split(' ')[0] : filter.label}
             {filter.count > 0 && (
               <span className="filter-count">{filter.count}</span>
             )}
