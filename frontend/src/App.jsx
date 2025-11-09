@@ -29,13 +29,14 @@ function App() {
 
   
 // Check URL on component mount and URL changes
+// Handle query parameters for menu view
 useEffect(() => {
-  const checkRoute = () => {
-    const hash = window.location.hash;
-    const searchParams = new URLSearchParams(hash.split('?')[1]);
-    const tableParam = searchParams.get('table');
+  const checkQueryParams = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view');
+    const tableParam = urlParams.get('table');
     
-    if (hash.includes('#menu')) {
+    if (viewParam === 'menu') {
       setIsMenuRoute(true);
       setCurrentPage('menu');
       if (tableParam) {
@@ -46,15 +47,15 @@ useEffect(() => {
     }
   };
 
-  checkRoute();
+  checkQueryParams();
   
   // Listen for URL changes
-  const handleHashChange = () => {
-    checkRoute();
+  const handlePopState = () => {
+    checkQueryParams();
   };
   
-  window.addEventListener('hashchange', handleHashChange);
-  return () => window.removeEventListener('hashchange', handleHashChange);
+  window.addEventListener('popstate', handlePopState);
+  return () => window.removeEventListener('popstate', handlePopState);
 }, []);
 
   // Check if mobile on mount and resize
@@ -223,20 +224,20 @@ useEffect(() => {
   };
 
   const handleNavigation = (page) => {
-    setCurrentPage(page);
-    if (isMobile) {
-      closeSidebar();
-    }
-    
-    // Update URL for menu route
-    if (page === 'menu') {
-      window.history.pushState({}, '', '/menu');
-      setIsMenuRoute(true);
-    } else {
-      window.history.pushState({}, '', '/');
-      setIsMenuRoute(false);
-    }
-  };
+  setCurrentPage(page);
+  if (isMobile) {
+    closeSidebar();
+  }
+  
+  // Update URL for menu route using query parameters
+  if (page === 'menu') {
+    window.history.pushState({}, '', '/?view=menu');
+    setIsMenuRoute(true);
+  } else {
+    window.history.pushState({}, '', '/');
+    setIsMenuRoute(false);
+  }
+};
 
   const markNotificationAsRead = (id) => {
     setNotifications(notifications.map(notif => 
