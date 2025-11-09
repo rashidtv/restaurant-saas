@@ -610,17 +610,17 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
               </div>
             )}
             
-            {customerViewBtn && (
-  <div className="control-group">
-    <label className="control-label">View</label>
-    <button 
-      className="customer-view-btn"
-      onClick={() => window.open('/?view=menu', '_blank')}
-    >
-      👀 Customer View
-    </button>
-  </div>
-)}
+            {!isCustomerView && (
+              <div className="control-group">
+                <label className="control-label">View</label>
+                <button 
+                  className="customer-view-btn"
+                  onClick={() => window.open('/#menu', '_blank')}
+                >
+                  👀 Customer View
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

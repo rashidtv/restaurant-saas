@@ -7,10 +7,9 @@ const QRGenerator = ({ tables, isMobile }) => {
   const [generatedUrl, setGeneratedUrl] = useState('');
   const qrRef = useRef();
 
-const generateQRUrl = (tableNumber) => {
+ const generateQRUrl = (tableNumber) => {
   const baseUrl = window.location.origin;
-  // Use query parameters instead of routes
-  return `${baseUrl}/?view=menu&table=${tableNumber}`;
+  return `${baseUrl}/#menu?table=${tableNumber}`;
 };
 
   const handleTableSelect = (tableNumber) => {
