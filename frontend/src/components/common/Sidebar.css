@@ -1,0 +1,174 @@
+.sidebar {
+  width: 280px;
+  background-color: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 0;
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0 1rem;
+}
+
+.sidebar-button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  background-color: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  position: relative;
+  text-decoration: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-button:hover {
+  background-color: #f1f5f9;
+  color: #374151;
+}
+
+.sidebar-button.active {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+}
+
+.sidebar-icon {
+  font-size: 1.125rem;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-label {
+  flex: 1;
+  text-align: left;
+}
+
+.sidebar-badge {
+  background-color: #ef4444;
+  color: white;
+  border-radius: 10px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+  min-width: 20px;
+  text-align: center;
+}
+
+.sidebar-stats {
+  padding: 1.5rem 1rem 0 1rem;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 1rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1rem;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Mobile Responsive - FIXED */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 80px;
+    left: 0;
+    height: calc(100vh - 80px);
+    transform: translateX(-100%);
+    z-index: 999;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    width: 280px; /* Keep full width for vertical layout */
+    overflow-y: auto; /* Enable vertical scrolling if needed */
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  
+  /* KEEP VERTICAL LAYOUT ON MOBILE - REMOVE HORIZONTAL FLEX */
+  .sidebar-nav {
+    flex-direction: column; /* Keep vertical */
+    overflow-x: visible; /* Remove horizontal scroll */
+    overflow-y: auto; /* Allow vertical scroll if many items */
+    padding: 0 1rem;
+    gap: 0.25rem;
+  }
+  
+  .sidebar-button {
+    flex-direction: row; /* Keep horizontal layout within button */
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    min-width: auto; /* Remove fixed width */
+    width: 100%; /* Full width */
+    justify-content: flex-start;
+  }
+  
+  .sidebar-label {
+    text-align: left; /* Keep left aligned */
+    font-size: 0.875rem; /* Normal font size */
+    white-space: nowrap; /* Prevent text wrapping */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .sidebar-badge {
+    position: static; /* Remove absolute positioning */
+    font-size: 0.75rem;
+    min-width: 20px;
+    height: auto;
+  }
+  
+  .sidebar-stats {
+    display: block; /* Show stats in mobile sidebar */
+    padding: 1rem;
+    margin-top: auto;
+  }
+  
+  .stat-item {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .stat-value {
+    font-size: 1.25rem;
+  }
+  
+  .stat-label {
+    font-size: 0.7rem;
+  }
+}
+
+/* Prevent body scroll when sidebar is open */
+body.sidebar-open {
+  overflow: hidden;
+}
