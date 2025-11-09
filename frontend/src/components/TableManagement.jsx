@@ -14,10 +14,6 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     console.log('TableManagement - Menu items count:', menu?.length);
   }, [menu]);
 
-  useEffect(() => {
-    console.log('TableManagement - Order items updated:', orderItems);
-  }, [orderItems]);
-
   // Use the menu from DigitalMenu - FIXED with fallback
   const menuItems = menu && menu.length > 0 ? menu : [
     // Fallback sample data for debugging
@@ -28,8 +24,6 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     { _id: '5', name: 'Satay Set', price: 18.90, category: 'main' },
     { _id: '6', name: 'Cendol', price: 6.90, category: 'desserts' }
   ];
-
-  console.log('TableManagement - Using menuItems:', menuItems);
 
   const updateTableStatus = (tableId, newStatus) => {
     setTables(tables.map(table =>
@@ -54,19 +48,23 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
 
   const handleStartOrder = (table) => {
     setSelectedTable(table);
-    // Initialize all menu items with quantity 0 - FIXED
+    // Initialize all menu items with quantity 0 - FIXED: Don't auto-select
     const initializedItems = menuItems.map(item => ({ 
       ...item, 
       quantity: 0, 
       selected: false 
     }));
-    console.log('Initialized order items:', initializedItems);
     setOrderItems(initializedItems);
     setShowOrderModal(true);
   };
 
   const handleViewOrder = (table) => {
-    const order = orders.find(o => o.id === table.orderId || o._id === table.orderId);
+    // FIXED: Only show orders for this specific table
+    const order = orders.find(o => 
+      (o.id === table.orderId || o._id === table.orderId) && 
+      (o.table === table.number || o.tableId === table.number)
+    );
+    
     if (order) {
       // Ensure order items have correct structure for display
       const fixedOrder = {
@@ -105,17 +103,18 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
       return;
     }
 
-    // Create order with proper data structure
+    // Create order with proper data structure - FIXED: Include all necessary fields
     const orderData = selectedItems.map(item => ({
       id: item._id || item.id,
       name: item.name,
       price: item.price,
       quantity: item.quantity,
-      // Include both formats for compatibility
+      // Include both formats for compatibility with KitchenDisplay
       menuItem: {
         _id: item._id || item.id,
         name: item.name,
-        price: item.price
+        price: item.price,
+        category: item.category
       }
     }));
 
@@ -148,21 +147,18 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     ));
   };
 
+  // FIXED: Only get order for this specific table
   const getOrderForTable = (table) => {
-    return orders.find(order => order.id === table.orderId || order._id === table.orderId);
+    return orders.find(order => 
+      (order.id === table.orderId || order._id === table.orderId) && 
+      (order.table === table.number || order.tableId === table.number)
+    );
   };
 
   // Safe string function for mobile display
   const truncateText = (text, maxLength = 20) => {
     if (!text || typeof text !== 'string') return 'Unknown Item';
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
-  };
-
-  // Safe item name getter
-  const getItemName = (item) => {
-    if (item.menuItem && item.menuItem.name) return item.menuItem.name;
-    if (item.name) return item.name;
-    return 'Unknown Item';
   };
 
   return (
@@ -303,19 +299,6 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 <div className="menu-items-grid">
                   {orderItems.map((item, index) => (
                     <div key={item._id || item.id || index} className="menu-item-row">
-                      <input
-                        type="checkbox"
-                        className="menu-item-checkbox"
-                        checked={item.quantity > 0}
-                        onChange={(e) => {
-                          const newQuantity = e.target.checked ? 1 : 0;
-                          setOrderItems(prev => prev.map(prevItem => 
-                            (prevItem._id === item._id || prevItem.id === item.id)
-                              ? { ...prevItem, quantity: newQuantity, selected: newQuantity > 0 }
-                              : prevItem
-                          ));
-                        }}
-                      />
                       <div className="menu-item-details">
                         <div className="menu-item-name">
                           {item.name || 'Unnamed Item'}

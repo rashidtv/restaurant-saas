@@ -549,16 +549,37 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handlePlaceOrder = () => {
-    if (cart.length === 0) return;
-    
-    const newOrder = onCreateOrder(selectedTable, cart, orderType);
-    setCart([]);
-    setShowPayment(false);
-    
-    // Show confirmation
-    alert(`Order placed successfully! Your order number is ${newOrder.id}. Please proceed to payment when ready.`);
-  };
+  // In DigitalMenu.jsx, update the handlePlaceOrder function:
+const handlePlaceOrder = () => {
+  if (cart.length === 0) return;
+  
+  // FIXED: Ensure cart items have proper structure for KitchenDisplay
+  const processedCart = cart.map(item => ({
+    id: item.id,
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    category: item.category,
+    image: item.image,
+    // KitchenDisplay compatibility
+    menuItem: {
+      _id: item.id,
+      name: item.name,
+      price: item.price,
+      category: item.category,
+      image: item.image
+    }
+  }));
+
+  const newOrder = onCreateOrder(selectedTable, processedCart, orderType);
+  setCart([]);
+  setShowPayment(false);
+  
+  // Show confirmation
+  if (newOrder) {
+    alert(`Order placed successfully! Your order number is ${newOrder.orderNumber || newOrder.id}. Please proceed to payment when ready.`);
+  }
+};
 
   const handleProceedToPayment = () => {
     if (cart.length === 0) return;

@@ -250,27 +250,43 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
     // Generate unique order ID for this specific table
     const uniqueOrderId = `ORD-${Date.now()}-${tableNumber}`;
     
-    const orderData = {
-      id: uniqueOrderId, // Ensure unique ID
-      tableId: tableNumber,
-      items: orderItems.map(item => ({
-        menuItemId: item.id || item._id,
-        name: item.name, // Ensure name is preserved
-        quantity: item.quantity,
+    // FIXED: Ensure proper item structure for KitchenDisplay compatibility
+    const processedItems = orderItems.map(item => ({
+      // Core item data
+      id: item.id || item._id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      
+      // KitchenDisplay compatibility - ensure menuItem structure
+      menuItem: {
+        _id: item.id || item._id,
+        name: item.name,
         price: item.price,
-        menuItem: { // Ensure menuItem structure for compatibility
-          _id: item.id || item._id,
-          name: item.name,
-          price: item.price
-        },
-        specialInstructions: item.specialInstructions || ''
-      })),
+        category: item.category || 'main',
+        image: item.image || '🍽️'
+      },
+      
+      // Additional fields for different components
+      menuItemId: item.id || item._id,
+      specialInstructions: item.specialInstructions || ''
+    }));
+
+    const orderData = {
+      id: uniqueOrderId,
+      _id: uniqueOrderId, // For MongoDB compatibility
+      orderNumber: `MESRA${Date.now().toString().slice(-6)}`,
+      table: tableNumber,
+      tableId: tableNumber,
+      items: processedItems,
       orderType,
       customerName: '',
       customerPhone: '',
       status: 'pending',
-      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      orderedAt: new Date()
+      total: processedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+      orderedAt: new Date(),
+      createdAt: new Date(),
+      time: 'Just now'
     };
 
     if (apiConnected) {
@@ -301,20 +317,13 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
       return newOrder;
     } else {
       // Fallback to local state
-      const newOrder = {
-        id: uniqueOrderId,
-        orderNumber: `MESRA${Date.now().toString().slice(-6)}`,
-        tableId: tableNumber,
-        items: orderItems,
-        total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-        status: 'pending',
-        orderedAt: new Date(),
-        orderType
-      };
-
-      setOrders(prev => [newOrder, ...prev]);
+      setOrders(prev => [orderData, ...prev]);
+      
+      // Update ONLY the specific table
       setTables(prev => prev.map(table => 
-        table.number === tableNumber ? { ...table, status: 'occupied', orderId: newOrder.id } : table
+        table.number === tableNumber 
+          ? { ...table, status: 'occupied', orderId: uniqueOrderId }
+          : table
       ));
 
       setNotifications(prev => [{
@@ -325,7 +334,7 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
         read: false
       }, ...prev]);
 
-      return newOrder;
+      return orderData;
     }
   } catch (error) {
     console.error('Error creating order:', error);
@@ -337,6 +346,25 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
       read: false
     }, ...prev]);
   }
+};
+
+// Add this function to handle QR code orders from customers
+const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
+  console.log('Customer order received:', { tableNumber, orderItems, orderType });
+  
+  // Process the order same as staff orders
+  const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
+  
+  // Additional notification for customer orders
+  setNotifications(prev => [{
+    id: Date.now(),
+    message: `New customer QR order from Table ${tableNumber}`,
+    type: 'order',
+    time: 'Just now',
+    read: false
+  }, ...prev]);
+  
+  return newOrder;
 };
 
 // Also add this useEffect to ensure menu data is loaded
@@ -528,18 +556,18 @@ const completeOrder = async (orderId, tableNumber) => {
           {currentPage === 'qr-generator' && (
             <QRGenerator tables={tables} isMobile={isMobile} />
           )}
-          {currentPage === 'menu' && (
-            <DigitalMenu 
-              cart={cart} 
-              setCart={setCart}
-              onCreateOrder={createNewOrder}
-              isMobile={isMobile}
-              menu={menu}
-              apiConnected={apiConnected}
-              currentTable={currentTable}
-              isCustomerView={false}
-            />
-          )}
+        {currentPage === 'menu' && (
+  <DigitalMenu 
+    cart={cart} 
+    setCart={setCart}
+    onCreateOrder={isCustomerView ? handleCustomerOrder : createNewOrder} // FIXED
+    isMobile={isMobile}
+    menu={menu}
+    apiConnected={apiConnected}
+    currentTable={currentTable}
+    isCustomerView={isCustomerView}
+  />
+)}
           {currentPage === 'kitchen' && (
             <KitchenDisplay 
               orders={orders} 

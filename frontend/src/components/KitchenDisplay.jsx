@@ -111,20 +111,25 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
   };
 
 // Get item name safely - handles all data formats
+// Enhanced getItemName function for better compatibility
 const getItemName = (item) => {
-  // Handle Table Management format (has menuItem object with name)
+  console.log('Kitchen Display - Processing item:', item);
+  
+  // Handle all possible data formats
   if (item.menuItem && item.menuItem.name) {
     return getSafeString(item.menuItem.name);
   }
-  // Handle Digital Menu format (direct name property)
   if (item.name) {
     return getSafeString(item.name);
   }
-  // Handle nested name in menuItem
-  if (item.menuItem && typeof item.menuItem === 'object' && item.menuItem.name) {
-    return getSafeString(item.menuItem.name);
+  if (item.menuItem && typeof item.menuItem === 'object') {
+    // Try to extract name from menuItem object
+    const menuItemName = item.menuItem.name || item.menuItem.title;
+    if (menuItemName) return getSafeString(menuItemName);
   }
-  return 'Unknown Item';
+  
+  console.warn('Kitchen Display - Unknown item structure:', item);
+  return 'Menu Item';
 };
 
   // Get item price safely - handles both data formats
