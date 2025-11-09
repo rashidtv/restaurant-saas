@@ -59,36 +59,54 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   };
 
   const handleCompleteOrder = (order) => {
-    onCompleteOrder(order.id || order._id, order.table || order.tableId);
-    setShowOrderDetails(false);
-  };
+  // Complete only this specific order and table
+  onCompleteOrder(order.id || order._id, order.table || order.tableId);
+  
+  // Update table status to needs_cleaning
+  setTables(tables.map(table => 
+    table.orderId === (order.id || order._id) 
+      ? { ...table, status: 'needs_cleaning', orderId: null }
+      : table
+  ));
+  
+  setShowOrderDetails(false);
+};
 
-  const handleCreateOrder = () => {
-    const selectedItems = orderItems.filter(item => item.quantity > 0);
-    if (selectedItems.length === 0) {
-      alert('Please select at least one item');
-      return;
-    }
+const handleCreateOrder = () => {
+  const selectedItems = orderItems.filter(item => item.quantity > 0);
+  if (selectedItems.length === 0) {
+    alert('Please select at least one item');
+    return;
+  }
 
-    // Create order with proper data structure
-    const orderData = selectedItems.map(item => ({
-      id: item._id || item.id,
+  // Create order with proper data structure
+  const orderData = selectedItems.map(item => ({
+    id: item._id || item.id,
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    // Include both formats for compatibility
+    menuItem: {
+      _id: item._id || item.id,
       name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      // Include both formats for compatibility
-      menuItem: {
-        _id: item._id || item.id,
-        name: item.name,
-        price: item.price
-      }
-    }));
+      price: item.price
+    }
+  }));
 
-    const newOrder = onCreateOrder(selectedTable.number, orderData, 'dine-in');
-    setShowOrderModal(false);
-    setSelectedTable(null);
-    setOrderItems([]);
-  };
+  // Generate unique order ID for this table
+  const newOrder = onCreateOrder(selectedTable.number, orderData, 'dine-in');
+  
+  // Update this specific table only
+  setTables(tables.map(table => 
+    table._id === selectedTable._id || table.id === selectedTable.id
+      ? { ...table, status: 'occupied', orderId: newOrder.id || newOrder._id }
+      : table
+  ));
+  
+  setShowOrderModal(false);
+  setSelectedTable(null);
+  setOrderItems([]);
+};
 
   const updateOrderItemQuantity = (itemId, change) => {
     setOrderItems(prev => prev.map(item => 
@@ -193,21 +211,33 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                   </>
                 )}
                 {table.status === 'needs_cleaning' && (
-                  <button 
-                    className="btn btn-success"
-                    onClick={() => updateTableStatus(table._id || table.id, 'available')}
-                  >
-                    Mark Clean
-                  </button>
-                )}
-                {(table.status === 'available' || table.status === 'needs_cleaning') && (
-                  <button 
-                    className="btn btn-warning"
-                    onClick={() => updateTableStatus(table._id || table.id, 'available')}
-                  >
-                    Clean Now
-                  </button>
-                )}
+  <button 
+    className="btn btn-success"
+    onClick={() => updateTableStatus(table._id || table.id, 'available')}
+  >
+    Mark Clean
+  </button>
+)}
+{(table.status === 'available' || table.status === 'needs_cleaning') && (
+  <button 
+    className="btn btn-warning"
+    onClick={() => {
+      // Force immediate cleaning
+      setTables(tables.map(t => 
+        t._id === table._id || t.id === table.id
+          ? { 
+              ...t, 
+              status: 'available', 
+              lastCleaned: new Date(),
+              orderId: null 
+            }
+          : t
+      ));
+    }}
+  >
+    Clean Now
+  </button>
+)}
               </div>
             </div>
           );

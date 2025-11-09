@@ -351,29 +351,31 @@ useEffect(() => {
     }
   };
 
-  const completeOrder = async (orderId, tableNumber) => {
-    await updateOrderStatus(orderId, 'completed');
-    
-    if (apiConnected) {
-      // Tables will be updated via socket or we can refresh
-      const tablesResponse = await fetch(API_ENDPOINTS.TABLES);
-      const updatedTables = await tablesResponse.json();
-      setTables(updatedTables);
-    } else {
-      // Fallback to local state
-      setTables(prev => prev.map(table => 
-        table.number === tableNumber ? { ...table, status: 'needs_cleaning', orderId: null } : table
-      ));
-    }
+const completeOrder = async (orderId, tableNumber) => {
+  await updateOrderStatus(orderId, 'completed');
+  
+  if (apiConnected) {
+    // Tables will be updated via socket or we can refresh
+    const tablesResponse = await fetch(API_ENDPOINTS.TABLES);
+    const updatedTables = await tablesResponse.json();
+    setTables(updatedTables);
+  } else {
+    // Fallback to local state - update only the specific table
+    setTables(prev => prev.map(table => 
+      table.number === tableNumber 
+        ? { ...table, status: 'needs_cleaning', orderId: null }
+        : table
+    ));
+  }
 
-    setNotifications(prev => [{
-      id: Date.now(),
-      message: `Order ${orderId} completed. Table ${tableNumber} needs cleaning`,
-      type: 'table',
-      time: 'Just now',
-      read: false
-    }, ...prev]);
-  };
+  setNotifications(prev => [{
+    id: Date.now(),
+    message: `Order ${orderId} completed. Table ${tableNumber} needs cleaning`,
+    type: 'table',
+    time: 'Just now',
+    read: false
+  }, ...prev]);
+};
 
   const getTimeAgo = (date) => {
     const now = new Date();

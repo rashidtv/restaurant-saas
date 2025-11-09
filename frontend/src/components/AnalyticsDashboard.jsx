@@ -1,6 +1,25 @@
 import React from 'react';
 import './AnalyticsDashboard.css';
 
+// Add this function before the AnalyticsDashboard component
+const calculateTablePerformance = (tables, orders) => {
+  const totalTables = tables.length;
+  const occupiedTables = tables.filter(table => table.status === 'occupied').length;
+  const availableTables = tables.filter(table => table.status === 'available').length;
+  
+  // Calculate average turnover (simplified)
+  const completedOrders = orders.filter(order => order.status === 'completed').length;
+  const avgTurnover = totalTables > 0 ? (completedOrders / totalTables).toFixed(1) : '0.0';
+  
+  return {
+    totalTables,
+    occupiedTables,
+    availableTables,
+    utilization: totalTables > 0 ? Math.round((occupiedTables / totalTables) * 100) : 0,
+    avgTurnover
+  };
+};
+
 const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
   // Calculate key metrics
   const totalRevenue = payments.reduce((sum, payment) => sum + payment.amount, 0);

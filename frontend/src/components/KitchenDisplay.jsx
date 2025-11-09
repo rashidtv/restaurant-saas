@@ -110,24 +110,20 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return 0;
   };
 
-  // Get item name safely - handles all data formats
+// Get item name safely - handles all data formats
 const getItemName = (item) => {
-  console.log('Kitchen Display - Raw Item:', item); // Debug log
-  
-  // Handle nested menuItem object
+  // Handle Table Management format (has menuItem object with name)
   if (item.menuItem && item.menuItem.name) {
     return getSafeString(item.menuItem.name);
   }
-  // Handle direct name
+  // Handle Digital Menu format (direct name property)
   if (item.name) {
     return getSafeString(item.name);
   }
-  // Handle menuItem as string ID (fallback)
-  if (item.menuItem && typeof item.menuItem === 'string') {
-    return 'Menu Item';
+  // Handle nested name in menuItem
+  if (item.menuItem && typeof item.menuItem === 'object' && item.menuItem.name) {
+    return getSafeString(item.menuItem.name);
   }
-  
-  console.log('Kitchen Display - Unknown item structure:', item);
   return 'Unknown Item';
 };
 
