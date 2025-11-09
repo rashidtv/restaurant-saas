@@ -9,7 +9,7 @@ const QRGenerator = ({ tables, isMobile }) => {
 
  const generateQRUrl = (tableNumber) => {
   const baseUrl = window.location.origin;
-  return `${baseUrl}/menu?table=${tableNumber}`;
+  return `${baseUrl}/#menu?table=${tableNumber}`;
 };
 
   const handleTableSelect = (tableNumber) => {

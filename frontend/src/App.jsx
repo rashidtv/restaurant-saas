@@ -26,34 +26,36 @@ function App() {
   const [isMenuRoute, setIsMenuRoute] = useState(false);
   const [currentTable, setCurrentTable] = useState(null);
 
-  // Check URL on component mount and URL changes
-  useEffect(() => {
-    const checkRoute = () => {
-      const path = window.location.pathname;
-      const searchParams = new URLSearchParams(window.location.search);
-      const tableParam = searchParams.get('table');
-      
-      if (path === '/menu') {
-        setIsMenuRoute(true);
-        setCurrentPage('menu');
-        if (tableParam) {
-          setCurrentTable(tableParam);
-        }
-      } else {
-        setIsMenuRoute(false);
-      }
-    };
 
+  
+// Check URL on component mount and URL changes
+useEffect(() => {
+  const checkRoute = () => {
+    const hash = window.location.hash;
+    const searchParams = new URLSearchParams(hash.split('?')[1]);
+    const tableParam = searchParams.get('table');
+    
+    if (hash.includes('#menu')) {
+      setIsMenuRoute(true);
+      setCurrentPage('menu');
+      if (tableParam) {
+        setCurrentTable(tableParam);
+      }
+    } else {
+      setIsMenuRoute(false);
+    }
+  };
+
+  checkRoute();
+  
+  // Listen for URL changes
+  const handleHashChange = () => {
     checkRoute();
-    
-    // Listen for URL changes
-    const handleLocationChange = () => {
-      checkRoute();
-    };
-    
-    window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
+  };
+  
+  window.addEventListener('hashchange', handleHashChange);
+  return () => window.removeEventListener('hashchange', handleHashChange);
+}, []);
 
   // Check if mobile on mount and resize
   useEffect(() => {

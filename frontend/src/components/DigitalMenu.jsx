@@ -562,35 +562,66 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
     ? [] // We'll handle "all" differently
     : menuSections.find(section => section.id === activeCategory)?.items || [];
 
-  return (
+    return (
     <div className="page">
+      {/* Improved Header Section */}
       <div className="page-header">
-        <div>
-          <h2 className="page-title">Digital Menu</h2>
-          <p className="page-subtitle">
-            {selectedTable === 'Takeaway' ? 'Takeaway Order' : `Table ${selectedTable}`} • Scan QR code to order
-          </p>
-        </div>
-        <div className="menu-controls">
-          <select 
-            value={orderType}
-            onChange={(e) => setOrderType(e.target.value)}
-            className="control-select"
-          >
-            <option value="dine-in">Dine In</option>
-            <option value="takeaway">Takeaway</option>
-          </select>
-          {orderType === 'dine-in' && (
-            <select 
-              value={selectedTable}
-              onChange={(e) => setSelectedTable(e.target.value)}
-              className="control-select"
-            >
-              {['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08'].map(table => (
-                <option key={table} value={table}>Table {table}</option>
-              ))}
-            </select>
-          )}
+        <div className="menu-header-content">
+          <div className="menu-header-info">
+            <h2 className="page-title">
+              {isCustomerView ? '🍛 FlavorFlow Menu' : 'Digital Menu'}
+            </h2>
+            <p className="page-subtitle">
+              {isCustomerView && currentTable 
+                ? `Welcome to Table ${currentTable} • Scan QR code to order`
+                : selectedTable === 'Takeaway' 
+                  ? 'Takeaway Order' 
+                  : `Table ${selectedTable} • Scan QR code to order`
+              }
+            </p>
+          </div>
+          
+          <div className="menu-controls-enhanced">
+            <div className="control-group">
+              <label className="control-label">Order Type</label>
+              <select 
+                value={orderType}
+                onChange={(e) => setOrderType(e.target.value)}
+                className="control-select enhanced"
+              >
+                <option value="dine-in">🍽️ Dine In</option>
+                <option value="takeaway">🥡 Takeaway</option>
+              </select>
+            </div>
+            
+            {orderType === 'dine-in' && (
+              <div className="control-group">
+                <label className="control-label">Table Number</label>
+                <select 
+                  value={selectedTable}
+                  onChange={(e) => setSelectedTable(e.target.value)}
+                  className="control-select enhanced"
+                >
+                  <option value="">Select Table</option>
+                  {['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08'].map(table => (
+                    <option key={table} value={table}>Table {table}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {!isCustomerView && (
+              <div className="control-group">
+                <label className="control-label">View</label>
+                <button 
+                  className="customer-view-btn"
+                  onClick={() => window.open('/#menu', '_blank')}
+                >
+                  👀 Customer View
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
