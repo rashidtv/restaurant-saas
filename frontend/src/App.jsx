@@ -8,18 +8,8 @@ import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
+import { API_ENDPOINTS, apiFetch } from './config/api';
 import './App.css';
-
-// API configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const API_ENDPOINTS = {
-  ORDERS: `${API_BASE_URL}/api/orders`,
-  TABLES: `${API_BASE_URL}/api/tables`,
-  PAYMENTS: `${API_BASE_URL}/api/payments`,
-  MENU: `${API_BASE_URL}/api/menu`,
-  HEALTH: `${API_BASE_URL}/api/health`,
-  INIT: `${API_BASE_URL}/api/init`
-};
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -68,35 +58,54 @@ function App() {
       try {
         setLoading(true);
         
-        // Check API health
-        const healthResponse = await fetch(API_ENDPOINTS.HEALTH);
-        if (healthResponse.ok) {
+        // Check API health with timeout
+        const healthCheck = async () => {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const response = await fetch(API_ENDPOINTS.HEALTH, {
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+              setApiConnected(true);
+              return true;
+            }
+            return false;
+          } catch (error) {
+            console.log('Health check failed:', error.message);
+            return false;
+          }
+        };
+
+        const isHealthy = await healthCheck();
+        
+        if (isHealthy) {
           setApiConnected(true);
           
           // Initialize sample data
           await fetch(API_ENDPOINTS.INIT, { method: 'POST' });
           
-          // Fetch all data in parallel
-          const [tablesResponse, ordersResponse, menuResponse, paymentsResponse] = await Promise.all([
-            fetch(API_ENDPOINTS.TABLES),
-            fetch(API_ENDPOINTS.ORDERS),
-            fetch(API_ENDPOINTS.MENU),
-            fetch(API_ENDPOINTS.PAYMENTS)
+          // Fetch all data
+          const [tablesData, ordersData, menuData, paymentsData] = await Promise.all([
+            apiFetch(API_ENDPOINTS.TABLES),
+            apiFetch(API_ENDPOINTS.ORDERS),
+            apiFetch(API_ENDPOINTS.MENU),
+            apiFetch(API_ENDPOINTS.PAYMENTS)
           ]);
           
-          const tablesData = await tablesResponse.json();
-          const ordersData = await ordersResponse.json();
-          const menuData = await menuResponse.json();
-          const paymentsData = await paymentsResponse.json();
-          
-          setTables(tablesData);
-          setOrders(ordersData);
-          setMenu(menuData);
-          setPayments(paymentsData);
+          setTables(tablesData || []);
+          setOrders(ordersData || []);
+          setMenu(menuData || []);
+          setPayments(paymentsData || []);
           
           setNotifications([
             { id: 1, message: 'System connected successfully', type: 'success', time: 'Just now', read: false }
           ]);
+        } else {
+          throw new Error('Backend API is not accessible');
         }
       } catch (error) {
         console.error('Error initializing data:', error);
@@ -104,8 +113,8 @@ function App() {
         setNotifications([
           { 
             id: 1, 
-            message: `Failed to connect to backend API: ${error.message}`, 
-            type: 'error', 
+            message: `Running in offline mode: ${error.message}`, 
+            type: 'warning', 
             time: 'Just now', 
             read: false 
           }
@@ -121,7 +130,7 @@ function App() {
     const initializeSampleData = () => {
       const sampleOrders = [
         {
-          id: 'ORD-2847',
+          _id: '1',
           orderNumber: 'MESRA2847',
           tableId: 'T05',
           items: [
@@ -144,14 +153,14 @@ function App() {
       ];
 
       const sampleTables = [
-        { _id: '1', number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date(Date.now() - 2 * 60 * 60 * 1000) },
-        { _id: '2', number: 'T02', status: 'occupied', capacity: 2, orderId: 'ORD-2847', lastCleaned: new Date(Date.now() - 1 * 60 * 60 * 1000) },
-        { _id: '3', number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date(Date.now() - 30 * 60 * 1000) },
-        { _id: '4', number: 'T04', status: 'reserved', capacity: 4, lastCleaned: new Date(Date.now() - 45 * 60 * 1000) },
-        { _id: '5', number: 'T05', status: 'occupied', capacity: 4, orderId: 'ORD-2847', lastCleaned: new Date(Date.now() - 3 * 60 * 60 * 1000) },
-        { _id: '6', number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date(Date.now() - 15 * 60 * 1000) },
-        { _id: '7', number: 'T07', status: 'needs_cleaning', capacity: 4, lastCleaned: new Date(Date.now() - 4 * 60 * 60 * 1000) },
-        { _id: '8', number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date(Date.now() - 20 * 60 * 1000) }
+        { _id: '1', number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date() },
+        { _id: '2', number: 'T02', status: 'occupied', capacity: 2, orderId: '1', lastCleaned: new Date() },
+        { _id: '3', number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date() },
+        { _id: '4', number: 'T04', status: 'reserved', capacity: 4, lastCleaned: new Date() },
+        { _id: '5', number: 'T05', status: 'occupied', capacity: 4, orderId: '1', lastCleaned: new Date() },
+        { _id: '6', number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date() },
+        { _id: '7', number: 'T07', status: 'needs_cleaning', capacity: 4, lastCleaned: new Date() },
+        { _id: '8', number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date() }
       ];
 
       const sampleMenu = [
@@ -166,11 +175,7 @@ function App() {
       setOrders(sampleOrders);
       setTables(sampleTables);
       setMenu(sampleMenu);
-      setNotifications([
-        { id: 1, message: 'New order from Table T05', type: 'order', time: '2 mins ago', read: false },
-        { id: 2, message: 'Low stock: Coconut milk', type: 'inventory', time: '15 mins ago', read: false },
-        { id: 3, message: 'Table T07 needs cleaning', type: 'table', time: '25 mins ago', read: true }
-      ]);
+      setPayments([]);
     };
 
     initializeData();

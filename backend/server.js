@@ -7,30 +7,39 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Enhanced CORS for production
+// Get frontend URL from environment or use the actual deployed URL
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
+
+console.log('🔧 CORS configured for frontend:', FRONTEND_URL);
+
+// Enhanced CORS configuration
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://restaurant-saas-demo.onrender.com",
+    FRONTEND_URL
+  ].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Handle preflight requests
+app.options('*', cors());
+
 const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:5173",
-      "https://restaurant-saas-frontend.onrender.com",
-      process.env.FRONTEND_URL
+      "https://restaurant-saas-demo.onrender.com",
+      FRONTEND_URL
     ].filter(Boolean),
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
 
-app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://restaurant-saas-frontend.onrender.com",
-    process.env.FRONTEND_URL
-  ].filter(Boolean),
-  credentials: true
-}));
-
 app.use(express.json());
 
-// In-memory data storage (for demo purposes)
 let orders = [];
 let tables = [];
 let payments = [];
@@ -357,6 +366,7 @@ const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Mesra POS Server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
   console.log(`🍛 Serving authentic Malaysian cuisine!`);
   console.log(`💵 Currency: Malaysian Ringgit (MYR)`);
   
