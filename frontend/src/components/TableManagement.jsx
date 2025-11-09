@@ -10,13 +10,9 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
 
   // Use the menu from DigitalMenu instead of hardcoded items
   const menuItems = menu && menu.length > 0 ? menu : [
-    { _id: '1', name: 'Nasi Lemak', price: 12.90, category: 'main' },
-    { _id: '2', name: 'Teh Tarik', price: 4.50, category: 'drinks' },
-    { _id: '3', name: 'Char Kuey Teow', price: 14.50, category: 'main' },
-    { _id: '4', name: 'Roti Canai', price: 3.50, category: 'main' },
-    { _id: '5', name: 'Satay Set', price: 18.90, category: 'main' },
-    { _id: '6', name: 'Cendol', price: 6.90, category: 'desserts' }
-  ];
+  // Remove the hardcoded fallback to force using DigitalMenu data
+  // This ensures all menus from DigitalMenu appear
+];
 
   const updateTableStatus = (tableId, newStatus) => {
     setTables(tables.map(table =>
@@ -51,19 +47,30 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   };
 
   const handleViewOrder = (table) => {
-    const order = orders.find(o => o.id === table.orderId || o._id === table.orderId);
-    if (order) {
-      setSelectedOrder(order);
-      setShowOrderDetails(true);
-    }
-  };
+  const order = orders.find(o => o.id === table.orderId || o._id === table.orderId);
+  if (order) {
+    // Ensure order items have correct structure for display
+    const fixedOrder = {
+      ...order,
+      items: (order.items || []).map(item => ({
+        ...item,
+        // Ensure name is properly set for display
+        name: item.name || (item.menuItem && item.menuItem.name) || 'Unknown Item',
+        price: item.price || (item.menuItem && item.menuItem.price) || 0,
+        quantity: item.quantity || 1
+      }))
+    };
+    setSelectedOrder(fixedOrder);
+    setShowOrderDetails(true);
+  }
+};
 
   const handleCompleteOrder = (order) => {
-  // Complete only this specific order and table
+  // Complete only this specific order
   onCompleteOrder(order.id || order._id, order.table || order.tableId);
   
-  // Update table status to needs_cleaning
-  setTables(tables.map(table => 
+  // Update ONLY the table associated with this order
+  setTables(prevTables => prevTables.map(table => 
     table.orderId === (order.id || order._id) 
       ? { ...table, status: 'needs_cleaning', orderId: null }
       : table
@@ -93,15 +100,17 @@ const handleCreateOrder = () => {
     }
   }));
 
-  // Generate unique order ID for this table
+  // Generate unique order for this specific table
   const newOrder = onCreateOrder(selectedTable.number, orderData, 'dine-in');
   
-  // Update this specific table only
-  setTables(tables.map(table => 
-    table._id === selectedTable._id || table.id === selectedTable.id
-      ? { ...table, status: 'occupied', orderId: newOrder.id || newOrder._id }
-      : table
-  ));
+  if (newOrder) {
+    // Update ONLY this specific table with the new order ID
+    setTables(prevTables => prevTables.map(table => 
+      (table._id === selectedTable._id || table.id === selectedTable.id)
+        ? { ...table, status: 'occupied', orderId: newOrder.id || newOrder._id }
+        : table
+    ));
+  }
   
   setShowOrderModal(false);
   setSelectedTable(null);
@@ -186,59 +195,55 @@ const handleCreateOrder = () => {
               </div>
 
               <div className="table-actions">
-                {table.status === 'available' && (
-                  <button 
-                    className="btn btn-primary"
-                    onClick={() => handleStartOrder(table)}
-                  >
-                    Start Order
-                  </button>
-                )}
-                {table.status === 'occupied' && (
-                  <>
-                    <button 
-                      className="btn btn-warning"
-                      onClick={() => handleViewOrder(table)}
-                    >
-                      View Order
-                    </button>
-                    <button 
-                      className="btn btn-success"
-                      onClick={() => onCompleteOrder(table.orderId, table.number)}
-                    >
-                      Complete Order
-                    </button>
-                  </>
-                )}
-                {table.status === 'needs_cleaning' && (
-  <button 
-    className="btn btn-success"
-    onClick={() => updateTableStatus(table._id || table.id, 'available')}
-  >
-    Mark Clean
-  </button>
-)}
-{(table.status === 'available' || table.status === 'needs_cleaning') && (
-  <button 
-    className="btn btn-warning"
-    onClick={() => {
-      // Force immediate cleaning
-      setTables(tables.map(t => 
-        t._id === table._id || t.id === table.id
-          ? { 
-              ...t, 
-              status: 'available', 
-              lastCleaned: new Date(),
-              orderId: null 
-            }
-          : t
-      ));
-    }}
-  >
-    Clean Now
-  </button>
-)}
-              </div>
+  {table.status === 'available' && (
+    <button 
+      className="btn btn-primary"
+      onClick={() => handleStartOrder(table)}
+    >
+      Start Order
+    </button>
+  )}
+  {table.status === 'occupied' && (
+    <>
+      <button 
+        className="btn btn-warning"
+        onClick={() => handleViewOrder(table)}
+      >
+        View Order
+      </button>
+      <button 
+        className="btn btn-success"
+        onClick={() => {
+          const order = getOrderForTable(table);
+          if (order) {
+            handleCompleteOrder(order);
+          }
+        }}
+      >
+        Complete Order
+      </button>
+    </>
+  )}
+  {table.status === 'needs_cleaning' && (
+    <button 
+      className="btn btn-success"
+      onClick={() => updateTableStatus(table._id || table.id, 'available')}
+    >
+      Mark Clean
+    </button>
+  )}
+  {(table.status === 'available' || table.status === 'needs_cleaning') && (
+    <button 
+      className="btn btn-warning"
+      onClick={() => {
+        // Force immediate cleaning - customer walked away
+        updateTableStatus(table._id || table.id, 'available');
+      }}
+    >
+      Clean Now
+    </button>
+  )}
+</div>
             </div>
           );
         })}
@@ -351,22 +356,23 @@ const handleCreateOrder = () => {
               <div className="order-items">
                 <h3 className="form-label">Order Items</h3>
                 {(selectedOrder.items || []).map((item, index) => {
-                  const itemName = getItemName(item);
-                  const itemPrice = item.price || item.menuItem?.price || 0;
-                  const itemQuantity = item.quantity || 1;
-                  
-                  return (
-                    <div key={index} className="order-item">
-                      <div className="item-details">
-                        <div className="item-name">{itemQuantity}x {truncateText(itemName, 25)}</div>
-                        <div className="item-price">RM {itemPrice.toFixed(2)} each</div>
-                      </div>
-                      <div className="item-total">
-                        RM {(itemPrice * itemQuantity).toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
+  // Safe item data extraction - FIXED
+  const itemName = item.name || (item.menuItem && item.menuItem.name) || 'Unknown Item';
+  const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
+  const itemQuantity = item.quantity || 1;
+  
+  return (
+    <div key={index} className="order-item">
+      <div className="item-details">
+        <div className="item-name">{itemQuantity}x {truncateText(itemName, 25)}</div>
+        <div className="item-price">RM {itemPrice.toFixed(2)} each</div>
+      </div>
+      <div className="item-total">
+        RM {(itemPrice * itemQuantity).toFixed(2)}
+      </div>
+    </div>
+  );
+})}
               </div>
 
               <div className="order-total">

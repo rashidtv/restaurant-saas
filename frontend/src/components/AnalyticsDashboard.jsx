@@ -1,13 +1,26 @@
 import React from 'react';
 import './AnalyticsDashboard.css';
 
-// Add this function before the AnalyticsDashboard component
+// Add these utility functions before the AnalyticsDashboard component
+const getItemName = (item) => {
+  if (!item) return 'Unknown Item';
+  if (item.menuItem && item.menuItem.name) return item.menuItem.name;
+  if (item.name) return item.name;
+  return 'Unknown Item';
+};
+
+const getItemPrice = (item) => {
+  if (!item) return 0;
+  if (item.price) return item.price;
+  if (item.menuItem && item.menuItem.price) return item.menuItem.price;
+  return 0;
+};
+
 const calculateTablePerformance = (tables, orders) => {
   const totalTables = tables.length;
   const occupiedTables = tables.filter(table => table.status === 'occupied').length;
   const availableTables = tables.filter(table => table.status === 'available').length;
   
-  // Calculate average turnover (simplified)
   const completedOrders = orders.filter(order => order.status === 'completed').length;
   const avgTurnover = totalTables > 0 ? (completedOrders / totalTables).toFixed(1) : '0.0';
   

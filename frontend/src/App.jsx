@@ -245,19 +245,29 @@ useEffect(() => {
   };
 
   const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-    try {
-      const orderData = {
-        tableId: tableNumber,
-        items: orderItems.map(item => ({
-          menuItemId: item.id || item._id,
-          quantity: item.quantity,
-          price: item.price,
-          specialInstructions: item.specialInstructions || ''
-        })),
-        orderType,
-        customerName: '',
-        customerPhone: ''
-      };
+  try {
+    // Generate unique order ID for this specific table
+    const uniqueOrderId = `ORD-${Date.now()}-${tableNumber}`;
+    
+    const orderData = {
+      id: uniqueOrderId, // Ensure unique ID
+      tableId: tableNumber,
+      items: orderItems.map(item => ({
+        menuItemId: item.id || item._id,
+        name: item.name, // Ensure name is preserved
+        quantity: item.quantity,
+        price: item.price,
+        menuItem: { // Ensure menuItem structure for compatibility
+          _id: item.id || item._id,
+          name: item.name,
+          price: item.price
+        },
+        specialInstructions: item.specialInstructions || ''
+      })),
+      orderType,
+      customerName: '',
+      customerPhone: ''
+    };
 
       if (apiConnected) {
         const response = await fetch(API_ENDPOINTS.ORDERS, {
