@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import TableManagement from './components/TableManagement';
 import QRGenerator from './components/QRGenerator';
@@ -11,8 +12,28 @@ import Sidebar from './components/common/Sidebar';
 import { API_ENDPOINTS, apiFetch } from './config/api';
 import './App.css';
 
+// Main App Component with Router
 function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  return (
+    <Router>
+      <AppContent />
+    </Router>
+  );
+}
+
+// App Content Component that uses routing
+function AppContent() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Determine current page from URL
+  const getCurrentPageFromPath = (pathname) => {
+    if (pathname === '/menu') return 'menu';
+    if (pathname === '/') return 'dashboard';
+    return pathname.replace('/', '') || 'dashboard';
+  };
+
+  const [currentPage, setCurrentPage] = useState(getCurrentPageFromPath(location.pathname));
   const [cart, setCart] = useState([]);
   const [orders, setOrders] = useState([]);
   const [tables, setTables] = useState([]);
@@ -23,6 +44,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [apiConnected, setApiConnected] = useState(false);
+  const [currentTable, setCurrentTable] = useState(null);
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -35,6 +57,20 @@ function App() {
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Handle URL changes and table parameter
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tableParam = searchParams.get('table');
+    
+    if (tableParam) {
+      setCurrentTable(tableParam);
+    }
+
+    // Update current page based on route
+    const newPage = getCurrentPageFromPath(location.pathname);
+    setCurrentPage(newPage);
+  }, [location]);
 
   // Close sidebar when clicking on overlay or navigating
   useEffect(() => {
@@ -190,6 +226,13 @@ function App() {
   };
 
   const handleNavigation = (page) => {
+    if (page === 'menu') {
+      navigate('/menu');
+    } else if (page === 'dashboard') {
+      navigate('/');
+    } else {
+      navigate(`/${page}`);
+    }
     setCurrentPage(page);
     if (isMobile) {
       closeSidebar();
@@ -373,6 +416,28 @@ function App() {
     );
   }
 
+  // For menu route, don't show sidebar and header (customer-facing view)
+  const isMenuRoute = location.pathname === '/menu';
+
+  if (isMenuRoute) {
+    return (
+      <div className="app-container">
+        <main className="main-content">
+          <DigitalMenu 
+            cart={cart} 
+            setCart={setCart}
+            onCreateOrder={createNewOrder}
+            isMobile={isMobile}
+            menu={menu}
+            apiConnected={apiConnected}
+            currentTable={currentTable}
+            isCustomerView={true}
+          />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       <Header 
@@ -401,75 +466,79 @@ function App() {
         <main className="main-content">
           {!apiConnected && (
             <div className="api-warning">
-              ⚠️ Running in offline mode. Some features may be limited.
+              ⚠️ Running in offline mode. Data will reset on page refresh.
             </div>
           )}
           
-          {currentPage === 'dashboard' && (
-            <Dashboard 
-              orders={orders} 
-              tables={tables}
-              payments={payments}
-              notifications={notifications}
-              onNotificationRead={markNotificationAsRead}
-              getPrepTimeRemaining={getPrepTimeRemaining}
-              isMobile={isMobile}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'tables' && (
-            <TableManagement 
-              tables={tables} 
-              setTables={setTables}
-              orders={orders}
-              setOrders={setOrders}
-              onCreateOrder={createNewOrder}
-              onCompleteOrder={completeOrder}
-              getTimeAgo={getTimeAgo}
-              isMobile={isMobile}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'qr-generator' && (
-            <QRGenerator tables={tables} isMobile={isMobile} />
-          )}
-          {currentPage === 'menu' && (
-            <DigitalMenu 
-              cart={cart} 
-              setCart={setCart}
-              onCreateOrder={createNewOrder}
-              isMobile={isMobile}
-              menu={menu}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'kitchen' && (
-            <KitchenDisplay 
-              orders={orders} 
-              setOrders={setOrders}
-              getPrepTimeRemaining={getPrepTimeRemaining}
-              isMobile={isMobile}
-              onUpdateOrderStatus={updateOrderStatus}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'payments' && (
-            <PaymentSystem 
-              orders={orders}
-              payments={payments}
-              setPayments={setPayments}
-              isMobile={isMobile}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'analytics' && (
-            <AnalyticsDashboard 
-              orders={orders} 
-              payments={payments} 
-              tables={tables} 
-              isMobile={isMobile} 
-            />
-          )}
+          <Routes>
+            <Route path="/" element={
+              <Dashboard 
+                orders={orders} 
+                tables={tables}
+                payments={payments}
+                notifications={notifications}
+                onNotificationRead={markNotificationAsRead}
+                getPrepTimeRemaining={getPrepTimeRemaining}
+                isMobile={isMobile}
+                apiConnected={apiConnected}
+              />
+            } />
+            <Route path="/tables" element={
+              <TableManagement 
+                tables={tables} 
+                setTables={setTables}
+                orders={orders}
+                setOrders={setOrders}
+                onCreateOrder={createNewOrder}
+                onCompleteOrder={completeOrder}
+                getTimeAgo={getTimeAgo}
+                isMobile={isMobile}
+                apiConnected={apiConnected}
+              />
+            } />
+            <Route path="/qr-generator" element={
+              <QRGenerator tables={tables} isMobile={isMobile} />
+            } />
+            <Route path="/menu" element={
+              <DigitalMenu 
+                cart={cart} 
+                setCart={setCart}
+                onCreateOrder={createNewOrder}
+                isMobile={isMobile}
+                menu={menu}
+                apiConnected={apiConnected}
+                currentTable={currentTable}
+                isCustomerView={false}
+              />
+            } />
+            <Route path="/kitchen" element={
+              <KitchenDisplay 
+                orders={orders} 
+                setOrders={setOrders}
+                getPrepTimeRemaining={getPrepTimeRemaining}
+                isMobile={isMobile}
+                onUpdateOrderStatus={updateOrderStatus}
+                apiConnected={apiConnected}
+              />
+            } />
+            <Route path="/payments" element={
+              <PaymentSystem 
+                orders={orders}
+                payments={payments}
+                setPayments={setPayments}
+                isMobile={isMobile}
+                apiConnected={apiConnected}
+              />
+            } />
+            <Route path="/analytics" element={
+              <AnalyticsDashboard 
+                orders={orders} 
+                payments={payments} 
+                tables={tables} 
+                isMobile={isMobile} 
+              />
+            } />
+          </Routes>
         </main>
       </div>
     </div>

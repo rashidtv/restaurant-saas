@@ -2,6 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import './DigitalMenu.css';
 
+const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView = false }) => {
+  const [selectedTable, setSelectedTable] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [orderType, setOrderType] = useState('dine-in');
+  const [showPayment, setShowPayment] = useState(false);
+  
+  // Use the currentTable from URL parameters
+  useEffect(() => {
+    if (currentTable && isCustomerView) {
+      // Set the selected table automatically for customers
+      setSelectedTable(currentTable);
+    }
+  }, [currentTable, isCustomerView]);
+
+  // Get table from URL parameters (for QR code scanning)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tableFromUrl = urlParams.get('table');
+    if (tableFromUrl) {
+      setSelectedTable(tableFromUrl);
+    }
+  }, []);
+
 // Reusable Menu Item Card Component
 const MenuItemCard = ({ item, onAddToCart, isMobile }) => (
   <div className="menu-item-card">
@@ -46,6 +69,7 @@ const MenuItemCard = ({ item, onAddToCart, isMobile }) => (
     </div>
   </div>
 );
+
 
 // Payment Page Component
 const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
@@ -263,13 +287,6 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
     </div>
   );
 };
-
-// Main DigitalMenu Component
-const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile }) => {
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [selectedTable, setSelectedTable] = useState('T01');
-  const [orderType, setOrderType] = useState('dine-in');
-  const [showPayment, setShowPayment] = useState(false);
 
   // Organized menu structure
   const menuSections = [
@@ -492,15 +509,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile }) => {
       count: section.items.length
     }))
   ];
-
-  // Get table from URL parameters (for QR code scanning)
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tableFromUrl = urlParams.get('table');
-    if (tableFromUrl) {
-      setSelectedTable(tableFromUrl);
-    }
-  }, []);
 
   const addToCart = (item) => {
     const existingItem = cart.find(cartItem => cartItem.id === item.id);
