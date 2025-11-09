@@ -71,3 +71,26 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+/* Global fixes for horizontal overflow */
+.app-container {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.app-body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.main-content {
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* Ensure page components don't overflow */
+.page {
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
