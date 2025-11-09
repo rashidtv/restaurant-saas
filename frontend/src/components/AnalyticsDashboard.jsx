@@ -65,14 +65,18 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
     const itemCount = {};
     
     orders.forEach(order => {
-      order.items.forEach(item => {
-        if (itemCount[item.name]) {
-          itemCount[item.name].quantity += item.quantity;
-          itemCount[item.name].revenue += item.price * item.quantity;
+      (order.items || []).forEach(item => {
+        const itemName = getItemName(item);
+        const itemPrice = getItemPrice(item);
+        const itemQuantity = item.quantity || 1;
+        
+        if (itemCount[itemName]) {
+          itemCount[itemName].quantity += itemQuantity;
+          itemCount[itemName].revenue += itemPrice * itemQuantity;
         } else {
-          itemCount[item.name] = {
-            quantity: item.quantity,
-            revenue: item.price * item.quantity,
+          itemCount[itemName] = {
+            quantity: itemQuantity,
+            revenue: itemPrice * itemQuantity,
             image: item.image || '🍽️'
           };
         }
@@ -126,7 +130,7 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
       if (order) {
         order.items.forEach(item => {
           const category = getCategoryFromItem(item);
-          categories[category] += item.price * item.quantity;
+          categories[category] += getItemPrice(item) * (item.quantity || 1);
         });
       }
     });
@@ -140,54 +144,21 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
     }));
   }
 
- function getCategoryFromItem(item) {
-  if (!item || !item.name) return 'Appetizers';
-  
-  const itemName = item.name.toLowerCase();
-  
-  if (itemName.includes('nasi lemak') || itemName.includes('rendang') || itemName.includes('satay')) 
-    return 'Signature';
-  if (itemName.includes('rice') || itemName.includes('chicken') || itemName.includes('beef') || itemName.includes('curry')) 
-    return 'Main Courses';
-  if (itemName.includes('tea') || itemName.includes('coffee') || itemName.includes('coconut') || itemName.includes('milo')) 
-    return 'Beverages';
-  if (itemName.includes('mango') || itemName.includes('cendol') || itemName.includes('pisang')) 
-    return 'Desserts';
-  return 'Appetizers';
-}
-
-// Also update the calculatePopularItems function:
-function calculatePopularItems(orders) {
-  const itemCount = {};
-  
-  orders.forEach(order => {
-    (order.items || []).forEach(item => {
-      const itemName = getItemName(item); // Use the same safe function
-      const itemPrice = getItemPrice(item);
-      const itemQuantity = item.quantity || 1;
-      
-      if (itemCount[itemName]) {
-        itemCount[itemName].quantity += itemQuantity;
-        itemCount[itemName].revenue += itemPrice * itemQuantity;
-      } else {
-        itemCount[itemName] = {
-          quantity: itemQuantity,
-          revenue: itemPrice * itemQuantity,
-          image: item.image || '🍽️'
-        };
-      }
-    });
-  });
-  
-  return Object.entries(itemCount)
-    .sort(([,a], [,b]) => b.quantity - a.quantity)
-    .slice(0, 5)
-    .map(([name, data], index) => ({
-      rank: index + 1,
-      name,
-      ...data
-    }));
-}
+  function getCategoryFromItem(item) {
+    if (!item || !item.name) return 'Appetizers';
+    
+    const itemName = getItemName(item).toLowerCase();
+    
+    if (itemName.includes('nasi lemak') || itemName.includes('rendang') || itemName.includes('satay')) 
+      return 'Signature';
+    if (itemName.includes('rice') || itemName.includes('chicken') || itemName.includes('beef') || itemName.includes('curry')) 
+      return 'Main Courses';
+    if (itemName.includes('tea') || itemName.includes('coffee') || itemName.includes('coconut') || itemName.includes('milo')) 
+      return 'Beverages';
+    if (itemName.includes('mango') || itemName.includes('cendol') || itemName.includes('pisang')) 
+      return 'Desserts';
+    return 'Appetizers';
+  }
 
   return (
     <div className="page">

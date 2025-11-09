@@ -244,7 +244,8 @@ useEffect(() => {
     ));
   };
 
-  const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
+// In App.jsx, replace the createNewOrder function:
+const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
   try {
     // Generate unique order ID for this specific table
     const uniqueOrderId = `ORD-${Date.now()}-${tableNumber}`;
@@ -266,74 +267,94 @@ useEffect(() => {
       })),
       orderType,
       customerName: '',
-      customerPhone: ''
+      customerPhone: '',
+      status: 'pending',
+      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+      orderedAt: new Date()
     };
 
-      if (apiConnected) {
-        const response = await fetch(API_ENDPOINTS.ORDERS, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(orderData),
-        });
+    if (apiConnected) {
+      const response = await fetch(API_ENDPOINTS.ORDERS, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData),
+      });
 
-        const newOrder = await response.json();
-        setOrders(prev => [newOrder, ...prev]);
-        
-        // Refresh tables to get updated status
-        const tablesResponse = await fetch(API_ENDPOINTS.TABLES);
-        const updatedTables = await tablesResponse.json();
-        setTables(updatedTables);
-        
-        setNotifications(prev => [{
-          id: Date.now(),
-          message: `New ${orderType} order from ${tableNumber}`,
-          type: 'order',
-          time: 'Just now',
-          read: false
-        }, ...prev]);
-
-        return newOrder;
-      } else {
-        // Fallback to local state
-        const newOrder = {
-          id: `ORD-${Date.now().toString().slice(-4)}`,
-          orderNumber: `MESRA${Date.now().toString().slice(-6)}`,
-          tableId: tableNumber,
-          items: orderItems,
-          total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-          status: 'pending',
-          orderedAt: new Date(),
-          orderType
-        };
-
-        setOrders(prev => [newOrder, ...prev]);
-        setTables(prev => prev.map(table => 
-          table.number === tableNumber ? { ...table, status: 'occupied', orderId: newOrder.id } : table
-        ));
-
-        setNotifications(prev => [{
-          id: Date.now(),
-          message: `New ${orderType} order from ${tableNumber}`,
-          type: 'order',
-          time: 'Just now',
-          read: false
-        }, ...prev]);
-
-        return newOrder;
-      }
-    } catch (error) {
-      console.error('Error creating order:', error);
+      const newOrder = await response.json();
+      setOrders(prev => [newOrder, ...prev]);
+      
+      // Refresh tables to get updated status
+      const tablesResponse = await fetch(API_ENDPOINTS.TABLES);
+      const updatedTables = await tablesResponse.json();
+      setTables(updatedTables);
+      
       setNotifications(prev => [{
         id: Date.now(),
-        message: 'Failed to create order',
-        type: 'error',
+        message: `New ${orderType} order from ${tableNumber}`,
+        type: 'order',
         time: 'Just now',
         read: false
       }, ...prev]);
+
+      return newOrder;
+    } else {
+      // Fallback to local state
+      const newOrder = {
+        id: uniqueOrderId,
+        orderNumber: `MESRA${Date.now().toString().slice(-6)}`,
+        tableId: tableNumber,
+        items: orderItems,
+        total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        status: 'pending',
+        orderedAt: new Date(),
+        orderType
+      };
+
+      setOrders(prev => [newOrder, ...prev]);
+      setTables(prev => prev.map(table => 
+        table.number === tableNumber ? { ...table, status: 'occupied', orderId: newOrder.id } : table
+      ));
+
+      setNotifications(prev => [{
+        id: Date.now(),
+        message: `New ${orderType} order from ${tableNumber}`,
+        type: 'order',
+        time: 'Just now',
+        read: false
+      }, ...prev]);
+
+      return newOrder;
     }
-  };
+  } catch (error) {
+    console.error('Error creating order:', error);
+    setNotifications(prev => [{
+      id: Date.now(),
+      message: 'Failed to create order',
+      type: 'error',
+      time: 'Just now',
+      read: false
+    }, ...prev]);
+  }
+};
+
+// Also add this useEffect to ensure menu data is loaded
+useEffect(() => {
+  if (menu.length === 0) {
+    console.log('Menu is empty, forcing reload...');
+    // Re-fetch menu data
+    const fetchMenu = async () => {
+      try {
+        const menuData = await apiFetch(API_ENDPOINTS.MENU);
+        setMenu(menuData || []);
+      } catch (error) {
+        console.log('Failed to fetch menu:', error);
+      }
+    };
+    fetchMenu();
+  }
+}, [menu.length]);
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
