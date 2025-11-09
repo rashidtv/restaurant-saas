@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import TableManagement from './components/TableManagement';
 import QRGenerator from './components/QRGenerator';
@@ -12,28 +11,8 @@ import Sidebar from './components/common/Sidebar';
 import { API_ENDPOINTS, apiFetch } from './config/api';
 import './App.css';
 
-// Main App Component with Router
 function App() {
-  return (
-    <Router>
-      <AppContent />
-    </Router>
-  );
-}
-
-// App Content Component that uses routing
-function AppContent() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  
-  // Determine current page from URL
-  const getCurrentPageFromPath = (pathname) => {
-    if (pathname === '/menu') return 'menu';
-    if (pathname === '/') return 'dashboard';
-    return pathname.replace('/', '') || 'dashboard';
-  };
-
-  const [currentPage, setCurrentPage] = useState(getCurrentPageFromPath(location.pathname));
+  const [currentPage, setCurrentPage] = useState('dashboard');
   const [cart, setCart] = useState([]);
   const [orders, setOrders] = useState([]);
   const [tables, setTables] = useState([]);
@@ -44,7 +23,37 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [apiConnected, setApiConnected] = useState(false);
+  const [isMenuRoute, setIsMenuRoute] = useState(false);
   const [currentTable, setCurrentTable] = useState(null);
+
+  // Check URL on component mount and URL changes
+  useEffect(() => {
+    const checkRoute = () => {
+      const path = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+      const tableParam = searchParams.get('table');
+      
+      if (path === '/menu') {
+        setIsMenuRoute(true);
+        setCurrentPage('menu');
+        if (tableParam) {
+          setCurrentTable(tableParam);
+        }
+      } else {
+        setIsMenuRoute(false);
+      }
+    };
+
+    checkRoute();
+    
+    // Listen for URL changes
+    const handleLocationChange = () => {
+      checkRoute();
+    };
+    
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -57,20 +66,6 @@ function AppContent() {
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-
-  // Handle URL changes and table parameter
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const tableParam = searchParams.get('table');
-    
-    if (tableParam) {
-      setCurrentTable(tableParam);
-    }
-
-    // Update current page based on route
-    const newPage = getCurrentPageFromPath(location.pathname);
-    setCurrentPage(newPage);
-  }, [location]);
 
   // Close sidebar when clicking on overlay or navigating
   useEffect(() => {
@@ -226,16 +221,18 @@ function AppContent() {
   };
 
   const handleNavigation = (page) => {
-    if (page === 'menu') {
-      navigate('/menu');
-    } else if (page === 'dashboard') {
-      navigate('/');
-    } else {
-      navigate(`/${page}`);
-    }
     setCurrentPage(page);
     if (isMobile) {
       closeSidebar();
+    }
+    
+    // Update URL for menu route
+    if (page === 'menu') {
+      window.history.pushState({}, '', '/menu');
+      setIsMenuRoute(true);
+    } else {
+      window.history.pushState({}, '', '/');
+      setIsMenuRoute(false);
     }
   };
 
@@ -417,8 +414,6 @@ function AppContent() {
   }
 
   // For menu route, don't show sidebar and header (customer-facing view)
-  const isMenuRoute = location.pathname === '/menu';
-
   if (isMenuRoute) {
     return (
       <div className="app-container">
@@ -470,75 +465,73 @@ function AppContent() {
             </div>
           )}
           
-          <Routes>
-            <Route path="/" element={
-              <Dashboard 
-                orders={orders} 
-                tables={tables}
-                payments={payments}
-                notifications={notifications}
-                onNotificationRead={markNotificationAsRead}
-                getPrepTimeRemaining={getPrepTimeRemaining}
-                isMobile={isMobile}
-                apiConnected={apiConnected}
-              />
-            } />
-            <Route path="/tables" element={
-              <TableManagement 
-                tables={tables} 
-                setTables={setTables}
-                orders={orders}
-                setOrders={setOrders}
-                onCreateOrder={createNewOrder}
-                onCompleteOrder={completeOrder}
-                getTimeAgo={getTimeAgo}
-                isMobile={isMobile}
-                apiConnected={apiConnected}
-              />
-            } />
-            <Route path="/qr-generator" element={
-              <QRGenerator tables={tables} isMobile={isMobile} />
-            } />
-            <Route path="/menu" element={
-              <DigitalMenu 
-                cart={cart} 
-                setCart={setCart}
-                onCreateOrder={createNewOrder}
-                isMobile={isMobile}
-                menu={menu}
-                apiConnected={apiConnected}
-                currentTable={currentTable}
-                isCustomerView={false}
-              />
-            } />
-            <Route path="/kitchen" element={
-              <KitchenDisplay 
-                orders={orders} 
-                setOrders={setOrders}
-                getPrepTimeRemaining={getPrepTimeRemaining}
-                isMobile={isMobile}
-                onUpdateOrderStatus={updateOrderStatus}
-                apiConnected={apiConnected}
-              />
-            } />
-            <Route path="/payments" element={
-              <PaymentSystem 
-                orders={orders}
-                payments={payments}
-                setPayments={setPayments}
-                isMobile={isMobile}
-                apiConnected={apiConnected}
-              />
-            } />
-            <Route path="/analytics" element={
-              <AnalyticsDashboard 
-                orders={orders} 
-                payments={payments} 
-                tables={tables} 
-                isMobile={isMobile} 
-              />
-            } />
-          </Routes>
+          {currentPage === 'dashboard' && (
+            <Dashboard 
+              orders={orders} 
+              tables={tables}
+              payments={payments}
+              notifications={notifications}
+              onNotificationRead={markNotificationAsRead}
+              getPrepTimeRemaining={getPrepTimeRemaining}
+              isMobile={isMobile}
+              apiConnected={apiConnected}
+            />
+          )}
+          {currentPage === 'tables' && (
+            <TableManagement 
+              tables={tables} 
+              setTables={setTables}
+              orders={orders}
+              setOrders={setOrders}
+              onCreateOrder={createNewOrder}
+              onCompleteOrder={completeOrder}
+              getTimeAgo={getTimeAgo}
+              isMobile={isMobile}
+              apiConnected={apiConnected}
+            />
+          )}
+          {currentPage === 'qr-generator' && (
+            <QRGenerator tables={tables} isMobile={isMobile} />
+          )}
+          {currentPage === 'menu' && (
+            <DigitalMenu 
+              cart={cart} 
+              setCart={setCart}
+              onCreateOrder={createNewOrder}
+              isMobile={isMobile}
+              menu={menu}
+              apiConnected={apiConnected}
+              currentTable={currentTable}
+              isCustomerView={false}
+            />
+          )}
+          {currentPage === 'kitchen' && (
+            <KitchenDisplay 
+              orders={orders} 
+              setOrders={setOrders}
+              getPrepTimeRemaining={getPrepTimeRemaining}
+              isMobile={isMobile}
+              onUpdateOrderStatus={updateOrderStatus}
+              apiConnected={apiConnected}
+            />
+          )}
+          {currentPage === 'payments' && (
+            <PaymentSystem 
+              orders={orders}
+              payments={payments}
+              setPayments={setPayments}
+              isMobile={isMobile}
+              apiConnected={apiConnected}
+            />
+          )}
+          {currentPage === 'analytics' && (
+            <AnalyticsDashboard 
+              orders={orders} 
+              payments={payments} 
+              tables={tables} 
+              isMobile={isMobile} 
+            />
+          )}
         </main>
       </div>
     </div>
