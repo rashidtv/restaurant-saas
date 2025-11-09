@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './KitchenDisplay.css';
 
-const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile }) => {
+const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onUpdateOrderStatus, apiConnected }) => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -14,21 +14,26 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile }) =
   }, []);
 
   const updateOrderStatus = (orderId, newStatus) => {
-    setOrders(orders.map(order => {
-      if (order.id === orderId) {
-        const updatedOrder = { 
-          ...order, 
-          status: newStatus 
-        };
-        
-        if (newStatus === 'preparing' && !order.preparationStart) {
-          updatedOrder.preparationStart = new Date();
+    if (apiConnected && onUpdateOrderStatus) {
+      onUpdateOrderStatus(orderId, newStatus);
+    } else {
+      // Fallback to local state update
+      setOrders(orders.map(order => {
+        if (order.id === orderId || order._id === orderId) {
+          const updatedOrder = { 
+            ...order, 
+            status: newStatus 
+          };
+          
+          if (newStatus === 'preparing' && !order.preparationStart) {
+            updatedOrder.preparationStart = new Date();
+          }
+          
+          return updatedOrder;
         }
-        
-        return updatedOrder;
-      }
-      return order;
-    }));
+        return order;
+      }));
+    }
   };
 
   const markTableForCleaning = (tableNumber) => {
@@ -64,7 +69,7 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile }) =
     const now = new Date();
     const startTime = new Date(order.preparationStart);
     const elapsedMs = now - startTime;
-    const totalMs = order.estimatedPrepTime * 60000;
+    const totalMs = (order.estimatedPrepTime || 15) * 60000;
     
     return Math.min(100, (elapsedMs / totalMs) * 100);
   };
@@ -74,6 +79,37 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile }) =
     if (percentage < 50) return '#3b82f6';
     if (percentage < 80) return '#f59e0b';
     return '#ef4444';
+  };
+
+  // Safe string truncation for mobile
+  const truncateText = (text, maxLength = 20) => {
+    if (!text || typeof text !== 'string') return 'Unknown Item';
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  };
+
+  // Safe order type display
+  const getOrderTypeDisplay = (orderType) => {
+    if (!orderType) return 'Dine In';
+    return isMobile ? orderType.substring(0, 3) : orderType;
+  };
+
+  // Get table number safely
+  const getTableNumber = (order) => {
+    return order.table || order.tableId || 'Unknown';
+  };
+
+  // Get order ID safely
+  const getOrderId = (order) => {
+    return order.id || order._id || order.orderNumber || 'Unknown';
+  };
+
+  // Get order total safely
+  const getOrderTotal = (order) => {
+    if (order.total) return order.total;
+    if (order.items) {
+      return order.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
+    }
+    return 0;
   };
 
   return (
@@ -131,25 +167,29 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile }) =
           const isUrgent = isOrderUrgent(order);
           const progressPercentage = getProgressPercentage(order);
           const progressColor = getProgressColor(order);
+          const orderId = getOrderId(order);
+          const tableNumber = getTableNumber(order);
+          const orderTotal = getOrderTotal(order);
+          const orderType = order.orderType || 'dine-in';
           
           return (
             <div 
-              key={order.id} 
+              key={orderId} 
               className={`kitchen-order-card ${isUrgent ? 'urgent' : ''}`}
             >
               <div className="kitchen-order-header">
                 <div>
-                  <h3 className="kitchen-order-id">{order.id}</h3>
+                  <h3 className="kitchen-order-id">{orderId}</h3>
                   <div className="kitchen-order-meta">
-                    <span className="order-table">{order.table}</span>
+                    <span className="order-table">Table {tableNumber}</span>
                     <span className="order-type">
-                      {isMobile ? order.type.substring(0, 3) : order.type}
+                      {getOrderTypeDisplay(orderType)}
                     </span>
-                    <span className="order-time">{order.time}</span>
+                    <span className="order-time">{order.time || 'Just now'}</span>
                   </div>
                 </div>
                 <div className="kitchen-order-status">
-                  <div className="order-total">RM {order.total.toFixed(2)}</div>
+                  <div className="order-total">RM {orderTotal.toFixed(2)}</div>
                   <span className={
                     order.status === 'ready' ? 'kitchen-status-ready' : 
                     order.status === 'preparing' ? 'kitchen-status-preparing' : 
@@ -184,26 +224,32 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile }) =
               )}
 
               <div className="kitchen-order-items">
-                {order.items.map((item, index) => (
-                  <div key={index} className="kitchen-order-item">
-                    <div className="order-item-info">
-                      <span className="order-item-quantity">{item.quantity}x</span>
-                      <span className="order-item-name">
-                        {isMobile ? `${item.name.substring(0, 20)}...` : item.name}
-                      </span>
+                {(order.items || []).map((item, index) => {
+                  const itemName = item.name || item.menuItem?.name || 'Unknown Item';
+                  const itemPrice = item.price || 0;
+                  const itemQuantity = item.quantity || 1;
+                  
+                  return (
+                    <div key={index} className="kitchen-order-item">
+                      <div className="order-item-info">
+                        <span className="order-item-quantity">{itemQuantity}x</span>
+                        <span className="order-item-name">
+                          {truncateText(itemName, isMobile ? 15 : 25)}
+                        </span>
+                      </div>
+                      <div className="order-item-price">
+                        RM {(itemPrice * itemQuantity).toFixed(2)}
+                      </div>
                     </div>
-                    <div className="order-item-price">
-                      RM {(item.price * item.quantity).toFixed(2)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="kitchen-order-actions">
                 {order.status === 'pending' && (
                   <button 
                     className="kitchen-action-btn"
-                    onClick={() => updateOrderStatus(order.id, 'preparing')}
+                    onClick={() => updateOrderStatus(orderId, 'preparing')}
                   >
                     <span className="action-icon">👨‍🍳</span>
                     {isMobile ? 'Start' : 'Start Preparing'}
@@ -212,7 +258,7 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile }) =
                 {order.status === 'preparing' && (
                   <button 
                     className="kitchen-action-btn-ready"
-                    onClick={() => updateOrderStatus(order.id, 'ready')}
+                    onClick={() => updateOrderStatus(orderId, 'ready')}
                   >
                     <span className="action-icon">✅</span>
                     {isMobile ? 'Ready' : 'Mark as Ready'}
@@ -223,16 +269,16 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile }) =
                     <button 
                       className="kitchen-action-btn-complete"
                       onClick={() => {
-                        updateOrderStatus(order.id, 'completed');
-                        if (order.type === 'dine-in') {
-                          markTableForCleaning(order.table);
+                        updateOrderStatus(orderId, 'completed');
+                        if (orderType === 'dine-in') {
+                          markTableForCleaning(tableNumber);
                         }
                       }}
                     >
                       <span className="action-icon">🎉</span>
                       {isMobile ? 'Complete' : 'Complete Order'}
                     </button>
-                    {order.type === 'dine-in' && (
+                    {orderType === 'dine-in' && (
                       <div className="cleaning-note">
                         Table will be marked for cleaning
                       </div>
