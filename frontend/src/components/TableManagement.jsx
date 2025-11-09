@@ -1,26 +1,26 @@
 import React, { useState } from 'react';
 import './TableManagement.css';
 
-const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, onCompleteOrder, getTimeAgo, isMobile }) => {
+const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, onCompleteOrder, getTimeAgo, isMobile, menu }) => {
   const [selectedTable, setSelectedTable] = useState(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
 
-  // Sample menu items for order creation
-  const menuItems = [
-    { id: 1, name: 'Nasi Lemak Special', price: 12.90, category: 'main' },
-    { id: 2, name: 'Teh Tarik', price: 4.50, category: 'drinks' },
-    { id: 3, name: 'Rendang Tok', price: 22.90, category: 'main' },
-    { id: 4, name: 'Mango Sticky Rice', price: 12.90, category: 'desserts' },
-    { id: 5, name: 'Satay Set (10 sticks)', price: 18.90, category: 'appetizer' },
-    { id: 6, name: 'Iced Lemon Tea', price: 5.90, category: 'drinks' }
+  // Use the menu from DigitalMenu instead of hardcoded items
+  const menuItems = menu && menu.length > 0 ? menu : [
+    { _id: '1', name: 'Nasi Lemak', price: 12.90, category: 'main' },
+    { _id: '2', name: 'Teh Tarik', price: 4.50, category: 'drinks' },
+    { _id: '3', name: 'Char Kuey Teow', price: 14.50, category: 'main' },
+    { _id: '4', name: 'Roti Canai', price: 3.50, category: 'main' },
+    { _id: '5', name: 'Satay Set', price: 18.90, category: 'main' },
+    { _id: '6', name: 'Cendol', price: 6.90, category: 'desserts' }
   ];
 
   const updateTableStatus = (tableId, newStatus) => {
     setTables(tables.map(table =>
-      table.id === tableId 
+      table._id === tableId || table.id === tableId
         ? { 
             ...table, 
             status: newStatus,
@@ -41,12 +41,17 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
 
   const handleStartOrder = (table) => {
     setSelectedTable(table);
-    setOrderItems(menuItems.map(item => ({ ...item, quantity: 0, selected: false })));
+    // Initialize all menu items with quantity 0
+    setOrderItems(menuItems.map(item => ({ 
+      ...item, 
+      quantity: 0, 
+      selected: false 
+    })));
     setShowOrderModal(true);
   };
 
   const handleViewOrder = (table) => {
-    const order = orders.find(o => o.id === table.orderId);
+    const order = orders.find(o => o.id === table.orderId || o._id === table.orderId);
     if (order) {
       setSelectedOrder(order);
       setShowOrderDetails(true);
@@ -54,7 +59,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   };
 
   const handleCompleteOrder = (order) => {
-    onCompleteOrder(order.id, order.table);
+    onCompleteOrder(order.id || order._id, order.table || order.tableId);
     setShowOrderDetails(false);
   };
 
@@ -65,7 +70,21 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
       return;
     }
 
-    const newOrder = onCreateOrder(selectedTable.number, selectedItems, 'dine-in');
+    // Create order with proper data structure
+    const orderData = selectedItems.map(item => ({
+      id: item._id || item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      // Include both formats for compatibility
+      menuItem: {
+        _id: item._id || item.id,
+        name: item.name,
+        price: item.price
+      }
+    }));
+
+    const newOrder = onCreateOrder(selectedTable.number, orderData, 'dine-in');
     setShowOrderModal(false);
     setSelectedTable(null);
     setOrderItems([]);
@@ -73,7 +92,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
 
   const updateOrderItemQuantity = (itemId, change) => {
     setOrderItems(prev => prev.map(item => 
-      item.id === itemId 
+      (item._id === itemId || item.id === itemId)
         ? { 
             ...item, 
             quantity: Math.max(0, item.quantity + change),
@@ -84,7 +103,20 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   };
 
   const getOrderForTable = (table) => {
-    return orders.find(order => order.id === table.orderId);
+    return orders.find(order => order.id === table.orderId || order._id === table.orderId);
+  };
+
+  // Safe string function for mobile display
+  const truncateText = (text, maxLength = 20) => {
+    if (!text || typeof text !== 'string') return 'Unknown Item';
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  };
+
+  // Safe item name getter
+  const getItemName = (item) => {
+    if (item.menuItem && item.menuItem.name) return item.menuItem.name;
+    if (item.name) return item.name;
+    return 'Unknown Item';
   };
 
   return (
@@ -100,7 +132,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
           const tableOrder = getOrderForTable(table);
           
           return (
-            <div key={table.id} className="table-card">
+            <div key={table._id || table.id} className="table-card">
               <div className="table-header">
                 <h3 className="table-number">{table.number}</h3>
                 <div className="table-status-badges">
@@ -130,7 +162,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 </div>
                 {tableOrder && (
                   <div className="table-order">
-                    Order: {tableOrder.id} • {tableOrder.status}
+                    Order: {tableOrder.id || tableOrder._id} • {tableOrder.status}
                   </div>
                 )}
               </div>
@@ -163,7 +195,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 {table.status === 'needs_cleaning' && (
                   <button 
                     className="btn btn-success"
-                    onClick={() => updateTableStatus(table.id, 'available')}
+                    onClick={() => updateTableStatus(table._id || table.id, 'available')}
                   >
                     Mark Clean
                   </button>
@@ -171,7 +203,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 {(table.status === 'available' || table.status === 'needs_cleaning') && (
                   <button 
                     className="btn btn-warning"
-                    onClick={() => updateTableStatus(table.id, 'available')}
+                    onClick={() => updateTableStatus(table._id || table.id, 'available')}
                   >
                     Clean Now
                   </button>
@@ -198,32 +230,24 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
             
             <div className="order-form">
               <div className="form-group">
-                <label className="form-label">Order Type</label>
-                <select className="form-select">
-                  <option value="dine-in">Dine In</option>
-                  <option value="takeaway">Takeaway</option>
-                </select>
-              </div>
-
-              <div className="form-group">
                 <label className="form-label">Select Menu Items</label>
                 <div className="menu-items-grid">
                   {orderItems.map(item => (
-                    <div key={item.id} className="menu-item-row">
+                    <div key={item._id || item.id} className="menu-item-row">
                       <input
                         type="checkbox"
                         className="menu-item-checkbox"
                         checked={item.selected}
-                        onChange={(e) => updateOrderItemQuantity(item.id, e.target.checked ? 1 : -item.quantity)}
+                        onChange={(e) => updateOrderItemQuantity(item._id || item.id, e.target.checked ? 1 : -item.quantity)}
                       />
                       <div className="menu-item-details">
                         <div className="menu-item-name">{item.name}</div>
-                        <div className="menu-item-price">RM {item.price}</div>
+                        <div className="menu-item-price">RM {item.price.toFixed(2)}</div>
                       </div>
                       <div className="quantity-controls">
                         <button 
                           className="quantity-btn"
-                          onClick={() => updateOrderItemQuantity(item.id, -1)}
+                          onClick={() => updateOrderItemQuantity(item._id || item.id, -1)}
                           disabled={item.quantity === 0}
                         >
                           -
@@ -231,7 +255,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                         <span className="quantity-display">{item.quantity}</span>
                         <button 
                           className="quantity-btn"
-                          onClick={() => updateOrderItemQuantity(item.id, 1)}
+                          onClick={() => updateOrderItemQuantity(item._id || item.id, 1)}
                         >
                           +
                         </button>
@@ -252,7 +276,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                   className="btn btn-primary"
                   onClick={handleCreateOrder}
                 >
-                  Create Order
+                  Create Order ({(orderItems.filter(item => item.quantity > 0).reduce((sum, item) => sum + (item.price * item.quantity), 0)).toFixed(2)})
                 </button>
               </div>
             </div>
@@ -265,7 +289,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h2 className="modal-title">Order Details - {selectedOrder.id}</h2>
+              <h2 className="modal-title">Order Details - {selectedOrder.id || selectedOrder._id}</h2>
               <button 
                 className="close-button"
                 onClick={() => setShowOrderDetails(false)}
@@ -278,7 +302,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
               <div className="order-info">
                 <div className="info-item">
                   <span className="info-label">Table</span>
-                  <span className="info-value">{selectedOrder.table}</span>
+                  <span className="info-value">{selectedOrder.table || selectedOrder.tableId}</span>
                 </div>
                 <div className="info-item">
                   <span className="info-label">Status</span>
@@ -286,32 +310,38 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 </div>
                 <div className="info-item">
                   <span className="info-label">Order Type</span>
-                  <span className="info-value">{selectedOrder.type}</span>
+                  <span className="info-value">{selectedOrder.orderType || selectedOrder.type || 'dine-in'}</span>
                 </div>
                 <div className="info-item">
                   <span className="info-label">Time</span>
-                  <span className="info-value">{selectedOrder.time}</span>
+                  <span className="info-value">{selectedOrder.time || 'Just now'}</span>
                 </div>
               </div>
 
               <div className="order-items">
                 <h3 className="form-label">Order Items</h3>
-                {selectedOrder.items.map((item, index) => (
-                  <div key={index} className="order-item">
-                    <div className="item-details">
-                      <div className="item-name">{item.quantity}x {item.name}</div>
-                      <div className="item-price">RM {item.price} each</div>
+                {(selectedOrder.items || []).map((item, index) => {
+                  const itemName = getItemName(item);
+                  const itemPrice = item.price || item.menuItem?.price || 0;
+                  const itemQuantity = item.quantity || 1;
+                  
+                  return (
+                    <div key={index} className="order-item">
+                      <div className="item-details">
+                        <div className="item-name">{itemQuantity}x {truncateText(itemName, 25)}</div>
+                        <div className="item-price">RM {itemPrice.toFixed(2)} each</div>
+                      </div>
+                      <div className="item-total">
+                        RM {(itemPrice * itemQuantity).toFixed(2)}
+                      </div>
                     </div>
-                    <div className="item-total">
-                      RM {(item.price * item.quantity).toFixed(2)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="order-total">
                 <span>Total Amount:</span>
-                <span>RM {selectedOrder.total.toFixed(2)}</span>
+                <span>RM {(selectedOrder.total || 0).toFixed(2)}</span>
               </div>
 
               <div className="modal-actions">

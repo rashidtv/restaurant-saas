@@ -108,39 +108,54 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
     }));
   }
 
-  function getCategoryFromItem(item) {
-    // This is a simplified mapping - in a real app, you'd have proper category data
-    if (item.name.includes('Nasi Lemak') || item.name.includes('Rendang') || item.name.includes('Satay')) 
-      return 'Signature';
-    if (item.name.includes('Rice') || item.name.includes('Chicken') || item.name.includes('Beef')) 
-      return 'Main Courses';
-    if (item.name.includes('Teh') || item.name.includes('Coffee') || item.name.includes('Coconut')) 
-      return 'Beverages';
-    if (item.name.includes('Mango') || item.name.includes('Cendol') || item.name.includes('Pisang')) 
-      return 'Desserts';
-    return 'Appetizers';
-  }
+ function getCategoryFromItem(item) {
+  if (!item || !item.name) return 'Appetizers';
+  
+  const itemName = item.name.toLowerCase();
+  
+  if (itemName.includes('nasi lemak') || itemName.includes('rendang') || itemName.includes('satay')) 
+    return 'Signature';
+  if (itemName.includes('rice') || itemName.includes('chicken') || itemName.includes('beef') || itemName.includes('curry')) 
+    return 'Main Courses';
+  if (itemName.includes('tea') || itemName.includes('coffee') || itemName.includes('coconut') || itemName.includes('milo')) 
+    return 'Beverages';
+  if (itemName.includes('mango') || itemName.includes('cendol') || itemName.includes('pisang')) 
+    return 'Desserts';
+  return 'Appetizers';
+}
 
-  function calculateTablePerformance(tables, orders) {
-    const totalTables = tables.length;
-    const availableTables = tables.filter(t => t.status === 'available').length;
-    
-    // Calculate average turnover (simplified)
-    const completedToday = orders.filter(o => 
-      o.status === 'completed' && 
-      new Date(o.createdAt).toDateString() === new Date().toDateString()
-    ).length;
-    
-    const avgTurnover = totalTables > 0 ? (completedToday / totalTables).toFixed(1) : 0;
-    
-    return {
-      totalTables,
-      availableTables,
-      occupiedTables,
-      utilization: tableUtilization.toFixed(1),
-      avgTurnover
-    };
-  }
+// Also update the calculatePopularItems function:
+function calculatePopularItems(orders) {
+  const itemCount = {};
+  
+  orders.forEach(order => {
+    (order.items || []).forEach(item => {
+      const itemName = getItemName(item); // Use the same safe function
+      const itemPrice = getItemPrice(item);
+      const itemQuantity = item.quantity || 1;
+      
+      if (itemCount[itemName]) {
+        itemCount[itemName].quantity += itemQuantity;
+        itemCount[itemName].revenue += itemPrice * itemQuantity;
+      } else {
+        itemCount[itemName] = {
+          quantity: itemQuantity,
+          revenue: itemPrice * itemQuantity,
+          image: item.image || '🍽️'
+        };
+      }
+    });
+  });
+  
+  return Object.entries(itemCount)
+    .sort(([,a], [,b]) => b.quantity - a.quantity)
+    .slice(0, 5)
+    .map(([name, data], index) => ({
+      rank: index + 1,
+      name,
+      ...data
+    }));
+}
 
   return (
     <div className="page">

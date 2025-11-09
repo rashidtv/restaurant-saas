@@ -4,50 +4,81 @@ import './PaymentSystem.css';
 const PaymentSystem = ({ orders, payments, setPayments, isMobile }) => {
   const [activeTab, setActiveTab] = useState('pending');
 
+  // Safe string function
+  const truncateText = (text, maxLength = 20) => {
+    if (!text || typeof text !== 'string') return 'Unknown Item';
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  };
+
+  // Safe item name getter
+  const getItemName = (item) => {
+    if (item.menuItem && item.menuItem.name) return item.menuItem.name;
+    if (item.name) return item.name;
+    return 'Unknown Item';
+  };
+
   // Get pending payments (orders that are completed but not paid)
-  const pendingPayments = orders.filter(order => 
-    order.status === 'completed' && !payments.find(p => p.orderId === order.id)
-  );
+  const pendingPayments = orders.filter(order => {
+    const isCompleted = order.status === 'completed';
+    const isAlreadyPaid = payments.find(p => p.orderId === (order.id || order._id));
+    return isCompleted && !isAlreadyPaid;
+  });
 
   const completedPayments = payments;
 
   const markAsPaid = (order) => {
+    const orderId = order.id || order._id;
+    
+    // Check if already paid
+    const alreadyPaid = payments.find(p => p.orderId === orderId);
+    if (alreadyPaid) {
+      alert('This order has already been paid!');
+      return;
+    }
+
     const newPayment = {
       id: `PAY-${Date.now().toString().slice(-4)}`,
-      orderId: order.id,
-      table: order.table,
-      amount: order.total,
+      orderId: orderId,
+      table: order.table || order.tableId,
+      amount: order.total || 0,
       method: 'manual',
       status: 'completed',
       paidAt: new Date(),
-      items: order.items
+      items: order.items || []
     };
     
     setPayments(prev => [newPayment, ...prev]);
   };
 
   const generateBill = (order) => {
-    // Simulate bill generation
+    const orderId = order.id || order._id;
+    const tableNumber = order.table || order.tableId;
+    const orderTotal = order.total || 0;
+    const subtotal = orderTotal / 1.14; // Remove tax to calculate
+    
     const billContent = `
       FLAVORFLOW RESTAURANT
       =====================
       
-      Order ID: ${order.id}
-      Table: ${order.table}
+      Order ID: ${orderId}
+      Table: ${tableNumber}
       Date: ${new Date().toLocaleDateString()}
       Time: ${new Date().toLocaleTimeString()}
       
       ITEMS:
-      ${order.items.map(item => 
-        `${item.quantity}x ${item.name} - RM ${(item.price * item.quantity).toFixed(2)}`
-      ).join('\n')}
+      ${(order.items || []).map(item => {
+        const itemName = getItemName(item);
+        const itemPrice = item.price || item.menuItem?.price || 0;
+        const itemQuantity = item.quantity || 1;
+        return `${itemQuantity}x ${itemName} - RM ${(itemPrice * itemQuantity).toFixed(2)}`;
+      }).join('\n')}
       
       ---------------------
-      Subtotal: RM ${order.total.toFixed(2)}
-      Service Tax (6%): RM ${(order.total * 0.06).toFixed(2)}
-      SST (8%): RM ${(order.total * 0.08).toFixed(2)}
+      Subtotal: RM ${subtotal.toFixed(2)}
+      Service Tax (6%): RM ${(subtotal * 0.06).toFixed(2)}
+      SST (8%): RM ${(subtotal * 0.08).toFixed(2)}
       ---------------------
-      TOTAL: RM ${(order.total * 1.14).toFixed(2)}
+      TOTAL: RM ${orderTotal.toFixed(2)}
       
       Thank you for dining with us!
     `;
@@ -57,7 +88,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile }) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `bill-${order.id}.txt`;
+    link.download = `bill-${orderId}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -106,52 +137,61 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile }) => {
         <>
           {pendingPayments.length > 0 ? (
             <div className="payments-grid">
-              {pendingPayments.map(order => (
-                <div key={order.id} className="payment-card">
-                  <div className="payment-header">
-                    <h3 className="payment-order-id">{order.id}</h3>
-                    <span className="payment-table">{order.table}</span>
-                  </div>
-                  
-                  <div className="payment-details">
-                    <div className="payment-amount">
-                      Total: <strong>RM {(order.total * 1.14).toFixed(2)}</strong>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                        (Incl. tax)
-                      </div>
+              {pendingPayments.map(order => {
+                const orderId = order.id || order._id;
+                const tableNumber = order.table || order.tableId;
+                const orderTotal = order.total || 0;
+                
+                return (
+                  <div key={orderId} className="payment-card">
+                    <div className="payment-header">
+                      <h3 className="payment-order-id">{orderId}</h3>
+                      <span className="payment-table">{tableNumber}</span>
                     </div>
-                    <div className="payment-items">
-                      {order.items.map((item, index) => (
-                        <div key={index} className="payment-item">
-                          <span>
-                            {item.quantity}x {isMobile ? `${item.name.substring(0, 15)}...` : item.name}
-                          </span>
-                          <span>RM {(item.price * item.quantity).toFixed(2)}</span>
+                    
+                    <div className="payment-details">
+                      <div className="payment-amount">
+                        Total: <strong>RM {orderTotal.toFixed(2)}</strong>
+                      </div>
+                      <div className="payment-items">
+                        {(order.items || []).map((item, index) => {
+                          const itemName = getItemName(item);
+                          const itemPrice = item.price || item.menuItem?.price || 0;
+                          const itemQuantity = item.quantity || 1;
+                          
+                          return (
+                            <div key={index} className="payment-item">
+                              <span>
+                                {itemQuantity}x {isMobile ? truncateText(itemName, 15) : itemName}
+                              </span>
+                              <span>RM {(itemPrice * itemQuantity).toFixed(2)}</span>
+                            </div>
+                          );
+                        })}
+                        <div className="payment-item" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', fontWeight: '600' }}>
+                          <span>Total Amount:</span>
+                          <span>RM {orderTotal.toFixed(2)}</span>
                         </div>
-                      ))}
-                      <div className="payment-item" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', fontWeight: '600' }}>
-                        <span>Total Amount:</span>
-                        <span>RM {(order.total * 1.14).toFixed(2)}</span>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="payment-actions">
-                    <button 
-                      className="mark-paid-btn"
-                      onClick={() => markAsPaid(order)}
-                    >
-                      💵 Mark as Paid
-                    </button>
-                    <button 
-                      className="generate-bill-btn"
-                      onClick={() => generateBill(order)}
-                    >
-                      🧾 Generate Bill
-                    </button>
+                    <div className="payment-actions">
+                      <button 
+                        className="mark-paid-btn"
+                        onClick={() => markAsPaid(order)}
+                      >
+                        💵 Mark as Paid
+                      </button>
+                      <button 
+                        className="generate-bill-btn"
+                        onClick={() => generateBill(order)}
+                      >
+                        🧾 Generate Bill
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="empty-state">
