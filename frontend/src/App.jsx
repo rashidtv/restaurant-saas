@@ -310,6 +310,40 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
   return newOrder;
 };
 
+// Add this useEffect hook in your App.jsx:
+useEffect(() => {
+  // Initialize Socket.io connection
+  const socket = io('https://restaurant-saas-backend-hbdz.onrender.com');
+  
+  socket.on('connect', () => {
+    console.log('🔌 Connected to backend via WebSocket');
+  });
+  
+  socket.on('newOrder', (order) => {
+    console.log('📦 New order received:', order);
+    setOrders(prev => [...prev, order]);
+  });
+  
+  socket.on('orderUpdated', (updatedOrder) => {
+    console.log('🔄 Order updated:', updatedOrder);
+    setOrders(prev => prev.map(order => 
+      (order._id === updatedOrder._id || order.id === updatedOrder.id) 
+        ? updatedOrder 
+        : order
+    ));
+  });
+  
+  socket.on('paymentProcessed', (payment) => {
+    console.log('💵 Payment processed:', payment);
+    // Refresh orders to update payment status
+    fetchOrders();
+  });
+  
+  return () => {
+    socket.disconnect();
+  };
+}, []);
+
 // Also add this useEffect to ensure menu data is loaded
 useEffect(() => {
   if (menu.length === 0) {

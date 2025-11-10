@@ -88,37 +88,35 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     setShowOrderDetails(false);
   };
 
-  const handleCreateOrder = () => {
-    const selectedItems = orderItems.filter(item => item.quantity > 0);
-    if (selectedItems.length === 0) {
-      alert('Please select at least one item');
-      return;
-    }
+// REPLACE the handleCreateOrder function:
+const handleCreateOrder = async () => {
+  const selectedItems = orderItems.filter(item => item.quantity > 0);
+  if (selectedItems.length === 0) {
+    alert('Please select at least one item');
+    return;
+  }
 
-    // **FIXED: Ensure proper data structure with menuItem names**
-    const orderData = selectedItems.map(item => ({
-      id: item._id || item.id,
-      name: item.name,
-      price: item.price,
+  const orderData = {
+    tableId: selectedTable.number, // Use table number, not ID
+    items: selectedItems.map(item => ({
+      menuItemId: item._id || item.id,
       quantity: item.quantity,
-      // Include both formats for compatibility
-      menuItem: {
-        _id: item._id || item.id,
-        name: item.name, // **CRITICAL: Ensure name is included**
-        price: item.price,
-        category: item.category
-      }
-    }));
+      price: item.price,
+      specialInstructions: ''
+    })),
+    orderType: 'dine-in'
+  };
 
-    console.log('TableManagement - Creating order with data:', orderData);
+  console.log('TableManagement - Creating order with data:', orderData);
 
-    const newOrder = onCreateOrder(selectedTable.number, orderData, 'dine-in');
+  try {
+    const newOrder = await onCreateOrder(orderData);
     
     if (newOrder) {
       // Update ONLY this specific table with the new order ID
       setTables(prevTables => prevTables.map(table => 
-        (table._id === selectedTable._id || table.id === selectedTable.id)
-          ? { ...table, status: 'occupied', orderId: newOrder.id || newOrder._id }
+        table.number === selectedTable.number // Match by table number
+          ? { ...table, status: 'occupied', orderId: newOrder._id || newOrder.id }
           : table
       ));
     }
@@ -126,7 +124,11 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     setShowOrderModal(false);
     setSelectedTable(null);
     setOrderItems([]);
-  };
+  } catch (error) {
+    console.error('Failed to create order:', error);
+    alert('Failed to create order: ' + error.message);
+  }
+};
 
   const updateOrderItemQuantity = (itemId, change) => {
     setOrderItems(prev => prev.map(item => 

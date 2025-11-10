@@ -14,27 +14,31 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return () => clearInterval(timer);
   }, []);
 
-    const handleUpdateOrderStatus = async (orderId, newStatus) => {
-    try {
-      console.log(`Updating order ${orderId} to status: ${newStatus}`);
-      
-      if (apiConnected && onUpdateOrderStatus) {
-        // Use parent component's API call if provided
-        await onUpdateOrderStatus(orderId, newStatus);
-      } else {
-        // Use direct API call
-        await updateOrderStatus(orderId, newStatus);
-        // Refresh orders after successful update
-        if (typeof setOrders === 'function') {
-          // You might want to add a fetchOrders function here
-          console.log('Order status updated successfully');
-        }
-      }
-    } catch (error) {
-      console.error('Failed to update order status:', error);
-      alert(`Failed to update order status: ${error.message}`);
-    }
-  };
+    // REPLACE the handleUpdateOrderStatus function:
+const handleUpdateOrderStatus = async (orderId, newStatus) => {
+  try {
+    console.log(`🔄 Kitchen: Updating order ${orderId} to ${newStatus}`);
+    
+    // Use the orderNumber (ORD-522201) not internal ID
+    await updateOrderStatus(orderId, newStatus);
+    
+    // Update local state immediately for better UX
+    setOrders(prevOrders => prevOrders.map(order => 
+      (order.id === orderId || order._id === orderId || order.orderNumber === orderId)
+        ? { 
+            ...order, 
+            status: newStatus,
+            ...(newStatus === 'preparing' && !order.preparationStart && { preparationStart: new Date() })
+          }
+        : order
+    ));
+    
+    console.log(`✅ Order ${orderId} status updated to ${newStatus}`);
+  } catch (error) {
+    console.error('❌ Failed to update order status:', error);
+    alert(`Failed to update order status: ${error.message}`);
+  }
+};
 
   const markTableForCleaning = (tableNumber) => {
     console.log(`Table ${tableNumber} marked for cleaning`);

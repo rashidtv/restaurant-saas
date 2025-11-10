@@ -284,13 +284,21 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
+// REPLACE this endpoint in server.js:
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
-    const orderId = req.params.id;
-    const orderIndex = orders.findIndex(o => o._id === orderId);
+    const orderId = req.params.id; // This expects 'id' but frontend sends orderNumber
+    
+    console.log(`🔄 Updating order ${orderId} to status: ${status}`);
+    
+    const orderIndex = orders.findIndex(o => 
+      o._id === orderId || o.orderNumber === orderId // Check both ID formats
+    );
     
     if (orderIndex === -1) {
+      console.log(`❌ Order not found: ${orderId}`);
+      console.log(`📋 Available orders:`, orders.map(o => ({ id: o._id, orderNumber: o.orderNumber })));
       return res.status(404).json({ error: 'Order not found' });
     }
     
@@ -300,16 +308,18 @@ app.put('/api/orders/:id/status', (req, res) => {
       orders[orderIndex].completedAt = new Date();
       
       // Free the table and mark for cleaning
-      const tableIndex = tables.findIndex(t => t.orderId === orderId);
+      const tableIndex = tables.findIndex(t => t.orderId === orders[orderIndex]._id);
       if (tableIndex !== -1) {
         tables[tableIndex].status = 'needs_cleaning';
         tables[tableIndex].orderId = null;
       }
     }
     
+    console.log(`✅ Order ${orderId} updated to: ${status}`);
     io.emit('orderUpdated', orders[orderIndex]);
     res.json(orders[orderIndex]);
   } catch (error) {
+    console.error('Error updating order status:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -323,13 +333,33 @@ app.get('/api/payments', (req, res) => {
   }
 });
 
+// UPDATE the payments endpoint:
 app.post('/api/payments', (req, res) => {
   try {
     const { orderId, amount, method } = req.body;
     
+    // Find order by orderNumber (ORD-522201) or ID
+    const orderIndex = orders.findIndex(o => 
+      o.orderNumber === orderId || o._id === orderId
+    );
+    
+    if (orderIndex === -1) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const order = orders[orderIndex];
+    
+    // Validate order is ready for payment
+    if (order.status !== 'ready' && order.status !== 'completed') {
+      return res.status(400).json({ 
+        error: 'Order must be ready or completed before payment' 
+      });
+    }
+    
     const payment = {
       _id: Date.now().toString(),
-      orderId,
+      orderId: order.orderNumber, // Store orderNumber for reference
+      orderInternalId: order._id, // Store internal ID for linking
       amount,
       method,
       status: 'completed',
@@ -339,13 +369,73 @@ app.post('/api/payments', (req, res) => {
     payments.push(payment);
     
     // Update order payment status
-    const orderIndex = orders.findIndex(o => o.orderNumber === orderId);
-    if (orderIndex !== -1) {
-      orders[orderIndex].paymentStatus = 'paid';
-      orders[orderIndex].paymentMethod = method;
+    orders[orderIndex].paymentStatus = 'paid';
+    orders[orderIndex].paymentMethod = method;
+    
+    // If order was ready, mark as completed after payment
+    if (order.status === 'ready') {
+      orders[orderIndex].status = 'completed';
+      orders[orderIndex].completedAt = new Date();
     }
     
+    io.emit('paymentProcessed', payment);
+    io.emit('orderUpdated', orders[orderIndex]);
+    
     res.json(payment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ADD this endpoint for QR code orders:
+app.post('/api/customer/orders', (req, res) => {
+  try {
+    const { items, customerName, customerPhone, orderType = 'takeaway' } = req.body;
+    
+    if (!items || items.length === 0) {
+      return res.status(400).json({ error: 'No items in order' });
+    }
+    
+    // Calculate total
+    const total = items.reduce((sum, item) => {
+      const menuItem = menuItems.find(m => m._id === item.menuItemId);
+      return sum + ((menuItem?.price || 0) * item.quantity);
+    }, 0);
+    
+    const order = {
+      _id: Date.now().toString(),
+      orderNumber: generateOrderNumber(),
+      tableId: 'QR-ORDER',
+      items: items.map(item => {
+        const menuItem = menuItems.find(m => m._id === item.menuItemId);
+        return {
+          menuItem: menuItem || { name: 'Unknown Item', price: 0 },
+          quantity: item.quantity,
+          specialInstructions: item.specialInstructions || '',
+          price: menuItem?.price || 0
+        };
+      }),
+      total,
+      status: 'pending',
+      customerName: customerName || 'Walk-in Customer',
+      customerPhone: customerPhone || '',
+      orderType: orderType,
+      paymentStatus: 'pending',
+      orderedAt: new Date(),
+      completedAt: null
+    };
+    
+    orders.push(order);
+    
+    console.log(`📱 QR Order created: ${order.orderNumber} for ${customerName}`);
+    io.emit('newOrder', order);
+    
+    res.json({
+      success: true,
+      orderNumber: order.orderNumber,
+      message: `Order placed successfully! Order Number: ${order.orderNumber}`,
+      order: order
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
