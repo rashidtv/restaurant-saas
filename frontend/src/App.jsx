@@ -10,11 +10,9 @@ import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
 import { 
   API_ENDPOINTS, 
-  apiFetch, 
   fetchOrders, 
   fetchTables, 
   fetchMenu, 
-  fetchPayments,  // NOW THIS EXISTS
   updateOrderStatus as apiUpdateOrderStatus, 
   createOrder as apiCreateOrder 
 } from './config/api';
@@ -54,7 +52,6 @@ function App() {
         
         socket.on('connect_error', (error) => {
           console.log('❌ WebSocket connection error:', error);
-          // Continue without WebSocket - use polling instead
         });
         
         socket.on('newOrder', (order) => {
@@ -74,12 +71,6 @@ function App() {
               ? { ...order, ...updatedOrder }
               : order
           ));
-        });
-        
-        socket.on('paymentProcessed', (payment) => {
-          console.log('💵 Payment processed:', payment);
-          // Refresh data
-          loadData();
         });
       } catch (error) {
         console.error('WebSocket initialization error:', error);
@@ -133,7 +124,6 @@ function App() {
         setIsCustomerView(true);
         setCurrentPage('menu');
         
-        // Extract table number from URL
         const urlParams = new URLSearchParams(window.location.search);
         const tableParam = urlParams.get('table');
         if (tableParam) {
@@ -188,13 +178,12 @@ function App() {
     };
   }, [sidebarOpen, isMobile]);
 
-  // Load initial data
+  // Load initial data - FIXED VERSION
   useEffect(() => {
     const initializeData = async () => {
       try {
         setLoading(true);
         
-        // Check API health
         const healthCheck = async () => {
           try {
             const controller = new AbortController();
@@ -228,18 +217,21 @@ function App() {
             console.log('Init endpoint not available, continuing...');
           }
           
-          // Fetch all data
-          const [tablesData, ordersData, menuData, paymentsData] = await Promise.all([
+          // CRITICAL: Fetch menu FIRST and use it everywhere
+          const menuData = await fetchMenu().catch(() => []);
+          console.log('📋 Menu data loaded:', menuData);
+          
+          // Only then fetch other data
+          const [tablesData, ordersData] = await Promise.all([
             fetchTables().catch(() => []),
-            fetchOrders().catch(() => []),
-            fetchMenu().catch(() => []),
-            fetchPayments().catch(() => [])
+            fetchOrders().catch(() => [])
           ]);
           
+          // SET MENU FIRST - This becomes the single source of truth
+          setMenu(menuData || []);
           setTables(tablesData || []);
           setOrders(ordersData || []);
-          setMenu(menuData || []);
-          setPayments(paymentsData || []);
+          setPayments([]);
           
           setNotifications([
             { id: 1, message: 'System connected successfully', type: 'success', time: 'Just now', read: false }
@@ -250,98 +242,41 @@ function App() {
       } catch (error) {
         console.error('Error initializing data:', error);
         setApiConnected(false);
+        
+        // Use backend menu data even in offline mode
+        const backendMenu = [
+          { _id: '1', name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5 },
+          { _id: '2', name: "Kopi O", price: 3.80, category: "drinks", preparationTime: 3 },
+          { _id: '3', name: "Milo Dinosaur", price: 6.50, category: "drinks", preparationTime: 4 },
+          { _id: '4', name: "Nasi Lemak", price: 12.90, category: "main", preparationTime: 15 },
+          { _id: '5', name: "Char Kuey Teow", price: 14.50, category: "main", preparationTime: 12 },
+          { _id: '6', name: "Roti Canai", price: 3.50, category: "main", preparationTime: 8 },
+          { _id: '7', name: "Satay Set", price: 18.90, category: "main", preparationTime: 20 },
+          { _id: '8', name: "Cendol", price: 6.90, category: "desserts", preparationTime: 7 },
+          { _id: '9', name: "Apam Balik", price: 5.50, category: "desserts", preparationTime: 10 }
+        ];
+        
+        setMenu(backendMenu); // SINGLE SOURCE OF TRUTH
+        setTables([]);
+        setOrders([]);
+        setPayments([]);
+        
         setNotifications([
           { 
             id: 1, 
-            message: `Running in offline mode: ${error.message}`, 
+            message: `Running in offline mode with backend menu`, 
             type: 'warning', 
             time: 'Just now', 
             read: false 
           }
         ]);
-        
-        // Fallback to sample data
-        initializeSampleData();
       } finally {
         setLoading(false);
       }
     };
 
-    const initializeSampleData = () => {
-      const sampleOrders = [
-        {
-          _id: '1',
-          orderNumber: 'MESRA2847',
-          tableId: 'T05',
-          items: [
-            { 
-              menuItem: { name: 'Nasi Lemak Special', price: 12.90 }, 
-              quantity: 2, 
-              price: 12.90 
-            },
-            { 
-              menuItem: { name: 'Teh Tarik', price: 4.50 }, 
-              quantity: 2, 
-              price: 4.50 
-            }
-          ],
-          total: 34.80,
-          status: 'preparing',
-          orderedAt: new Date(Date.now() - 2 * 60 * 1000),
-          orderType: 'dine-in'
-        }
-      ];
-
-      const sampleTables = [
-        { _id: '1', number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date() },
-        { _id: '2', number: 'T02', status: 'occupied', capacity: 2, orderId: '1', lastCleaned: new Date() },
-        { _id: '3', number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date() },
-        { _id: '4', number: 'T04', status: 'reserved', capacity: 4, lastCleaned: new Date() },
-        { _id: '5', number: 'T05', status: 'occupied', capacity: 4, orderId: '1', lastCleaned: new Date() },
-        { _id: '6', number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date() },
-        { _id: '7', number: 'T07', status: 'needs_cleaning', capacity: 4, lastCleaned: new Date() },
-        { _id: '8', number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date() }
-      ];
-
-      const sampleMenu = [
-        { _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature', preparationTime: 15 },
-        { _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks', preparationTime: 5 },
-        { _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature', preparationTime: 25 },
-        { _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts', preparationTime: 10 },
-        { _id: '5', name: 'Satay Set', price: 18.90, category: 'signature', preparationTime: 20 },
-        { _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks', preparationTime: 3 }
-      ];
-
-      setOrders(sampleOrders);
-      setTables(sampleTables);
-      setMenu(sampleMenu);
-      setPayments([]);
-    };
-
     initializeData();
   }, []);
-
-  // Ensure menu data is loaded
-  useEffect(() => {
-    if (menu.length === 0 && apiConnected) {
-      fetchMenu().then(menuData => {
-        if (menuData && menuData.length > 0) {
-          setMenu(menuData);
-        }
-      }).catch(() => {
-        // Fallback menu data
-        const defaultMenu = [
-          { id: '1', _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature' },
-          { id: '2', _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks' },
-          { id: '3', _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature' },
-          { id: '4', _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts' },
-          { id: '5', _id: '5', name: 'Satay Set', price: 18.90, category: 'signature' },
-          { id: '6', _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks' }
-        ];
-        setMenu(defaultMenu);
-      });
-    }
-  }, [menu.length, apiConnected]);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -357,7 +292,6 @@ function App() {
       closeSidebar();
     }
     
-    // Update URL for navigation
     if (page === 'menu') {
       window.history.pushState({}, '', '/menu');
       setIsMenuRoute(true);
@@ -376,124 +310,124 @@ function App() {
   };
 
   const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-  try {
-    console.log('🔄 createNewOrder called with:', { tableNumber, orderItems, orderType });
-    
-    // VALIDATE orderItems to prevent undefined errors
-    if (!orderItems || !Array.isArray(orderItems)) {
-      console.error('❌ Invalid orderItems:', orderItems);
-      throw new Error('Order items are required and must be an array');
-    }
-
-    // Filter out items with quantity 0 and validate
-    const validOrderItems = orderItems
-      .filter(item => item && item.quantity > 0)
-      .map(item => ({
-        ...item,
-        quantity: item.quantity || 1,
-        price: item.price || 0
-      }));
-
-    if (validOrderItems.length === 0) {
-      throw new Error('No valid items in order');
-    }
-
-    let newOrder;
-    
-    if (apiConnected) {
-      const orderData = {
-        tableId: tableNumber,
-        items: validOrderItems.map(item => ({
-          menuItemId: item._id || item.id,
-          quantity: item.quantity,
-          price: item.price,
-          specialInstructions: item.specialInstructions || ''
-        })),
-        orderType: orderType
-      };
+    try {
+      console.log('🔄 createNewOrder called with:', { tableNumber, orderItems, orderType });
       
-      console.log('📦 Sending order data to API:', orderData);
-      newOrder = await apiCreateOrder(orderData);
-    } else {
-      // Fallback: Generate order locally
-      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-      newOrder = {
-        id: orderNumber,
-        _id: orderNumber,
-        orderNumber: orderNumber,
+      // VALIDATE orderItems to prevent undefined errors
+      if (!orderItems || !Array.isArray(orderItems)) {
+        console.error('❌ Invalid orderItems:', orderItems);
+        throw new Error('Order items are required and must be an array');
+      }
+
+      // Filter out items with quantity 0 and validate
+      const validOrderItems = orderItems
+        .filter(item => item && item.quantity > 0)
+        .map(item => ({
+          ...item,
+          quantity: item.quantity || 1,
+          price: item.price || 0
+        }));
+
+      if (validOrderItems.length === 0) {
+        throw new Error('No valid items in order');
+      }
+
+      let newOrder;
+      
+      if (apiConnected) {
+        const orderData = {
+          tableId: tableNumber,
+          items: validOrderItems.map(item => ({
+            menuItemId: item._id || item.id,
+            quantity: item.quantity,
+            price: item.price,
+            specialInstructions: item.specialInstructions || ''
+          })),
+          orderType: orderType
+        };
+        
+        console.log('📦 Sending order data to API:', orderData);
+        newOrder = await apiCreateOrder(orderData);
+      } else {
+        // Fallback: Generate order locally
+        const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+        newOrder = {
+          id: orderNumber,
+          _id: orderNumber,
+          orderNumber: orderNumber,
+          table: tableNumber,
+          tableId: tableNumber,
+          items: validOrderItems,
+          orderType: orderType,
+          status: 'pending',
+          total: validOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+          createdAt: new Date(),
+          time: 'Just now'
+        };
+
+        console.log('📦 Creating local order:', newOrder);
+        setOrders(prev => [newOrder, ...prev]);
+        
+        // Update table status
+        setTables(prev => prev.map(table => 
+          table.number === tableNumber 
+            ? { ...table, status: 'occupied', orderId: orderNumber }
+            : table
+        ));
+      }
+
+      console.log('✅ Order created successfully:', newOrder);
+      return newOrder;
+
+    } catch (error) {
+      console.error('❌ Error creating order:', error);
+      
+      // Provide a basic fallback order
+      const fallbackOrder = {
+        id: `ORD-${Date.now()}`,
+        _id: `ORD-${Date.now()}`,
+        orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
         table: tableNumber,
-        tableId: tableNumber,
-        items: validOrderItems,
-        orderType: orderType,
         status: 'pending',
-        total: validOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-        createdAt: new Date(),
-        time: 'Just now'
+        items: orderItems && Array.isArray(orderItems) ? orderItems : [],
+        total: 0
       };
-
-      console.log('📦 Creating local order:', newOrder);
-      setOrders(prev => [newOrder, ...prev]);
       
-      // Update table status
-      setTables(prev => prev.map(table => 
-        table.number === tableNumber 
-          ? { ...table, status: 'occupied', orderId: orderNumber }
-          : table
-      ));
+      // Still add to orders even if there was an error
+      setOrders(prev => [fallbackOrder, ...prev]);
+      
+      return fallbackOrder;
+    }
+  };
+
+  const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
+    console.log('🔵 handleCustomerOrder called:', { tableNumber, orderItems, orderType });
+    
+    // Validate inputs
+    if (!tableNumber) {
+      console.error('❌ Table number is required');
+      throw new Error('Table number is required');
     }
 
-    console.log('✅ Order created successfully:', newOrder);
+    if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
+      console.error('❌ No items in order');
+      throw new Error('Please add items to your order');
+    }
+
+    const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
+    
+    console.log('🔵 New customer order created:', newOrder);
+    
+    setNotifications(prev => [{
+      id: Date.now(),
+      message: `New customer QR order from Table ${tableNumber}`,
+      type: 'order',
+      time: 'Just now',
+      read: false
+    }, ...prev]);
+    
     return newOrder;
-
-  } catch (error) {
-    console.error('❌ Error creating order:', error);
-    
-    // Provide a basic fallback order
-    const fallbackOrder = {
-      id: `ORD-${Date.now()}`,
-      _id: `ORD-${Date.now()}`,
-      orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
-      table: tableNumber,
-      status: 'pending',
-      items: orderItems && Array.isArray(orderItems) ? orderItems : [],
-      total: 0
-    };
-    
-    // Still add to orders even if there was an error
-    setOrders(prev => [fallbackOrder, ...prev]);
-    
-    return fallbackOrder;
-  }
-};
-
-const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-  console.log('🔵 handleCustomerOrder called:', { tableNumber, orderItems, orderType });
-  
-  // Validate inputs
-  if (!tableNumber) {
-    console.error('❌ Table number is required');
-    throw new Error('Table number is required');
-  }
-
-  if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
-    console.error('❌ No items in order');
-    throw new Error('Please add items to your order');
-  }
-
-  const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
-  
-  console.log('🔵 New customer order created:', newOrder);
-  
-  setNotifications(prev => [{
-    id: Date.now(),
-    message: `New customer QR order from Table ${tableNumber}`,
-    type: 'order',
-    time: 'Just now',
-    read: false
-  }, ...prev]);
-  
-  return newOrder;
-};
+  };
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
@@ -618,7 +552,6 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
         apiConnected={apiConnected}
       />
       
-      {/* Overlay for mobile sidebar */}
       {sidebarOpen && isMobile && (
         <div className="sidebar-overlay" onClick={closeSidebar}></div>
       )}
@@ -633,7 +566,6 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
           tables={tables}
         />
 
-        {/* Main Content */}
         <main className="main-content">
           {!apiConnected && (
             <div className="api-warning">

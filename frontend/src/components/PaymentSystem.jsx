@@ -6,17 +6,24 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
-  // Get orders that are ready for payment (ready or completed but not paid)
-  const getOrdersForPayment = () => {
-    return orders.filter(order => 
-      (order.status === 'ready' || order.status === 'completed') && 
-      order.paymentStatus !== 'paid'
-    );
-  };
+ // UPDATE the getOrdersForPayment function:
+const getOrdersForPayment = () => {
+  return orders.filter(order => {
+    const isReadyForPayment = (order.status === 'ready' || order.status === 'completed');
+    const isNotPaid = order.paymentStatus !== 'paid';
+    
+    console.log(`💰 Order ${order.orderNumber}: status=${order.status}, paymentStatus=${order.paymentStatus}, readyForPayment=${isReadyForPayment}`);
+    
+    return isReadyForPayment && isNotPaid;
+  });
+};
 
-  const getPaidOrders = () => {
-    return orders.filter(order => order.paymentStatus === 'paid');
-  };
+  // UPDATE the getPaidOrders function:
+const getPaidOrders = () => {
+  const paid = orders.filter(order => order.paymentStatus === 'paid');
+  console.log(`💳 Paid orders: ${paid.length}`);
+  return paid;
+};
 
   const handleProcessPayment = async (order, method) => {
     try {

@@ -393,8 +393,7 @@ app.post('/api/payments', (req, res) => {
   }
 });
 
-// ADD this endpoint for QR code orders:
-// UPDATE the QR order endpoint to fix item structure:
+// FIX QR order item mapping:
 app.post('/api/customer/orders', (req, res) => {
   try {
     const { items, customerName, customerPhone, orderType = 'takeaway', tableNumber } = req.body;
@@ -403,32 +402,40 @@ app.post('/api/customer/orders', (req, res) => {
       return res.status(400).json({ error: 'No items in order' });
     }
     
-    console.log('📱 QR Order received:', { items, tableNumber });
+    console.log('📱 QR Order received - Raw items:', items);
     
-    // Calculate total and properly map items
-    const total = items.reduce((sum, item) => {
-      const menuItem = menuItems.find(m => m._id === item.menuItemId || m._id === item._id || m._id === item.id);
-      return sum + ((menuItem?.price || item.price || 0) * (item.quantity || 1));
-    }, 0);
+    // PROPERLY map items using menuItems from backend
+    const mappedItems = items.map(item => {
+      // Find the actual menu item from backend menu
+      const menuItem = menuItems.find(m => 
+        m._id === item.menuItemId || 
+        m._id === item._id || 
+        m._id === item.id ||
+        m.name === item.name
+      );
+      
+      console.log(`Mapping item: ${item.name} -> ${menuItem?.name}`);
+      
+      return {
+        menuItem: menuItem || { 
+          _id: item.menuItemId || item._id || item.id,
+          name: item.name || 'Unknown Item',
+          price: item.price || 0,
+          category: item.category || 'main'
+        },
+        quantity: item.quantity || 1,
+        specialInstructions: item.specialInstructions || '',
+        price: menuItem?.price || item.price || 0
+      };
+    });
+    
+    const total = mappedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
     const order = {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
       tableId: tableNumber || 'QR-ORDER',
-      items: items.map(item => {
-        const menuItem = menuItems.find(m => m._id === item.menuItemId || m._id === item._id || m._id === item.id);
-        return {
-          menuItem: menuItem || { 
-            _id: item.menuItemId || item._id || item.id,
-            name: item.name || 'Menu Item',
-            price: item.price || 0,
-            category: item.category || 'main'
-          },
-          quantity: item.quantity || 1,
-          specialInstructions: item.specialInstructions || '',
-          price: menuItem?.price || item.price || 0
-        };
-      }),
+      items: mappedItems, // Use properly mapped items
       total,
       status: 'pending',
       customerName: customerName || 'Walk-in Customer',
@@ -441,7 +448,7 @@ app.post('/api/customer/orders', (req, res) => {
     
     orders.push(order);
     
-    console.log(`📱 QR Order created: ${order.orderNumber}`, order.items);
+    console.log(`📱 QR Order created: ${order.orderNumber}`, order.items.map(i => `${i.quantity}x ${i.menuItem.name}`));
     io.emit('newOrder', order);
     
     res.json({
