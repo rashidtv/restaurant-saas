@@ -88,16 +88,21 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     setShowOrderDetails(false);
   };
 
-// REPLACE the handleCreateOrder function:
 const handleCreateOrder = async () => {
-  const selectedItems = orderItems.filter(item => item.quantity > 0);
+  // SAFELY get selected items
+  const selectedItems = orderItems 
+    ? orderItems.filter(item => item && item.quantity > 0)
+    : [];
+
   if (selectedItems.length === 0) {
     alert('Please select at least one item');
     return;
   }
 
+  console.log('📦 Creating order with items:', selectedItems);
+
   const orderData = {
-    tableId: selectedTable.number, // Use table number, not ID
+    tableId: selectedTable?.number,
     items: selectedItems.map(item => ({
       menuItemId: item._id || item.id,
       quantity: item.quantity,
@@ -110,12 +115,12 @@ const handleCreateOrder = async () => {
   console.log('TableManagement - Creating order with data:', orderData);
 
   try {
-    const newOrder = await onCreateOrder(orderData);
+    const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in');
     
     if (newOrder) {
       // Update ONLY this specific table with the new order ID
       setTables(prevTables => prevTables.map(table => 
-        table.number === selectedTable.number // Match by table number
+        table.number === selectedTable?.number
           ? { ...table, status: 'occupied', orderId: newOrder._id || newOrder.id }
           : table
       ));

@@ -376,84 +376,124 @@ function App() {
   };
 
   const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-    try {
-      let newOrder;
-      
-      if (apiConnected) {
-        // Use API to create order
-        const orderData = {
-          tableId: tableNumber,
-          items: orderItems.map(item => ({
-            menuItemId: item._id || item.id,
-            quantity: item.quantity,
-            price: item.price,
-            specialInstructions: ''
-          })),
-          orderType: orderType
-        };
-        
-        newOrder = await apiCreateOrder(orderData);
-      } else {
-        // Fallback: Generate order locally
-        const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-        newOrder = {
-          id: orderNumber,
-          _id: orderNumber,
-          orderNumber: orderNumber,
-          table: tableNumber,
-          tableId: tableNumber,
-          items: orderItems,
-          orderType: orderType,
-          status: 'pending',
-          total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-          createdAt: new Date(),
-          time: 'Just now'
-        };
-
-        setOrders(prev => [newOrder, ...prev]);
-        
-        // Update table status
-        setTables(prev => prev.map(table => 
-          table.number === tableNumber 
-            ? { ...table, status: 'occupied', orderId: orderNumber }
-            : table
-        ));
-      }
-
-      console.log('Order created:', newOrder);
-      return newOrder;
-
-    } catch (error) {
-      console.error('Error creating order:', error);
-      
-      // Ultimate fallback
-      return {
-        id: `ORD-${Date.now()}`,
-        _id: `ORD-${Date.now()}`,
-        orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
-        table: tableNumber,
-        status: 'pending'
-      };
+  try {
+    console.log('🔄 createNewOrder called with:', { tableNumber, orderItems, orderType });
+    
+    // VALIDATE orderItems to prevent undefined errors
+    if (!orderItems || !Array.isArray(orderItems)) {
+      console.error('❌ Invalid orderItems:', orderItems);
+      throw new Error('Order items are required and must be an array');
     }
-  };
 
-  const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-    console.log('🔵 handleCustomerOrder called:', { tableNumber, orderItems, orderType });
+    // Filter out items with quantity 0 and validate
+    const validOrderItems = orderItems
+      .filter(item => item && item.quantity > 0)
+      .map(item => ({
+        ...item,
+        quantity: item.quantity || 1,
+        price: item.price || 0
+      }));
+
+    if (validOrderItems.length === 0) {
+      throw new Error('No valid items in order');
+    }
+
+    let newOrder;
     
-    const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
-    
-    console.log('🔵 New customer order created:', newOrder);
-    
-    setNotifications(prev => [{
-      id: Date.now(),
-      message: `New customer QR order from Table ${tableNumber}`,
-      type: 'order',
-      time: 'Just now',
-      read: false
-    }, ...prev]);
-    
+    if (apiConnected) {
+      const orderData = {
+        tableId: tableNumber,
+        items: validOrderItems.map(item => ({
+          menuItemId: item._id || item.id,
+          quantity: item.quantity,
+          price: item.price,
+          specialInstructions: item.specialInstructions || ''
+        })),
+        orderType: orderType
+      };
+      
+      console.log('📦 Sending order data to API:', orderData);
+      newOrder = await apiCreateOrder(orderData);
+    } else {
+      // Fallback: Generate order locally
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+      newOrder = {
+        id: orderNumber,
+        _id: orderNumber,
+        orderNumber: orderNumber,
+        table: tableNumber,
+        tableId: tableNumber,
+        items: validOrderItems,
+        orderType: orderType,
+        status: 'pending',
+        total: validOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        createdAt: new Date(),
+        time: 'Just now'
+      };
+
+      console.log('📦 Creating local order:', newOrder);
+      setOrders(prev => [newOrder, ...prev]);
+      
+      // Update table status
+      setTables(prev => prev.map(table => 
+        table.number === tableNumber 
+          ? { ...table, status: 'occupied', orderId: orderNumber }
+          : table
+      ));
+    }
+
+    console.log('✅ Order created successfully:', newOrder);
     return newOrder;
-  };
+
+  } catch (error) {
+    console.error('❌ Error creating order:', error);
+    
+    // Provide a basic fallback order
+    const fallbackOrder = {
+      id: `ORD-${Date.now()}`,
+      _id: `ORD-${Date.now()}`,
+      orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
+      table: tableNumber,
+      status: 'pending',
+      items: orderItems && Array.isArray(orderItems) ? orderItems : [],
+      total: 0
+    };
+    
+    // Still add to orders even if there was an error
+    setOrders(prev => [fallbackOrder, ...prev]);
+    
+    return fallbackOrder;
+  }
+};
+
+const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
+  console.log('🔵 handleCustomerOrder called:', { tableNumber, orderItems, orderType });
+  
+  // Validate inputs
+  if (!tableNumber) {
+    console.error('❌ Table number is required');
+    throw new Error('Table number is required');
+  }
+
+  if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
+    console.error('❌ No items in order');
+    throw new Error('Please add items to your order');
+  }
+
+  const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
+  
+  console.log('🔵 New customer order created:', newOrder);
+  
+  setNotifications(prev => [{
+    id: Date.now(),
+    message: `New customer QR order from Table ${tableNumber}`,
+    type: 'order',
+    time: 'Just now',
+    read: false
+  }, ...prev]);
+  
+  return newOrder;
+};
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {

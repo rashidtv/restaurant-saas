@@ -573,16 +573,36 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-const handlePlaceOrder = () => {
-  if (cart.length === 0) return;
+// In DigitalMenu.jsx, look for the order creation function and add validation:
+const handlePlaceOrder = async () => {
+  if (!cart || cart.length === 0) {
+    alert('Your cart is empty');
+    return;
+  }
 
-  const newOrder = onCreateOrder(selectedTable, cart, orderType);
-  setCart([]);
-  setShowPayment(false);
-  
-  // SIMPLE: Always show order number
-  const orderNumber = newOrder?.orderNumber || newOrder?.id || 'ORDER-' + Date.now().toString().slice(-6);
-  alert(`Order placed successfully! Order number: ${orderNumber}`);
+  // Ensure cart items have proper structure
+  const orderItems = cart.map(item => ({
+    _id: item._id || item.id,
+    id: item.id || item._id,
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity || 1
+  }));
+
+  console.log('🛒 Placing order with items:', orderItems);
+
+  try {
+    const result = await onCreateOrder(currentTable || 'Walk-in', orderItems, isCustomerView ? 'dine-in' : 'takeaway');
+    console.log('✅ Order placed:', result);
+    
+    // Clear cart and show success message
+    setCart([]);
+    alert(`Order placed successfully! Order Number: ${result.orderNumber}`);
+    
+  } catch (error) {
+    console.error('❌ Failed to place order:', error);
+    alert('Failed to place order: ' + error.message);
+  }
 };
 
   const handleProceedToPayment = () => {
