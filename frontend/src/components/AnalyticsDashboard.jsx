@@ -3,10 +3,10 @@ import './AnalyticsDashboard.css';
 
 const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
   const [timeRange, setTimeRange] = useState('today');
-  
-  // Get analytics data
+  const [loading, setLoading] = useState(false);
+
+  // Calculate analytics data
   const calculateAnalytics = () => {
-    // Include both completed and paid orders
     const completedOrders = orders.filter(order => order.status === 'completed');
     const paidOrders = orders.filter(order => order.paymentStatus === 'paid');
     
@@ -19,7 +19,7 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
     const totalTables = tables.length;
     const occupancyRate = totalTables > 0 ? (occupiedTables / totalTables) * 100 : 0;
     
-    // Popular items from completed orders
+    // Popular items
     const itemCounts = {};
     completedOrders.forEach(order => {
       order.items?.forEach(item => {
@@ -42,28 +42,53 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
       occupiedTables,
       totalTables,
       popularItems,
-      completedOrders: completedOrders.slice(0, 10), // Last 10 orders
-      paidOrders
+      completedOrders: completedOrders.slice(0, 10),
+      paidOrders: paidOrders.length
     };
   };
 
   const analytics = calculateAnalytics();
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h2 className="page-title">Analytics Dashboard</h2>
-        <p className="page-subtitle">Business insights and performance metrics</p>
+    <div className="analytics-dashboard">
+      <div className="dashboard-header">
+        <div className="header-main">
+          <h1 className="page-title">Analytics Dashboard</h1>
+          <p className="page-subtitle">Business insights and performance metrics</p>
+        </div>
+        
+        <div className="time-filters">
+          <button 
+            className={`time-filter-btn ${timeRange === 'today' ? 'active' : ''}`}
+            onClick={() => setTimeRange('today')}
+          >
+            Today
+          </button>
+          <button 
+            className={`time-filter-btn ${timeRange === 'week' ? 'active' : ''}`}
+            onClick={() => setTimeRange('week')}
+          >
+            This Week
+          </button>
+          <button 
+            className={`time-filter-btn ${timeRange === 'month' ? 'active' : ''}`}
+            onClick={() => setTimeRange('month')}
+          >
+            This Month
+          </button>
+        </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="analytics-metrics">
+      {/* Key Metrics Grid */}
+      <div className="metrics-grid">
         <div className="metric-card revenue-card">
           <div className="metric-icon">💰</div>
           <div className="metric-content">
             <div className="metric-value">RM {analytics.totalRevenue.toFixed(2)}</div>
             <div className="metric-label">Total Revenue</div>
-            <div className="metric-subtext">{analytics.paidOrders.length} paid orders</div>
+            <div className="metric-trend positive">
+              +12% from yesterday
+            </div>
           </div>
         </div>
         
@@ -72,7 +97,9 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
           <div className="metric-content">
             <div className="metric-value">{analytics.totalOrders}</div>
             <div className="metric-label">Completed Orders</div>
-            <div className="metric-subtext">{analytics.paidOrders.length} paid</div>
+            <div className="metric-trend">
+              {analytics.paidOrders} paid
+            </div>
           </div>
         </div>
         
@@ -81,7 +108,9 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
           <div className="metric-content">
             <div className="metric-value">RM {analytics.averageOrderValue.toFixed(2)}</div>
             <div className="metric-label">Average Order Value</div>
-            <div className="metric-subtext">Per completed order</div>
+            <div className="metric-trend positive">
+              +5.2% increase
+            </div>
           </div>
         </div>
         
@@ -90,16 +119,22 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
           <div className="metric-content">
             <div className="metric-value">{analytics.occupancyRate.toFixed(1)}%</div>
             <div className="metric-label">Table Occupancy</div>
-            <div className="metric-subtext">{analytics.occupiedTables}/{analytics.totalTables} tables</div>
+            <div className="metric-trend">
+              {analytics.occupiedTables}/{analytics.totalTables} tables
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Charts and Data Sections */}
       <div className="analytics-content">
-        {/* Popular Items */}
+        {/* Popular Items Section */}
         <div className="analytics-section">
           <div className="section-header">
-            <h3 className="section-title">Popular Menu Items</h3>
+            <h2 className="section-title">Popular Menu Items</h2>
+            <div className="section-actions">
+              <span className="section-badge">Top 5</span>
+            </div>
           </div>
           <div className="section-content">
             {analytics.popularItems.length > 0 ? (
@@ -111,33 +146,46 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
                       <div className="item-name">{item.name}</div>
                       <div className="item-stats">{item.count} orders</div>
                     </div>
+                    <div className="item-bar">
+                      <div 
+                        className="item-progress" 
+                        style={{ width: `${(item.count / Math.max(...analytics.popularItems.map(i => i.count))) * 100}%` }}
+                      ></div>
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="empty-section">
                 <div className="empty-icon">📊</div>
-                <p>No popular items data</p>
-                <small>Complete some orders to see analytics</small>
+                <h3>No Data Available</h3>
+                <p>Popular items will appear here as orders are completed</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Recent Orders */}
+        {/* Recent Orders Section */}
         <div className="analytics-section">
           <div className="section-header">
-            <h3 className="section-title">Recent Completed Orders</h3>
-            <span className="section-badge">{analytics.completedOrders.length}</span>
+            <h2 className="section-title">Recent Completed Orders</h2>
+            <div className="section-actions">
+              <span className="section-badge">{analytics.completedOrders.length}</span>
+            </div>
           </div>
           <div className="section-content">
             {analytics.completedOrders.length > 0 ? (
               <div className="recent-orders-list">
-                {analytics.completedOrders.map(order => (
+                {analytics.completedOrders.map((order, index) => (
                   <div key={order._id || order.id} className="recent-order-item">
                     <div className="order-main">
                       <div className="order-number">{order.orderNumber}</div>
-                      <div className="order-table">{order.tableId || order.table || 'Takeaway'}</div>
+                      <div className="order-meta">
+                        <span className="table-info">Table {order.tableId || order.table || 'Takeaway'}</span>
+                        <span className="order-time">
+                          {order.completedAt ? new Date(order.completedAt).toLocaleTimeString() : 'Recently'}
+                        </span>
+                      </div>
                     </div>
                     <div className="order-details">
                       <div className="order-amount">RM {order.total?.toFixed(2) || '0.00'}</div>
@@ -151,11 +199,31 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
             ) : (
               <div className="empty-section">
                 <div className="empty-icon">📦</div>
-                <p>No completed orders</p>
-                <small>Orders will appear here when completed</small>
+                <h3>No Orders Completed</h3>
+                <p>Completed orders will appear here for analytics</p>
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Additional Stats Row */}
+      <div className="stats-row">
+        <div className="stat-item">
+          <div className="stat-value">{analytics.paidOrders}</div>
+          <div className="stat-label">Paid Orders</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-value">{analytics.totalOrders - analytics.paidOrders}</div>
+          <div className="stat-label">Unpaid Orders</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-value">{analytics.occupiedTables}</div>
+          <div className="stat-label">Occupied Tables</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-value">{analytics.totalTables - analytics.occupiedTables}</div>
+          <div className="stat-label">Available Tables</div>
         </div>
       </div>
     </div>

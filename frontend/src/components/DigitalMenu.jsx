@@ -573,35 +573,98 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-// In DigitalMenu.jsx, update the placeOrder function:
+// ADD this useEffect to DigitalMenu.jsx to detect table from URL:
+useEffect(() => {
+  const detectTableFromURL = () => {
+    // Check both hash-based and query parameter URLs
+    const hash = window.location.hash;
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    let tableNumber = null;
+    
+    // Method 1: Check query parameters (/?table=T01)
+    if (urlParams.has('table')) {
+      tableNumber = urlParams.get('table');
+      console.log('📱 Table detected from query params:', tableNumber);
+    }
+    
+    // Method 2: Check hash parameters (/#menu?table=T01)
+    if (hash.includes('?')) {
+      const hashParams = new URLSearchParams(hash.split('?')[1]);
+      if (hashParams.has('table')) {
+        tableNumber = hashParams.get('table');
+        console.log('📱 Table detected from hash params:', tableNumber);
+      }
+    }
+    
+    // Method 3: Check path parameters (/menu/T01)
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts.length > 2 && pathParts[1] === 'menu') {
+      tableNumber = pathParts[2];
+      console.log('📱 Table detected from path:', tableNumber);
+    }
+    
+    if (tableNumber) {
+      setCurrentTable(tableNumber);
+      console.log('✅ Table set to:', tableNumber);
+    } else {
+      console.log('❌ No table detected in URL');
+    }
+  };
+
+  if (isCustomerView) {
+    detectTableFromURL();
+    
+    // Also listen for URL changes
+    const handleUrlChange = () => {
+      detectTableFromURL();
+    };
+    
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('popstate', handleUrlChange);
+    
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('popstate', handleUrlChange);
+    };
+  }
+}, [isCustomerView]);
+
+// UPDATE the place order function to ensure table is used:
 const handlePlaceOrder = async () => {
   if (!cart || cart.length === 0) {
     alert('Your cart is empty');
     return;
   }
 
-  // ENSURE correct data structure for QR orders
+  // CRITICAL: Ensure we have a table number
+  const tableToUse = currentTable || 'Walk-in';
+  
+  if (!currentTable && isCustomerView) {
+    alert('Table number not detected. Please scan the QR code again.');
+    return;
+  }
+
+  console.log('🛒 Placing order for table:', tableToUse);
+
   const orderItems = cart.map(item => ({
-    menuItemId: item._id, // CRITICAL: Send the backend _id
+    menuItemId: item._id,
     _id: item._id,
-    id: item.id,
     name: item.name,
     price: item.price,
     quantity: item.quantity || 1,
     category: item.category
   }));
 
-  console.log('🛒 QR Order items being sent:', orderItems);
-
   try {
-    const result = await onCreateOrder(currentTable, orderItems, isCustomerView ? 'dine-in' : 'takeaway');
-    console.log('✅ QR Order placed successfully:', result);
+    const result = await onCreateOrder(tableToUse, orderItems, 'dine-in');
+    console.log('✅ Order placed successfully:', result);
     
     setCart([]);
-    alert(`Order placed successfully! Order Number: ${result.orderNumber}`);
+    alert(`Order placed successfully! Your order number is: ${result.orderNumber}`);
     
   } catch (error) {
-    console.error('❌ QR Order failed:', error);
+    console.error('❌ Order failed:', error);
     alert('Failed to place order: ' + error.message);
   }
 };
