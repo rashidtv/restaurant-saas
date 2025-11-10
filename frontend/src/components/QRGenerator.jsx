@@ -7,21 +7,20 @@ const QRGenerator = ({ tables, isMobile }) => {
   const [generatedUrl, setGeneratedUrl] = useState('');
   const qrRef = useRef();
 
-// UPDATE the QR URL generation in QRGenerator.jsx:
-const generateQRUrl = (table) => {
-  const baseUrl = window.location.origin;
-  // Use hash-based routing for better compatibility
-  return `${baseUrl}/#/menu?table=${encodeURIComponent(table)}`;
-};
+  // FIXED: Generate proper URL that goes directly to menu
+  const generateQRUrl = (tableNumber) => {
+    const baseUrl = window.location.origin;
+    // Use hash-based routing that works with React Router
+    return `${baseUrl}/#/menu?table=${encodeURIComponent(tableNumber)}`;
+  };
 
-// UPDATE the handleTableSelect function:
-const handleTableSelect = (tableNumber) => {
-  console.log('🎯 Selected table for QR:', tableNumber);
-  setSelectedTable(tableNumber);
-  const url = generateQRUrl(tableNumber);
-  setGeneratedUrl(url);
-  console.log('🔗 Generated QR URL:', url);
-};
+  const handleTableSelect = (tableNumber) => {
+    console.log('🎯 Selected table for QR:', tableNumber);
+    setSelectedTable(tableNumber);
+    const url = generateQRUrl(tableNumber);
+    setGeneratedUrl(url);
+    console.log('🔗 Generated QR URL:', url);
+  };
 
   const downloadQR = () => {
     if (!selectedTable || !qrRef.current) return;
@@ -47,8 +46,8 @@ const handleTableSelect = (tableNumber) => {
     img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
-  // **FIXED: Show ALL tables, not just available ones**
-  const allTables = tables; // Remove the filter
+  // Show ALL tables, not just available ones
+  const allTables = tables;
 
   return (
     <div className="page">
@@ -101,6 +100,15 @@ const handleTableSelect = (tableNumber) => {
                   <div className="qr-instructions">
                     📱 Scan to view digital menu for Table {selectedTable}
                   </div>
+                  
+                  {/* TEST BUTTON - Remove in production */}
+                  <button 
+                    onClick={() => window.open(generatedUrl, '_blank')}
+                    className="test-btn"
+                    style={{marginTop: '10px', padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px'}}
+                  >
+                    🔗 Test This Link
+                  </button>
                 </div>
               </div>
 
@@ -120,16 +128,6 @@ const handleTableSelect = (tableNumber) => {
                   className="copy-btn"
                 >
                   📋 Copy URL
-                </button>
-
-                <button 
-                  onClick={() => {
-                    // Test the QR code by opening the URL
-                    window.open(generatedUrl, '_blank');
-                  }}
-                  className="test-btn"
-                >
-                  🔗 Test Link
                 </button>
               </div>
             </div>
@@ -160,7 +158,7 @@ const handleTableSelect = (tableNumber) => {
             <div className="instruction-step">
               <div className="step-number">4</div>
               <div className="step-content">
-                <strong>They'll be directed</strong> to the digital menu
+                <strong>They'll be directed to the digital menu</strong> for that specific table
               </div>
             </div>
           </div>

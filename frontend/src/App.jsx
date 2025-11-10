@@ -142,41 +142,53 @@ useEffect(() => {
   }, [apiConnected]);
 
   // Check URL for menu route
-  useEffect(() => {
-    const checkRoute = () => {
-      const hash = window.location.hash;
-      const path = window.location.pathname;
+  // In App.jsx, update the route detection to handle QR URLs properly
+useEffect(() => {
+  const checkRoute = () => {
+    const hash = window.location.hash;
+    const path = window.location.pathname;
+    
+    console.log('🔍 Route check - Hash:', hash, 'Path:', path);
+    
+    // Handle both /#/menu and /menu routes
+    if (hash.includes('#/menu') || path.includes('/menu')) {
+      console.log('✅ Menu route detected');
+      setIsMenuRoute(true);
+      setIsCustomerView(true);
+      setCurrentPage('menu');
       
-      if (hash.includes('#menu') || path.includes('/menu')) {
-        setIsMenuRoute(true);
-        setIsCustomerView(true);
-        setCurrentPage('menu');
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const tableParam = urlParams.get('table');
-        if (tableParam) {
-          setCurrentTable(tableParam);
-        }
+      // Extract table parameter from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const tableParam = urlParams.get('table');
+      
+      if (tableParam) {
+        console.log('🎯 Table parameter found:', tableParam);
+        setCurrentTable(tableParam);
       } else {
-        setIsMenuRoute(false);
-        setIsCustomerView(false);
+        console.log('❌ No table parameter in URL');
       }
-    };
+    } else {
+      console.log('📊 Staff view detected');
+      setIsMenuRoute(false);
+      setIsCustomerView(false);
+    }
+  };
 
+  checkRoute();
+  
+  const handleHashChange = () => {
+    console.log('🔄 Hash changed');
     checkRoute();
-    
-    const handleHashChange = () => {
-      checkRoute();
-    };
-    
-    window.addEventListener('hashchange', handleHashChange);
-    window.addEventListener('popstate', checkRoute);
-    
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-      window.removeEventListener('popstate', checkRoute);
-    };
-  }, []);
+  };
+  
+  window.addEventListener('hashchange', handleHashChange);
+  window.addEventListener('popstate', checkRoute);
+  
+  return () => {
+    window.removeEventListener('hashchange', handleHashChange);
+    window.removeEventListener('popstate', checkRoute);
+  };
+}, []);
 
   // Check if mobile
   useEffect(() => {

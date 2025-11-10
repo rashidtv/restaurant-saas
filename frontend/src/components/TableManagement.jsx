@@ -13,6 +13,33 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   
   console.log('📋 TableManagement using menu:', menuItems.length, 'items');
 
+  // In TableManagement.jsx, update the WebSocket handler to prevent loops
+useEffect(() => {
+  if (socket) {
+    const handleTableUpdate = (updatedTable) => {
+      console.log('🔄 TableManagement - Table updated:', updatedTable.number, updatedTable.status);
+      
+      // Only update if the table status actually changed
+      setTables(prev => prev.map(table => {
+        if (table._id === updatedTable._id) {
+          // Prevent infinite loop: only update if status is different
+          if (table.status !== updatedTable.status) {
+            console.log(`✅ Updating table ${table.number} from ${table.status} to ${updatedTable.status}`);
+            return updatedTable;
+          }
+        }
+        return table;
+      }));
+    };
+
+    socket.on('tableUpdated', handleTableUpdate);
+    
+    return () => {
+      socket.off('tableUpdated', handleTableUpdate);
+    };
+  }
+}, [socket]);
+
   // Initialize order items when modal opens
   useEffect(() => {
     if (showOrderModal && selectedTable) {
