@@ -7,16 +7,13 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Get frontend URL from environment or use the actual deployed URL
+// CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
 
-console.log('🔧 CORS configured for frontend:', FRONTEND_URL);
-
-// Enhanced CORS configuration
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://restaurant-saas-demo.onrender.com", // YOUR ACTUAL FRONTEND
+    "https://restaurant-saas-demo.onrender.com",
     FRONTEND_URL
   ].filter(Boolean),
   credentials: true,
@@ -24,14 +21,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Handle preflight requests
 app.options('*', cors());
 
 const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:5173", 
-      "https://restaurant-saas-demo.onrender.com", // YOUR ACTUAL FRONTEND
+      "https://restaurant-saas-demo.onrender.com",
       FRONTEND_URL
     ].filter(Boolean),
     methods: ["GET", "POST", "PUT", "DELETE"]
@@ -230,17 +226,16 @@ app.put('/api/tables/:id', (req, res) => {
   }
 });
 
-// UPDATE the orders endpoint to return ALL orders (not just active)
+// FIXED: Return ALL orders, not just active ones
 app.get('/api/orders', (req, res) => {
   try {
-    // RETURN ALL ORDERS, not just active ones
     res.json(orders);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// UPDATE order creation to ensure tableId is properly set
+// FIXED: Ensure paymentStatus is initialized
 app.post('/api/orders', (req, res) => {
   try {
     const { tableId, items, customerName, customerPhone, orderType } = req.body;
@@ -258,7 +253,7 @@ app.post('/api/orders', (req, res) => {
     const order = {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
-      tableId: tableId, // ENSURE this is properly set
+      tableId: tableId,
       items: items.map(item => ({
         menuItem: menuItems.find(m => m._id === item.menuItemId) || { 
           _id: item.menuItemId,
@@ -286,6 +281,9 @@ app.post('/api/orders', (req, res) => {
     if (tableIndex !== -1) {
       tables[tableIndex].status = 'occupied';
       tables[tableIndex].orderId = order._id;
+      
+      // Emit table update
+      io.emit('tableUpdated', tables[tableIndex]);
     }
     
     io.emit('newOrder', order);
@@ -297,7 +295,7 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// UPDATE the order status endpoint in server.js:
+// FIXED: Order status endpoint - prevent infinite loops
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
@@ -317,10 +315,10 @@ app.put('/api/orders/:id/status', (req, res) => {
     const previousStatus = orders[orderIndex].status;
     orders[orderIndex].status = status;
     
-    // ONLY handle table cleaning when order is completed AND it wasn't already completed
+    // CRITICAL: When order is completed, ensure it's ready for payments
     if (status === 'completed' && previousStatus !== 'completed') {
       orders[orderIndex].completedAt = new Date();
-      orders[orderIndex].paymentStatus = 'pending';
+      orders[orderIndex].paymentStatus = 'pending'; // Ready for payment
       console.log(`✅ Order ${orderId} marked as completed - READY FOR PAYMENT`);
       
       // Free the table - but only if it's currently occupied by this order
@@ -337,7 +335,7 @@ app.put('/api/orders/:id/status', (req, res) => {
     
     // When order is ready, it should also appear in payments
     if (status === 'ready') {
-      orders[orderIndex].paymentStatus = 'pending';
+      orders[orderIndex].paymentStatus = 'pending'; // Ready for payment
       console.log(`💰 Order ${orderId} is ready for payment`);
     }
     
@@ -359,12 +357,12 @@ app.get('/api/payments', (req, res) => {
   }
 });
 
-// UPDATE the payments endpoint:
+// FIXED: Payments endpoint
 app.post('/api/payments', (req, res) => {
   try {
     const { orderId, amount, method } = req.body;
     
-    // Find order by orderNumber (ORD-522201) or ID
+    // Find order by orderNumber (MESRA522201) or ID
     const orderIndex = orders.findIndex(o => 
       o.orderNumber === orderId || o._id === orderId
     );
@@ -413,7 +411,7 @@ app.post('/api/payments', (req, res) => {
   }
 });
 
-// REPLACE the customer orders endpoint in server.js:
+// FIXED: Customer orders endpoint with proper table detection
 app.post('/api/customer/orders', (req, res) => {
   try {
     const { items, customerName, customerPhone, orderType = 'dine-in', tableNumber } = req.body;

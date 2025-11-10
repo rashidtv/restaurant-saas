@@ -7,34 +7,38 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [activeTab, setActiveTab] = useState('pending');
 
-  // **FIXED: Get ALL orders regardless of status for payment**
+  // FIXED: Get ALL unpaid orders regardless of status
   const getPendingPayments = () => {
-    console.log('🔍 PaymentSystem - All orders:', orders);
+    console.log('🔍 PaymentSystem - Checking orders:', orders.length);
     
     const pending = orders.filter(order => {
-      // Show ANY order that is not paid, regardless of status
+      if (!order) return false;
+      
+      // Show any order that is not paid
       const isNotPaid = order.paymentStatus !== 'paid' && order.paymentStatus !== 'completed';
       const hasItems = order.items && order.items.length > 0;
+      const hasTotal = order.total > 0;
       
-      console.log(`💰 Order ${order.orderNumber}:`, {
+      console.log(`💰 Order ${order.orderNumber || order.id}:`, {
         status: order.status,
         paymentStatus: order.paymentStatus,
         isNotPaid,
-        hasItems
+        hasItems,
+        hasTotal
       });
       
-      return isNotPaid && hasItems;
+      return isNotPaid && hasItems && hasTotal;
     });
 
     console.log(`💵 Found ${pending.length} unpaid orders:`, 
-      pending.map(p => `${p.orderNumber} (status: ${p.status}, payment: ${p.paymentStatus})`));
+      pending.map(p => `${p.orderNumber || p.id} (${p.status})`));
     
     return pending;
   };
 
   const getCompletedPayments = () => {
     const completed = orders.filter(order => 
-      order.paymentStatus === 'paid' || order.paymentStatus === 'completed'
+      order && (order.paymentStatus === 'paid' || order.paymentStatus === 'completed')
     );
     console.log(`📊 Found ${completed.length} completed payments`);
     return completed;
@@ -42,10 +46,10 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
 
   const processPayment = async (order, method) => {
     try {
-      console.log('💳 Processing payment for:', order.orderNumber);
+      console.log('💳 Processing payment for:', order.orderNumber || order.id);
       
       const paymentData = {
-        orderId: order.orderNumber,
+        orderId: order.orderNumber || order.id,
         amount: order.total,
         method: method,
         tableId: order.tableId || order.table
@@ -71,7 +75,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
         // Offline fallback
         paymentResult = {
           _id: Date.now().toString(),
-          orderId: order.orderNumber,
+          orderId: order.orderNumber || order.id,
           amount: order.total,
           method: method,
           status: 'completed',
@@ -126,7 +130,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
           className={`tab-button ${activeTab === 'pending' ? 'active' : ''}`}
           onClick={() => setActiveTab('pending')}
         >
-          All Unpaid Orders
+          Pending Payments
           {pendingPayments.length > 0 && (
             <span className="tab-badge">{pendingPayments.length}</span>
           )}
@@ -148,7 +152,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
             {pendingPayments.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">💵</div>
-                <h3>No Unpaid Orders</h3>
+                <h3>No Pending Payments</h3>
                 <p>All orders have been paid or no orders exist</p>
               </div>
             ) : (
@@ -157,16 +161,11 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
                   <div key={order._id || order.id} className="payment-order-card">
                     <div className="order-header">
                       <div className="order-info">
-                        <h3 className="order-number">{order.orderNumber}</h3>
+                        <h3 className="order-number">{order.orderNumber || order.id}</h3>
                         <div className="order-meta">
-                          <span className="status-badge status-{order.status}">
+                          <span className="table-badge">Table {order.tableId || order.table || 'Takeaway'}</span>
+                          <span className={`status-badge status-${order.status}`}>
                             {order.status}
-                          </span>
-                          <span className="table-badge">
-                            Table {order.tableId || order.table || 'Takeaway'}
-                          </span>
-                          <span className="payment-status">
-                            Payment: {order.paymentStatus || 'pending'}
                           </span>
                         </div>
                       </div>
@@ -210,8 +209,9 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
                       >
                         Process Payment
                       </button>
-                      <div className="order-status">
-                        Status: <strong>{order.status}</strong>
+                      <div className="order-status-info">
+                        Status: <strong>{order.status}</strong> | 
+                        Payment: <strong>{order.paymentStatus || 'pending'}</strong>
                       </div>
                     </div>
                   </div>
@@ -221,7 +221,6 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
           </div>
         )}
 
-        {/* Rest of the component remains the same */}
         {activeTab === 'completed' && (
           <div className="completed-payments">
             {completedPayments.length === 0 ? (
@@ -236,7 +235,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
                   <div key={order._id || order.id} className="completed-payment-card">
                     <div className="payment-header">
                       <div className="payment-info">
-                        <h3 className="order-number">{order.orderNumber}</h3>
+                        <h3 className="order-number">{order.orderNumber || order.id}</h3>
                         <div className="payment-meta">
                           <span className="table-badge">Table {order.tableId || order.table || 'Takeaway'}</span>
                           <span className="method-badge">{order.paymentMethod || 'Cash'}</span>
@@ -263,7 +262,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
         )}
       </div>
 
-      {/* Payment Modal - Keep existing */}
+      {/* Payment Modal */}
       {showPaymentModal && selectedOrder && (
         <div className="modal-overlay">
           <div className="payment-modal">
@@ -281,7 +280,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
               <div className="payment-summary">
                 <div className="summary-row">
                   <span>Order Number:</span>
-                  <strong>{selectedOrder.orderNumber}</strong>
+                  <strong>{selectedOrder.orderNumber || selectedOrder.id}</strong>
                 </div>
                 <div className="summary-row">
                   <span>Table:</span>

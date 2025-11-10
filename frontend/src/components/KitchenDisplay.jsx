@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { updateOrderStatus } from '../config/api'; // ADD THIS IMPORT
 import './KitchenDisplay.css';
 
 const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onUpdateOrderStatus, apiConnected }) => {
@@ -14,23 +13,20 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return () => clearInterval(timer);
   }, []);
 
-const handleUpdateOrderStatus = async (orderId, newStatus) => {
-  try {
-    console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
-    
-    // Only update order status, don't handle table cleaning here
-    await onUpdateOrderStatus(orderId, newStatus);
-    
-    console.log(`✅ Order ${orderId} updated to ${newStatus}`);
-    
-  } catch (error) {
-    console.error('❌ Status update failed:', error);
-    alert(`Failed: ${error.message}`);
-  }
-};
-
-  const markTableForCleaning = (tableNumber) => {
-    console.log(`Table ${tableNumber} marked for cleaning`);
+  // FIXED: Simplified status update - no table cleaning logic
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    try {
+      console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
+      
+      // Just update order status - backend handles table cleaning
+      await onUpdateOrderStatus(orderId, newStatus);
+      
+      console.log(`✅ Order ${orderId} updated to ${newStatus}`);
+      
+    } catch (error) {
+      console.error('❌ Status update failed:', error);
+      alert(`Failed: ${error.message}`);
+    }
   };
 
   const filteredOrders = activeFilter === 'all' 
@@ -46,7 +42,7 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
 
   // Check if order is urgent (less than 2 minutes remaining)
   const isOrderUrgent = (order) => {
-    if (order.status !== 'preparing' || !order.preparationStart) return false;
+    if (order.status !== 'preparing' || !order.orderedAt) return false;
     
     const prepTimeRemaining = getPrepTimeRemaining(order);
     if (prepTimeRemaining === 'Overdue') return true;
@@ -56,12 +52,12 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
   };
 
   const getProgressPercentage = (order) => {
-    if (!order.preparationStart || order.status !== 'preparing') return 0;
+    if (!order.orderedAt || order.status !== 'preparing') return 0;
     
     const now = new Date();
-    const startTime = new Date(order.preparationStart);
-    const elapsedMs = now - startTime;
-    const totalMs = (order.estimatedPrepTime || 15) * 60000;
+    const orderTime = new Date(order.orderedAt);
+    const elapsedMs = now - orderTime;
+    const totalMs = (order.preparationTime || 15) * 60000;
     
     return Math.min(100, (elapsedMs / totalMs) * 100);
   };
@@ -81,7 +77,7 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
 
   // Get table number safely
   const getTableNumber = (order) => {
-    return order.table || order.tableId || 'Unknown';
+    return order.table || order.tableId || 'Takeaway';
   };
 
   // Get order ID safely
@@ -102,19 +98,15 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
     return 0;
   };
 
-  // **CRITICAL FIX: Enhanced getItemName function**
+  // Enhanced getItemName function
   const getItemName = (item) => {
-    console.log('Kitchen Display - Raw item structure:', item);
-    
     // Priority 1: Direct name property
     if (item.name && item.name !== 'Unknown Item') {
-      console.log('Using direct name:', item.name);
       return item.name;
     }
     
     // Priority 2: menuItem object with name
     if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
-      console.log('Using menuItem name:', item.menuItem.name);
       return item.menuItem.name;
     }
     
@@ -135,12 +127,9 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
         9.90: 'Spring Rolls',
         6.90: 'Prawn Crackers'
       };
-      const reconstructedName = menuItems[price] || `Menu Item (RM ${price})`;
-      console.log('Reconstructed name from price:', reconstructedName);
-      return reconstructedName;
+      return menuItems[price] || `Menu Item (RM ${price})`;
     }
     
-    console.warn('Kitchen Display - Unknown item, using fallback:', item);
     return 'Menu Item';
   };
 
@@ -297,7 +286,7 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
                 {order.status === 'pending' && (
                   <button 
                     className="kitchen-action-btn"
-                    onClick={() => updateOrderStatus(orderId, 'preparing')}
+                    onClick={() => handleUpdateOrderStatus(orderId, 'preparing')}
                   >
                     <span className="action-icon">👨‍🍳</span>
                     Start Preparing
@@ -306,24 +295,21 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
                 {order.status === 'preparing' && (
                   <button 
                     className="kitchen-action-btn-ready"
-                    onClick={() => updateOrderStatus(orderId, 'ready')}
+                    onClick={() => handleUpdateOrderStatus(orderId, 'ready')}
                   >
                     <span className="action-icon">✅</span>
                     Mark as Ready
                   </button>
                 )}
                 {order.status === 'ready' && (
-  <div className="ready-actions">
-    <button 
-      className="kitchen-action-btn-complete"
-      onClick={() => updateOrderStatus(orderId, 'completed')}
-    >
-      <span className="action-icon">🎉</span>
-      Complete Order
-    </button>
-    {/* REMOVE the cleaning note - backend will handle table status */}
-  </div>
-)}
+                  <button 
+                    className="kitchen-action-btn-complete"
+                    onClick={() => handleUpdateOrderStatus(orderId, 'completed')}
+                  >
+                    <span className="action-icon">🎉</span>
+                    Complete Order
+                  </button>
+                )}
               </div>
             </div>
           );
