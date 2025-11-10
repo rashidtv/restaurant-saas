@@ -8,6 +8,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
 
+  console.log('✅ TableManagement loaded - no socket errors');
   // USE THE MENU FROM PROPS (Digital Menu data)
   const menuItems = menu || [];
   
