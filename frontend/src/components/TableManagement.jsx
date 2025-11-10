@@ -148,16 +148,46 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     );
   };
 
-  // **FIXED: Enhanced getItemName function for order details**
-  const getItemName = (item) => {
-    if (item.name && item.name !== 'Unknown Item') {
-      return item.name;
-    }
-    if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
-      return item.menuItem.name;
-    }
-    return 'Menu Item';
-  };
+ // **FIXED: Enhanced getItemName function**
+const getItemName = (item) => {
+  console.log('TableManagement - Processing item:', item);
+  
+  // Check direct name first
+  if (item.name && item.name !== 'Unknown Item' && item.name !== 'Menu Item') {
+    return item.name;
+  }
+  
+  // Check menuItem name
+  if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
+    return item.menuItem.name;
+  }
+  
+  // Fallback to price-based reconstruction
+  const price = item.price || (item.menuItem && item.menuItem.price);
+  if (price) {
+    const menuItems = {
+      16.90: 'Nasi Lemak Royal',
+      22.90: 'Rendang Tok', 
+      18.90: 'Satay Set',
+      14.90: 'Char Kway Teow',
+      6.50: 'Teh Tarik',
+      5.90: 'Iced Lemon Tea',
+      8.90: 'Fresh Coconut',
+      7.50: 'Iced Coffee',
+      12.90: 'Mango Sticky Rice',
+      7.90: 'Cendol Delight',
+      9.90: 'Spring Rolls',
+      6.90: 'Prawn Crackers',
+      14.90: 'Chicken Curry',
+      12.90: 'Fried Rice Special',
+      19.90: 'Beef Rendang',
+      8.90: 'Pisang Goreng'
+    };
+    return menuItems[price] || `Menu Item (RM ${price})`;
+  }
+  
+  return 'Menu Item';
+};
 
   // Safe string function for mobile display
   const truncateText = (text, maxLength = 20) => {

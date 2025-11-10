@@ -3,10 +3,34 @@ import './AnalyticsDashboard.css';
 
 // Add these utility functions before the AnalyticsDashboard component
 const getItemName = (item) => {
-  if (!item) return 'Unknown Item';
-  if (item.menuItem && item.menuItem.name) return item.menuItem.name;
-  if (item.name) return item.name;
-  return 'Unknown Item';
+  if (item.name && item.name !== 'Unknown Item' && item.name !== 'Menu Item') {
+    return item.name;
+  }
+  if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
+    return item.menuItem.name;
+  }
+  
+  // Fallback to price-based reconstruction
+  const price = item.price || (item.menuItem && item.menuItem.price);
+  if (price) {
+    const menuItems = {
+      16.90: 'Nasi Lemak Royal',
+      22.90: 'Rendang Tok', 
+      18.90: 'Satay Set',
+      14.90: 'Char Kway Teow',
+      6.50: 'Teh Tarik',
+      5.90: 'Iced Lemon Tea',
+      8.90: 'Fresh Coconut',
+      7.50: 'Iced Coffee',
+      12.90: 'Mango Sticky Rice',
+      7.90: 'Cendol Delight',
+      9.90: 'Spring Rolls',
+      6.90: 'Prawn Crackers'
+    };
+    return menuItems[price] || `Menu Item (RM ${price})`;
+  }
+  
+  return 'Menu Item';
 };
 
 const getItemPrice = (item) => {
@@ -61,37 +85,38 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
   // Calculate table performance
   const tablePerformance = calculateTablePerformance(tables, orders);
 
-  function calculatePopularItems(orders) {
-    const itemCount = {};
-    
-    orders.forEach(order => {
-      (order.items || []).forEach(item => {
-        const itemName = getItemName(item);
-        const itemPrice = getItemPrice(item);
-        const itemQuantity = item.quantity || 1;
-        
-        if (itemCount[itemName]) {
-          itemCount[itemName].quantity += itemQuantity;
-          itemCount[itemName].revenue += itemPrice * itemQuantity;
-        } else {
-          itemCount[itemName] = {
-            quantity: itemQuantity,
-            revenue: itemPrice * itemQuantity,
-            image: item.image || '🍽️'
-          };
-        }
-      });
+// Then update the calculatePopularItems function to use getItemName:
+function calculatePopularItems(orders) {
+  const itemCount = {};
+  
+  orders.forEach(order => {
+    (order.items || []).forEach(item => {
+      const itemName = getItemName(item); // **USE THE FUNCTION HERE**
+      const itemPrice = getItemPrice(item);
+      const itemQuantity = item.quantity || 1;
+      
+      if (itemCount[itemName]) {
+        itemCount[itemName].quantity += itemQuantity;
+        itemCount[itemName].revenue += itemPrice * itemQuantity;
+      } else {
+        itemCount[itemName] = {
+          quantity: itemQuantity,
+          revenue: itemPrice * itemQuantity,
+          image: item.image || '🍽️'
+        };
+      }
     });
-    
-    return Object.entries(itemCount)
-      .sort(([,a], [,b]) => b.quantity - a.quantity)
-      .slice(0, 5)
-      .map(([name, data], index) => ({
-        rank: index + 1,
-        name,
-        ...data
-      }));
-  }
+  });
+  
+  return Object.entries(itemCount)
+    .sort(([,a], [,b]) => b.quantity - a.quantity)
+    .slice(0, 5)
+    .map(([name, data], index) => ({
+      rank: index + 1,
+      name,
+      ...data
+    }));
+}
 
   function calculateTimeDistribution(orders) {
     const timeSlots = {

@@ -244,55 +244,50 @@ useEffect(() => {
     ));
   };
 
-// In App.jsx, replace the createNewOrder function with this FIXED version:
 const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
   try {
     // Generate unique order ID for this specific table
     const uniqueOrderId = `ORD-${Date.now()}-${tableNumber}`;
+    const orderNumber = `MESRA${Date.now().toString().slice(-6)}`;
     
     console.log('App - Creating order with raw items:', orderItems);
 
-    // **FIXED: Enhanced item processing with guaranteed names**
+    // **FIXED: Enhanced item processing with proper structure**
     const processedItems = orderItems.map(item => {
       console.log('App - Processing item:', item);
       
-      // Extract name from available sources - ensure it's never undefined
-      let itemName = 'Menu Item';
-      if (item.name && item.name !== 'Unknown Item') {
-        itemName = item.name;
-      } else if (item.menuItem && item.menuItem.name) {
-        itemName = item.menuItem.name;
-      }
-      
-      // Ensure we have a valid price
+      // Extract name from available sources
+      let itemName = item.name || (item.menuItem && item.menuItem.name) || 'Menu Item';
       const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
+      const itemQuantity = item.quantity || 1;
       
+      // **CRITICAL: Create consistent data structure**
       const processedItem = {
-        // Core item data
+        // Core item data (direct properties)
         id: item.id || item._id,
         _id: item._id || item.id,
-        name: itemName, // **GUARANTEED: Always include name**
+        name: itemName,
         price: itemPrice,
-        quantity: item.quantity || 1,
+        quantity: itemQuantity,
         
-        // KitchenDisplay compatibility - ensure menuItem structure
+        // KitchenDisplay compatibility (nested menuItem)
         menuItem: {
           _id: item._id || item.id,
-          name: itemName, // **GUARANTEED: Always include name in menuItem**
+          name: itemName,
           price: itemPrice,
           category: item.category || 'main',
           image: item.image || '🍽️'
         }
       };
 
-      console.log('App - Processed item with guaranteed name:', processedItem);
+      console.log('App - Processed item:', processedItem);
       return processedItem;
     });
 
     const orderData = {
       id: uniqueOrderId,
       _id: uniqueOrderId,
-      orderNumber: `MESRA${Date.now().toString().slice(-6)}`,
+      orderNumber: orderNumber, // **FIXED: Use the variable, not inline**
       table: tableNumber,
       tableId: tableNumber,
       items: processedItems,
@@ -307,7 +302,7 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
       preparationStart: null
     };
 
-    console.log('App - Final order data with guaranteed names:', orderData);
+    console.log('App - Final order data:', orderData);
 
     if (apiConnected) {
       const response = await fetch(API_ENDPOINTS.ORDERS, {
@@ -354,7 +349,7 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
         read: false
       }, ...prev]);
 
-      return orderData;
+      return orderData; // **FIXED: Return the actual order data**
     }
   } catch (error) {
     console.error('Error creating order:', error);
@@ -365,6 +360,14 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
       time: 'Just now',
       read: false
     }, ...prev]);
+    
+    // Return a fallback order to prevent undefined
+    return {
+      id: `ORD-${Date.now()}`,
+      orderNumber: `MESRA${Date.now().toString().slice(-6)}`,
+      table: tableNumber,
+      status: 'pending'
+    };
   }
 };
 

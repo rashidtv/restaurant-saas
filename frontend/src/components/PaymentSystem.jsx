@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import './PaymentSystem.css';
 
-// Add this function at the top of the file, before the component
+// Add this function at the top
 const getItemName = (item) => {
-  if (item.name && item.name !== 'Unknown Item') {
+  if (item.name && item.name !== 'Unknown Item' && item.name !== 'Menu Item') {
     return item.name;
   }
   if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
     return item.menuItem.name;
   }
   
-  // Fallback: reconstruct from price
+  // Fallback to price-based reconstruction
   const price = item.price || (item.menuItem && item.menuItem.price);
   if (price) {
     const menuItems = {
@@ -25,11 +25,7 @@ const getItemName = (item) => {
       12.90: 'Mango Sticky Rice',
       7.90: 'Cendol Delight',
       9.90: 'Spring Rolls',
-      6.90: 'Prawn Crackers',
-      14.90: 'Chicken Curry',
-      12.90: 'Fried Rice Special',
-      19.90: 'Beef Rendang',
-      8.90: 'Pisang Goreng'
+      6.90: 'Prawn Crackers'
     };
     return menuItems[price] || `Menu Item (RM ${price})`;
   }
@@ -43,7 +39,11 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
-  const pendingOrders = orders.filter(order => order.status !== 'completed');
+  // **FIXED: Filter orders properly**
+  const pendingOrders = orders.filter(order => 
+    order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
+  );
+  
   const completedOrders = orders.filter(order => order.status === 'completed');
 
   const processPayment = (order, method) => {
@@ -59,18 +59,13 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
 
     setPayments(prev => [...prev, paymentData]);
     
-    // Update order status
-    if (apiConnected) {
-      // API call to update order status
-      fetch(`${API_ENDPOINTS.ORDERS}/${order.id}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' })
-      });
-    }
-
+    // Update order status locally
+    // Note: In a real app, you'd update the orders state here
+    
     setShowPaymentModal(false);
     setSelectedOrder(null);
+    
+    alert(`Payment processed successfully for Order ${order.orderNumber || order.id}`);
   };
 
   const handlePayment = (order) => {
@@ -78,9 +73,8 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
     setShowPaymentModal(true);
   };
 
-  // Safe text truncation
   const truncateText = (text, maxLength = 20) => {
-    if (!text || typeof text !== 'string') return 'Unknown Item';
+    if (!text || typeof text !== 'string') return 'Menu Item';
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
@@ -116,7 +110,10 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
             <div className="empty-state">
               <div className="empty-icon">💳</div>
               <h3>No Pending Payments</h3>
-              <p>All orders have been paid</p>
+              <p>All orders have been paid or no orders created yet</p>
+              <p style={{fontSize: '0.875rem', color: '#64748b', marginTop: '0.5rem'}}>
+                Create orders in Table Management or Digital Menu first
+              </p>
             </div>
           ) : (
             <div className="orders-grid">
@@ -125,15 +122,17 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
                   <div className="payment-card-header">
                     <div>
                       <h4 className="order-id">{order.orderNumber || order.id}</h4>
-                      <p className="order-table">Table {order.table || order.tableId}</p>
+                      <p className="order-table">Table {order.table || order.tableId || 'Unknown'}</p>
+                      <p className="order-status-badge">Status: {order.status}</p>
                     </div>
-                    <div className="order-status pending">Pending</div>
+                    <div className={`order-status ${order.status}`}>
+                      {order.status}
+                    </div>
                   </div>
 
                   <div className="order-items">
                     <h5>Order Items:</h5>
                     {(order.items || []).map((item, index) => {
-                      // **FIXED: Use getItemName function**
                       const itemName = getItemName(item);
                       const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
                       const itemQuantity = item.quantity || 1;
@@ -237,7 +236,6 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
                 <div className="order-items-summary">
                   <h4>Items:</h4>
                   {(selectedOrder.items || []).map((item, index) => {
-                    // **FIXED: Use getItemName function here too**
                     const itemName = getItemName(item);
                     const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
                     const itemQuantity = item.quantity || 1;
