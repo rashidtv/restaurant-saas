@@ -11,7 +11,6 @@ export const API_ENDPOINTS = {
 };
 
 // Enhanced fetch function with error handling
-// Enhanced fetch function with better error handling
 export const apiFetch = async (url, options = {}) => {
   try {
     console.log(`🔗 API Call: ${options.method || 'GET'} ${url}`);
@@ -64,6 +63,17 @@ export const fetchTables = async () => {
 
 export const fetchMenu = async () => {
   return apiFetch(`${API_BASE_URL}/api/menu`);
+};
+
+export const fetchPayments = async () => {
+  return apiFetch(`${API_BASE_URL}/api/payments`);
+};
+
+export const createPayment = async (paymentData) => {
+  return apiFetch(`${API_BASE_URL}/api/payments`, {
+    method: 'POST',
+    body: JSON.stringify(paymentData)
+  });
 };
 
 export default API_BASE_URL;

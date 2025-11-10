@@ -8,7 +8,16 @@ import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
-import { API_ENDPOINTS, apiFetch, fetchOrders, fetchTables, fetchMenu, fetchPayments, updateOrderStatus as apiUpdateOrderStatus, createOrder as apiCreateOrder } from './config/api';
+import { 
+  API_ENDPOINTS, 
+  apiFetch, 
+  fetchOrders, 
+  fetchTables, 
+  fetchMenu, 
+  fetchPayments,  // NOW THIS EXISTS
+  updateOrderStatus as apiUpdateOrderStatus, 
+  createOrder as apiCreateOrder 
+} from './config/api';
 import { io } from 'socket.io-client';
 import './App.css';
 
