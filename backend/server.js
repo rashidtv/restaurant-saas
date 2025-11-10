@@ -393,62 +393,81 @@ app.post('/api/payments', (req, res) => {
   }
 });
 
-// FIX QR order item mapping:
+// REPLACE the entire customer orders endpoint:
 app.post('/api/customer/orders', (req, res) => {
   try {
-    const { items, customerName, customerPhone, orderType = 'takeaway', tableNumber } = req.body;
+    const { items, customerName, customerPhone, orderType = 'dine-in', tableNumber } = req.body;
+    
+    console.log('📱 QR Order received - Raw data:', { items, tableNumber });
     
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'No items in order' });
     }
-    
-    console.log('📱 QR Order received - Raw items:', items);
-    
-    // PROPERLY map items using menuItems from backend
+
+    if (!tableNumber) {
+      return res.status(400).json({ error: 'Table number is required' });
+    }
+
+    // VALIDATE and MAP items using EXACT backend menu data
     const mappedItems = items.map(item => {
-      // Find the actual menu item from backend menu
+      console.log('🔍 Processing QR item:', item);
+      
+      // Find EXACT match in backend menu
       const menuItem = menuItems.find(m => 
         m._id === item.menuItemId || 
         m._id === item._id || 
-        m._id === item.id ||
-        m.name === item.name
+        m._id === item.id
       );
-      
-      console.log(`Mapping item: ${item.name} -> ${menuItem?.name}`);
+
+      if (!menuItem) {
+        console.error('❌ Menu item not found for:', item);
+        // Fallback to what was sent, but this should not happen
+        return {
+          menuItem: { 
+            _id: item.menuItemId || item._id || item.id,
+            name: item.name || 'Unknown Item',
+            price: item.price || 0,
+            category: item.category || 'main'
+          },
+          quantity: item.quantity || 1,
+          specialInstructions: item.specialInstructions || '',
+          price: item.price || 0
+        };
+      }
+
+      console.log('✅ Mapped to backend item:', menuItem.name);
       
       return {
-        menuItem: menuItem || { 
-          _id: item.menuItemId || item._id || item.id,
-          name: item.name || 'Unknown Item',
-          price: item.price || 0,
-          category: item.category || 'main'
-        },
+        menuItem: menuItem, // USE ACTUAL BACKEND MENU ITEM
         quantity: item.quantity || 1,
         specialInstructions: item.specialInstructions || '',
-        price: menuItem?.price || item.price || 0
+        price: menuItem.price // USE BACKEND PRICE
       };
     });
-    
+
+    // Calculate total from BACKEND prices
     const total = mappedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
+
     const order = {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
-      tableId: tableNumber || 'QR-ORDER',
-      items: mappedItems, // Use properly mapped items
+      tableId: tableNumber, // USE THE ACTUAL TABLE NUMBER
+      items: mappedItems, // USE PROPERLY MAPPED ITEMS
       total,
       status: 'pending',
-      customerName: customerName || 'Walk-in Customer',
+      customerName: customerName || 'QR Customer',
       customerPhone: customerPhone || '',
       orderType: orderType,
       paymentStatus: 'pending',
       orderedAt: new Date(),
       completedAt: null
     };
-    
+
     orders.push(order);
     
-    console.log(`📱 QR Order created: ${order.orderNumber}`, order.items.map(i => `${i.quantity}x ${i.menuItem.name}`));
+    console.log(`📱 QR Order created: ${order.orderNumber} for Table ${tableNumber}`);
+    console.log('📦 Order items:', order.items.map(i => `${i.quantity}x ${i.menuItem.name} (RM ${i.menuItem.price})`));
+    
     io.emit('newOrder', order);
     
     res.json({

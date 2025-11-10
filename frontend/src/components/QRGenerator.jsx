@@ -7,10 +7,12 @@ const QRGenerator = ({ tables, isMobile }) => {
   const [generatedUrl, setGeneratedUrl] = useState('');
   const qrRef = useRef();
 
-  const generateQRUrl = (tableNumber) => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/#menu?table=${tableNumber}`;
-  };
+ // In QRGenerator component, update the QR URL generation:
+const generateQRUrl = (table) => {
+  const baseUrl = window.location.origin;
+  // ENSURE table parameter is properly included
+  return `${baseUrl}/#menu?table=${encodeURIComponent(table.number)}`;
+};
 
   const handleTableSelect = (tableNumber) => {
     setSelectedTable(tableNumber);

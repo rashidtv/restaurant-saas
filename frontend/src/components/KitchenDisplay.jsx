@@ -14,29 +14,26 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return () => clearInterval(timer);
   }, []);
 
-    // REPLACE the handleUpdateOrderStatus function:
+// In the status update function, ensure it flows to payments:
 const handleUpdateOrderStatus = async (orderId, newStatus) => {
   try {
-    console.log(`🔄 Kitchen: Updating order ${orderId} to ${newStatus}`);
+    console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
     
-    // Use the orderNumber (ORD-522201) not internal ID
-    await updateOrderStatus(orderId, newStatus);
+    await onUpdateOrderStatus(orderId, newStatus);
     
-    // Update local state immediately for better UX
-    setOrders(prevOrders => prevOrders.map(order => 
-      (order.id === orderId || order._id === orderId || order.orderNumber === orderId)
-        ? { 
-            ...order, 
-            status: newStatus,
-            ...(newStatus === 'preparing' && !order.preparationStart && { preparationStart: new Date() })
-          }
-        : order
-    ));
+    // If marking as ready, it should appear in payments
+    if (newStatus === 'ready') {
+      console.log(`💰 Order ${orderId} is now ready for payment`);
+    }
     
-    console.log(`✅ Order ${orderId} status updated to ${newStatus}`);
+    // If completing, it should also appear in payments
+    if (newStatus === 'completed') {
+      console.log(`✅ Order ${orderId} completed and ready for payment`);
+    }
+    
   } catch (error) {
-    console.error('❌ Failed to update order status:', error);
-    alert(`Failed to update order status: ${error.message}`);
+    console.error('❌ Status update failed:', error);
+    alert(`Failed: ${error.message}`);
   }
 };
 

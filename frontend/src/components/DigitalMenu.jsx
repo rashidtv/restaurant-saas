@@ -573,34 +573,35 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-// In DigitalMenu.jsx, look for the order creation function and add validation:
+// In DigitalMenu.jsx, update the placeOrder function:
 const handlePlaceOrder = async () => {
   if (!cart || cart.length === 0) {
     alert('Your cart is empty');
     return;
   }
 
-  // Ensure cart items have proper structure
+  // ENSURE correct data structure for QR orders
   const orderItems = cart.map(item => ({
-    _id: item._id || item.id,
-    id: item.id || item._id,
+    menuItemId: item._id, // CRITICAL: Send the backend _id
+    _id: item._id,
+    id: item.id,
     name: item.name,
     price: item.price,
-    quantity: item.quantity || 1
+    quantity: item.quantity || 1,
+    category: item.category
   }));
 
-  console.log('🛒 Placing order with items:', orderItems);
+  console.log('🛒 QR Order items being sent:', orderItems);
 
   try {
-    const result = await onCreateOrder(currentTable || 'Walk-in', orderItems, isCustomerView ? 'dine-in' : 'takeaway');
-    console.log('✅ Order placed:', result);
+    const result = await onCreateOrder(currentTable, orderItems, isCustomerView ? 'dine-in' : 'takeaway');
+    console.log('✅ QR Order placed successfully:', result);
     
-    // Clear cart and show success message
     setCart([]);
     alert(`Order placed successfully! Order Number: ${result.orderNumber}`);
     
   } catch (error) {
-    console.error('❌ Failed to place order:', error);
+    console.error('❌ QR Order failed:', error);
     alert('Failed to place order: ' + error.message);
   }
 };
