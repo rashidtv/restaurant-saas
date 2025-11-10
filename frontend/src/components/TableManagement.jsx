@@ -8,31 +8,25 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
 
-  // DEBUG: Check what menu data we're receiving
-  useEffect(() => {
-    console.log('TableManagement - Menu prop changed:', menu);
-    console.log('TableManagement - Menu items count:', menu?.length);
-  }, [menu]);
-
-  // In TableManagement.jsx, replace the menuItems declaration:
-const menuItems = menu && menu.length > 0 ? menu : [
-  { id: '1', _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature' },
-  { id: '2', _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks' },
-  { id: '3', _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature' },
-  { id: '4', _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts' },
-  { id: '5', _id: '5', name: 'Satay Set', price: 18.90, category: 'signature' },
-  { id: '6', _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks' },
-  { id: '7', _id: '7', name: 'Chicken Curry', price: 14.90, category: 'main' },
-  { id: '8', _id: '8', name: 'Fried Rice Special', price: 12.90, category: 'main' },
-  { id: '9', _id: '9', name: 'Fresh Coconut', price: 8.90, category: 'drinks' },
-  { id: '10', _id: '10', name: 'Cendol Delight', price: 7.90, category: 'desserts' },
-  { id: '11', _id: '11', name: 'Char Kway Teow', price: 14.90, category: 'signature' },
-  { id: '12', _id: '12', name: 'Beef Rendang', price: 19.90, category: 'main' },
-  { id: '13', _id: '13', name: 'Iced Coffee', price: 7.50, category: 'drinks' },
-  { id: '14', _id: '14', name: 'Pisang Goreng', price: 8.90, category: 'desserts' },
-  { id: '15', _id: '15', name: 'Spring Rolls', price: 9.90, category: 'appetizers' },
-  { id: '16', _id: '16', name: 'Prawn Crackers', price: 6.90, category: 'appetizers' }
-];
+  // Use the menu from DigitalMenu - FIXED with proper fallback
+  const menuItems = menu && menu.length > 0 ? menu : [
+    { id: '1', _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature' },
+    { id: '2', _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks' },
+    { id: '3', _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature' },
+    { id: '4', _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts' },
+    { id: '5', _id: '5', name: 'Satay Set', price: 18.90, category: 'signature' },
+    { id: '6', _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks' },
+    { id: '7', _id: '7', name: 'Chicken Curry', price: 14.90, category: 'main' },
+    { id: '8', _id: '8', name: 'Fried Rice Special', price: 12.90, category: 'main' },
+    { id: '9', _id: '9', name: 'Fresh Coconut', price: 8.90, category: 'drinks' },
+    { id: '10', _id: '10', name: 'Cendol Delight', price: 7.90, category: 'desserts' },
+    { id: '11', _id: '11', name: 'Char Kway Teow', price: 14.90, category: 'signature' },
+    { id: '12', _id: '12', name: 'Beef Rendang', price: 19.90, category: 'main' },
+    { id: '13', _id: '13', name: 'Iced Coffee', price: 7.50, category: 'drinks' },
+    { id: '14', _id: '14', name: 'Pisang Goreng', price: 8.90, category: 'desserts' },
+    { id: '15', _id: '15', name: 'Spring Rolls', price: 9.90, category: 'appetizers' },
+    { id: '16', _id: '16', name: 'Prawn Crackers', price: 6.90, category: 'appetizers' }
+  ];
 
   const updateTableStatus = (tableId, newStatus) => {
     setTables(tables.map(table =>
@@ -57,7 +51,7 @@ const menuItems = menu && menu.length > 0 ? menu : [
 
   const handleStartOrder = (table) => {
     setSelectedTable(table);
-    // Initialize all menu items with quantity 0 - FIXED: Don't auto-select
+    // Initialize all menu items with quantity 0
     const initializedItems = menuItems.map(item => ({ 
       ...item, 
       quantity: 0, 
@@ -68,25 +62,14 @@ const menuItems = menu && menu.length > 0 ? menu : [
   };
 
   const handleViewOrder = (table) => {
-    // FIXED: Only show orders for this specific table
     const order = orders.find(o => 
       (o.id === table.orderId || o._id === table.orderId) && 
       (o.table === table.number || o.tableId === table.number)
     );
     
     if (order) {
-      // Ensure order items have correct structure for display
-      const fixedOrder = {
-        ...order,
-        items: (order.items || []).map(item => ({
-          ...item,
-          // Ensure name is properly set for display
-          name: item.name || (item.menuItem && item.menuItem.name) || 'Unknown Item',
-          price: item.price || (item.menuItem && item.menuItem.price) || 0,
-          quantity: item.quantity || 1
-        }))
-      };
-      setSelectedOrder(fixedOrder);
+      console.log('TableManagement - Viewing order:', order);
+      setSelectedOrder(order);
       setShowOrderDetails(true);
     }
   };
@@ -112,22 +95,23 @@ const menuItems = menu && menu.length > 0 ? menu : [
       return;
     }
 
-    // Create order with proper data structure - FIXED: Include all necessary fields
+    // **FIXED: Ensure proper data structure with menuItem names**
     const orderData = selectedItems.map(item => ({
       id: item._id || item.id,
       name: item.name,
       price: item.price,
       quantity: item.quantity,
-      // Include both formats for compatibility with KitchenDisplay
+      // Include both formats for compatibility
       menuItem: {
         _id: item._id || item.id,
-        name: item.name,
+        name: item.name, // **CRITICAL: Ensure name is included**
         price: item.price,
         category: item.category
       }
     }));
 
-    // Generate unique order for this specific table
+    console.log('TableManagement - Creating order with data:', orderData);
+
     const newOrder = onCreateOrder(selectedTable.number, orderData, 'dine-in');
     
     if (newOrder) {
@@ -162,6 +146,17 @@ const menuItems = menu && menu.length > 0 ? menu : [
       (order.id === table.orderId || order._id === table.orderId) && 
       (order.table === table.number || order.tableId === table.number)
     );
+  };
+
+  // **FIXED: Enhanced getItemName function for order details**
+  const getItemName = (item) => {
+    if (item.name && item.name !== 'Unknown Item') {
+      return item.name;
+    }
+    if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
+      return item.menuItem.name;
+    }
+    return 'Menu Item';
   };
 
   // Safe string function for mobile display
@@ -291,20 +286,6 @@ const menuItems = menu && menu.length > 0 ? menu : [
               <div className="form-group">
                 <label className="form-label">Select Menu Items ({menuItems.length} available)</label>
                 
-                {/* DEBUG: Show if menu items are empty */}
-                {menuItems.length === 0 && (
-                  <div style={{ 
-                    padding: '1rem', 
-                    background: '#fef2f2', 
-                    border: '1px solid #fecaca',
-                    borderRadius: '8px',
-                    color: '#dc2626',
-                    marginBottom: '1rem'
-                  }}>
-                    ⚠️ No menu items available. Please check if DigitalMenu data is loading correctly.
-                  </div>
-                )}
-                
                 <div className="menu-items-grid">
                   {orderItems.map((item, index) => (
                     <div key={item._id || item.id || index} className="menu-item-row">
@@ -394,8 +375,8 @@ const menuItems = menu && menu.length > 0 ? menu : [
               <div className="order-items">
                 <h3 className="form-label">Order Items</h3>
                 {(selectedOrder.items || []).map((item, index) => {
-                  // Safe item data extraction - FIXED
-                  const itemName = item.name || (item.menuItem && item.menuItem.name) || 'Unknown Item';
+                  // **FIXED: Use enhanced getItemName function**
+                  const itemName = getItemName(item);
                   const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
                   const itemQuantity = item.quantity || 1;
                   

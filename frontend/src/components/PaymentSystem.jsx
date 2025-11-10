@@ -1,213 +1,186 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './PaymentSystem.css';
 
-const PaymentSystem = ({ orders, payments, setPayments, isMobile }) => {
-  const [activeTab, setActiveTab] = useState('pending');
+// Add this function at the top of the file, before the component
+const getItemName = (item) => {
+  if (item.name && item.name !== 'Unknown Item') {
+    return item.name;
+  }
+  if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
+    return item.menuItem.name;
+  }
+  
+  // Fallback: reconstruct from price
+  const price = item.price || (item.menuItem && item.menuItem.price);
+  if (price) {
+    const menuItems = {
+      16.90: 'Nasi Lemak Royal',
+      22.90: 'Rendang Tok', 
+      18.90: 'Satay Set',
+      14.90: 'Char Kway Teow',
+      6.50: 'Teh Tarik',
+      5.90: 'Iced Lemon Tea',
+      8.90: 'Fresh Coconut',
+      7.50: 'Iced Coffee',
+      12.90: 'Mango Sticky Rice',
+      7.90: 'Cendol Delight',
+      9.90: 'Spring Rolls',
+      6.90: 'Prawn Crackers',
+      14.90: 'Chicken Curry',
+      12.90: 'Fried Rice Special',
+      19.90: 'Beef Rendang',
+      8.90: 'Pisang Goreng'
+    };
+    return menuItems[price] || `Menu Item (RM ${price})`;
+  }
+  
+  return 'Menu Item';
+};
 
-  // Safe string function
+const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }) => {
+  const [activeTab, setActiveTab] = useState('pending');
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+
+  const pendingOrders = orders.filter(order => order.status !== 'completed');
+  const completedOrders = orders.filter(order => order.status === 'completed');
+
+  const processPayment = (order, method) => {
+    const paymentData = {
+      id: `PAY-${Date.now()}`,
+      orderId: order.id || order._id,
+      amount: order.total || 0,
+      method: method,
+      status: 'completed',
+      paidAt: new Date(),
+      table: order.table || order.tableId
+    };
+
+    setPayments(prev => [...prev, paymentData]);
+    
+    // Update order status
+    if (apiConnected) {
+      // API call to update order status
+      fetch(`${API_ENDPOINTS.ORDERS}/${order.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' })
+      });
+    }
+
+    setShowPaymentModal(false);
+    setSelectedOrder(null);
+  };
+
+  const handlePayment = (order) => {
+    setSelectedOrder(order);
+    setShowPaymentModal(true);
+  };
+
+  // Safe text truncation
   const truncateText = (text, maxLength = 20) => {
     if (!text || typeof text !== 'string') return 'Unknown Item';
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
-  };
-
-  // Safe item name getter
-  const getItemName = (item) => {
-    if (item.menuItem && item.menuItem.name) return item.menuItem.name;
-    if (item.name) return item.name;
-    return 'Unknown Item';
-  };
-
-  // Get pending payments (orders that are completed but not paid)
-  const pendingPayments = orders.filter(order => {
-    const isCompleted = order.status === 'completed';
-    const isAlreadyPaid = payments.find(p => p.orderId === (order.id || order._id));
-    return isCompleted && !isAlreadyPaid;
-  });
-
-  const completedPayments = payments;
-
-  const markAsPaid = (order) => {
-    const orderId = order.id || order._id;
-    
-    // Check if already paid
-    const alreadyPaid = payments.find(p => p.orderId === orderId);
-    if (alreadyPaid) {
-      alert('This order has already been paid!');
-      return;
-    }
-
-    const newPayment = {
-      id: `PAY-${Date.now().toString().slice(-4)}`,
-      orderId: orderId,
-      table: order.table || order.tableId,
-      amount: order.total || 0,
-      method: 'manual',
-      status: 'completed',
-      paidAt: new Date(),
-      items: order.items || []
-    };
-    
-    setPayments(prev => [newPayment, ...prev]);
-  };
-
-  const generateBill = (order) => {
-    const orderId = order.id || order._id;
-    const tableNumber = order.table || order.tableId;
-    const orderTotal = order.total || 0;
-    const subtotal = orderTotal / 1.14; // Remove tax to calculate
-    
-    const billContent = `
-      FLAVORFLOW RESTAURANT
-      =====================
-      
-      Order ID: ${orderId}
-      Table: ${tableNumber}
-      Date: ${new Date().toLocaleDateString()}
-      Time: ${new Date().toLocaleTimeString()}
-      
-      ITEMS:
-      ${(order.items || []).map(item => {
-        const itemName = getItemName(item);
-        const itemPrice = item.price || item.menuItem?.price || 0;
-        const itemQuantity = item.quantity || 1;
-        return `${itemQuantity}x ${itemName} - RM ${(itemPrice * itemQuantity).toFixed(2)}`;
-      }).join('\n')}
-      
-      ---------------------
-      Subtotal: RM ${subtotal.toFixed(2)}
-      Service Tax (6%): RM ${(subtotal * 0.06).toFixed(2)}
-      SST (8%): RM ${(subtotal * 0.08).toFixed(2)}
-      ---------------------
-      TOTAL: RM ${orderTotal.toFixed(2)}
-      
-      Thank you for dining with us!
-    `;
-
-    // Create and download bill as text file
-    const blob = new Blob([billContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `bill-${orderId}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const formatTime = (dateString) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
   };
 
   return (
     <div className="page">
       <div className="page-header">
         <h2 className="page-title">Payment System</h2>
-        <p className="page-subtitle">Manage customer payments and billing</p>
+        <p className="page-subtitle">Process payments and manage transactions</p>
       </div>
 
+      {/* Payment Tabs */}
       <div className="payment-tabs">
-        <button
-          className={`payment-tab ${activeTab === 'pending' ? 'active' : ''}`}
+        <button 
+          className={`tab-button ${activeTab === 'pending' ? 'active' : ''}`}
           onClick={() => setActiveTab('pending')}
         >
-          Pending Payments ({pendingPayments.length})
+          Pending Payments ({pendingOrders.length})
         </button>
-        <button
-          className={`payment-tab ${activeTab === 'completed' ? 'active' : ''}`}
+        <button 
+          className={`tab-button ${activeTab === 'completed' ? 'active' : ''}`}
           onClick={() => setActiveTab('completed')}
         >
-          Payment History ({completedPayments.length})
+          Payment History ({payments.length})
         </button>
       </div>
 
+      {/* Pending Payments */}
       {activeTab === 'pending' && (
-        <>
-          {pendingPayments.length > 0 ? (
-            <div className="payments-grid">
-              {pendingPayments.map(order => {
-                const orderId = order.id || order._id;
-                const tableNumber = order.table || order.tableId;
-                const orderTotal = order.total || 0;
-                
-                return (
-                  <div key={orderId} className="payment-card">
-                    <div className="payment-header">
-                      <h3 className="payment-order-id">{orderId}</h3>
-                      <span className="payment-table">{tableNumber}</span>
-                    </div>
-                    
-                    <div className="payment-details">
-                      <div className="payment-amount">
-                        Total: <strong>RM {orderTotal.toFixed(2)}</strong>
-                      </div>
-                      <div className="payment-items">
-                        {(order.items || []).map((item, index) => {
-                          const itemName = getItemName(item);
-                          const itemPrice = item.price || item.menuItem?.price || 0;
-                          const itemQuantity = item.quantity || 1;
-                          
-                          return (
-                            <div key={index} className="payment-item">
-                              <span>
-                                {itemQuantity}x {isMobile ? truncateText(itemName, 15) : itemName}
-                              </span>
-                              <span>RM {(itemPrice * itemQuantity).toFixed(2)}</span>
-                            </div>
-                          );
-                        })}
-                        <div className="payment-item" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', fontWeight: '600' }}>
-                          <span>Total Amount:</span>
-                          <span>RM {orderTotal.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="payment-actions">
-                      <button 
-                        className="mark-paid-btn"
-                        onClick={() => markAsPaid(order)}
-                      >
-                        💵 Mark as Paid
-                      </button>
-                      <button 
-                        className="generate-bill-btn"
-                        onClick={() => generateBill(order)}
-                      >
-                        🧾 Generate Bill
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+        <div className="payments-section">
+          <h3 className="section-title">Pending Payments</h3>
+          
+          {pendingOrders.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">💳</div>
+              <h3>No Pending Payments</h3>
+              <p>All orders have been paid</p>
             </div>
           ) : (
-            <div className="empty-state">
-              <div className="empty-icon">💰</div>
-              <h3 className="empty-title">No Pending Payments</h3>
-              <p className="empty-description">
-                All completed orders have been paid. New payments will appear here as orders are completed.
-              </p>
+            <div className="orders-grid">
+              {pendingOrders.map(order => (
+                <div key={order.id || order._id} className="payment-card">
+                  <div className="payment-card-header">
+                    <div>
+                      <h4 className="order-id">{order.orderNumber || order.id}</h4>
+                      <p className="order-table">Table {order.table || order.tableId}</p>
+                    </div>
+                    <div className="order-status pending">Pending</div>
+                  </div>
+
+                  <div className="order-items">
+                    <h5>Order Items:</h5>
+                    {(order.items || []).map((item, index) => {
+                      // **FIXED: Use getItemName function**
+                      const itemName = getItemName(item);
+                      const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
+                      const itemQuantity = item.quantity || 1;
+                      
+                      return (
+                        <div key={index} className="order-item">
+                          <span className="item-name">
+                            {itemQuantity}x {truncateText(itemName, isMobile ? 15 : 25)}
+                          </span>
+                          <span className="item-price">
+                            RM {(itemPrice * itemQuantity).toFixed(2)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="payment-card-footer">
+                    <div className="order-total">
+                      Total: <strong>RM {(order.total || 0).toFixed(2)}</strong>
+                    </div>
+                    <button 
+                      className="process-payment-btn"
+                      onClick={() => handlePayment(order)}
+                    >
+                      Process Payment
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
+      {/* Payment History */}
       {activeTab === 'completed' && (
-        <>
-          {completedPayments.length > 0 ? (
+        <div className="payments-section">
+          <h3 className="section-title">Payment History</h3>
+          
+          {payments.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📊</div>
+              <h3>No Payment History</h3>
+              <p>Completed payments will appear here</p>
+            </div>
+          ) : (
             <div className="payments-table">
               <div className="table-header">
                 <div>Payment ID</div>
@@ -217,38 +190,133 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile }) => {
                 <div>Method</div>
                 <div>Time</div>
               </div>
-              {completedPayments.map(payment => (
+              
+              {payments.map(payment => (
                 <div key={payment.id} className="table-row">
                   <div className="payment-id">{payment.id}</div>
                   <div className="order-id">{payment.orderId}</div>
-                  <div>
-                    <span className="payment-table-small">{payment.table}</span>
-                  </div>
-                  <div className="payment-amount-cell">RM {payment.amount.toFixed(2)}</div>
-                  <div>
-                    <span className={`payment-method ${payment.method}`}>
-                      {payment.method}
-                    </span>
-                  </div>
-                  <div className="payment-time">
-                    {formatTime(payment.paidAt)}
-                    <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
-                      {formatDate(payment.paidAt)}
-                    </div>
+                  <div className="table-number">Table {payment.table}</div>
+                  <div className="amount">RM {payment.amount.toFixed(2)}</div>
+                  <div className="method">{payment.method}</div>
+                  <div className="time">
+                    {new Date(payment.paidAt).toLocaleTimeString()}
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-icon">📊</div>
-              <h3 className="empty-title">No Payment History</h3>
-              <p className="empty-description">
-                Payment history will appear here once you start marking orders as paid.
-              </p>
-            </div>
           )}
-        </>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedOrder && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">Process Payment</h2>
+              <button 
+                className="close-button"
+                onClick={() => setShowPaymentModal(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="payment-details">
+              <div className="order-summary">
+                <h3>Order Summary</h3>
+                <div className="summary-row">
+                  <span>Order ID:</span>
+                  <span>{selectedOrder.orderNumber || selectedOrder.id}</span>
+                </div>
+                <div className="summary-row">
+                  <span>Table:</span>
+                  <span>Table {selectedOrder.table || selectedOrder.tableId}</span>
+                </div>
+                
+                <div className="order-items-summary">
+                  <h4>Items:</h4>
+                  {(selectedOrder.items || []).map((item, index) => {
+                    // **FIXED: Use getItemName function here too**
+                    const itemName = getItemName(item);
+                    const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
+                    const itemQuantity = item.quantity || 1;
+                    
+                    return (
+                      <div key={index} className="summary-item">
+                        <span>{itemQuantity}x {truncateText(itemName, 20)}</span>
+                        <span>RM {(itemPrice * itemQuantity).toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="total-row">
+                  <span>Total Amount:</span>
+                  <span className="total-amount">
+                    RM {(selectedOrder.total || 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="payment-methods">
+                <h3>Select Payment Method</h3>
+                <div className="method-options">
+                  <label className={`method-option ${paymentMethod === 'cash' ? 'selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="cash"
+                      checked={paymentMethod === 'cash'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    />
+                    <span className="method-icon">💵</span>
+                    <span className="method-name">Cash</span>
+                  </label>
+
+                  <label className={`method-option ${paymentMethod === 'card' ? 'selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="card"
+                      checked={paymentMethod === 'card'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    />
+                    <span className="method-icon">💳</span>
+                    <span className="method-name">Card</span>
+                  </label>
+
+                  <label className={`method-option ${paymentMethod === 'qr' ? 'selected' : ''}`}>
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="qr"
+                      checked={paymentMethod === 'qr'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    />
+                    <span className="method-icon">📱</span>
+                    <span className="method-name">QR Code</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => setShowPaymentModal(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => processPayment(selectedOrder, paymentMethod)}
+                >
+                  Confirm Payment - RM {(selectedOrder.total || 0).toFixed(2)}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

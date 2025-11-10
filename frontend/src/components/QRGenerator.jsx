@@ -7,10 +7,10 @@ const QRGenerator = ({ tables, isMobile }) => {
   const [generatedUrl, setGeneratedUrl] = useState('');
   const qrRef = useRef();
 
- const generateQRUrl = (tableNumber) => {
-  const baseUrl = window.location.origin;
-  return `${baseUrl}/#menu?table=${tableNumber}`;
-};
+  const generateQRUrl = (tableNumber) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/#menu?table=${tableNumber}`;
+  };
 
   const handleTableSelect = (tableNumber) => {
     setSelectedTable(tableNumber);
@@ -41,7 +41,8 @@ const QRGenerator = ({ tables, isMobile }) => {
     img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
   };
 
-  const availableTables = tables.filter(table => table.status === 'available');
+  // **FIXED: Show ALL tables, not just available ones**
+  const allTables = tables; // Remove the filter
 
   return (
     <div className="page">
@@ -63,9 +64,9 @@ const QRGenerator = ({ tables, isMobile }) => {
               className="table-select"
             >
               <option value="">Choose a table</option>
-              {availableTables.map(table => (
+              {allTables.map(table => (
                 <option key={table.number} value={table.number}>
-                  Table {table.number} ({table.capacity} seats)
+                  Table {table.number} ({table.capacity} seats) - {table.status}
                 </option>
               ))}
             </select>

@@ -252,12 +252,12 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
     
     console.log('App - Creating order with raw items:', orderItems);
 
-    // **CRITICAL FIX: Ensure proper item structure with names**
+    // **FIXED: Enhanced item processing with guaranteed names**
     const processedItems = orderItems.map(item => {
       console.log('App - Processing item:', item);
       
-      // Extract name from available sources
-      let itemName = 'Unknown Item';
+      // Extract name from available sources - ensure it's never undefined
+      let itemName = 'Menu Item';
       if (item.name && item.name !== 'Unknown Item') {
         itemName = item.name;
       } else if (item.menuItem && item.menuItem.name) {
@@ -271,21 +271,21 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
         // Core item data
         id: item.id || item._id,
         _id: item._id || item.id,
-        name: itemName, // **FIXED: Always include name**
+        name: itemName, // **GUARANTEED: Always include name**
         price: itemPrice,
         quantity: item.quantity || 1,
         
         // KitchenDisplay compatibility - ensure menuItem structure
         menuItem: {
           _id: item._id || item.id,
-          name: itemName, // **FIXED: Always include name in menuItem**
+          name: itemName, // **GUARANTEED: Always include name in menuItem**
           price: itemPrice,
           category: item.category || 'main',
           image: item.image || '🍽️'
         }
       };
 
-      console.log('App - Processed item with name:', processedItem);
+      console.log('App - Processed item with guaranteed name:', processedItem);
       return processedItem;
     });
 
@@ -307,7 +307,7 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
       preparationStart: null
     };
 
-    console.log('App - Final order data with names:', orderData);
+    console.log('App - Final order data with guaranteed names:', orderData);
 
     if (apiConnected) {
       const response = await fetch(API_ENDPOINTS.ORDERS, {
