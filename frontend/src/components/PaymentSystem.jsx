@@ -7,18 +7,36 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [activeTab, setActiveTab] = useState('pending');
 
-  // Get orders ready for payment
-  const getPendingPayments = () => {
-    return orders.filter(order => 
-      (order.status === 'completed' || order.status === 'ready') && 
-      order.paymentStatus !== 'paid'
-    );
-  };
+  // UPDATE the getPendingPayments function in PaymentSystem.jsx:
+const getPendingPayments = () => {
+  const pending = orders.filter(order => {
+    // Orders are ready for payment when they are completed OR ready
+    const isCompletedOrReady = order.status === 'completed' || order.status === 'ready';
+    const isNotPaid = order.paymentStatus !== 'paid';
+    
+    console.log(`💰 Payment Check - ${order.orderNumber}:`, {
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      isCompletedOrReady,
+      isNotPaid,
+      shouldShow: isCompletedOrReady && isNotPaid
+    });
+    
+    return isCompletedOrReady && isNotPaid;
+  });
 
-  // Get paid orders
-  const getCompletedPayments = () => {
-    return orders.filter(order => order.paymentStatus === 'paid');
-  };
+  console.log(`💵 Found ${pending.length} orders ready for payment:`, 
+    pending.map(p => `${p.orderNumber} (${p.status})`));
+  
+  return pending;
+};
+
+  // UPDATE the getCompletedPayments function:
+const getCompletedPayments = () => {
+  const completed = orders.filter(order => order.paymentStatus === 'paid');
+  console.log(`📊 Found ${completed.length} completed payments`);
+  return completed;
+};
 
   const processPayment = async (order, method) => {
     try {
@@ -111,12 +129,14 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
           )}
         </button>
         <button 
-          className={`tab-button ${activeTab === 'completed' ? 'active' : ''}`}
-          onClick={() => setActiveTab('completed')}
-        >
-          Payment History
-          <span className="tab-badge">{completedPayments.length}</span>
-        </button>
+  className={`tab-button ${activeTab === 'completed' ? 'active' : ''}`}
+  onClick={() => setActiveTab('completed')}
+>
+  Payment History
+  {completedPayments.length > 0 && (
+    <span className="tab-badge">{completedPayments.length}</span>
+  )}
+</button>
       </div>
 
       <div className="payment-content">

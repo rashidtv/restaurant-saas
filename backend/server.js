@@ -284,7 +284,7 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// UPDATE order status to handle payment sync:
+// In server.js, UPDATE the order status endpoint to ensure payment flow:
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
@@ -303,27 +303,28 @@ app.put('/api/orders/:id/status', (req, res) => {
     
     orders[orderIndex].status = status;
     
-    // When order is completed, ensure it's ready for payments
+    // CRITICAL: When order is completed, ensure it's ready for payments
     if (status === 'completed') {
       orders[orderIndex].completedAt = new Date();
+      console.log(`✅ Order ${orderId} marked as completed - READY FOR PAYMENT`);
       
-      // Free the table and mark for cleaning
+      // Free the table
       const tableIndex = tables.findIndex(t => t.orderId === orders[orderIndex]._id);
       if (tableIndex !== -1) {
         tables[tableIndex].status = 'needs_cleaning';
         tables[tableIndex].orderId = null;
+        console.log(`🔄 Table ${tables[tableIndex].number} marked for cleaning`);
       }
-      
-      console.log(`✅ Order ${orderId} completed and ready for payment`);
     }
     
-    // When order is ready, it should appear in payments
+    // When order is ready, it should also appear in payments
     if (status === 'ready') {
       console.log(`💰 Order ${orderId} is ready for payment`);
     }
     
     io.emit('orderUpdated', orders[orderIndex]);
     res.json(orders[orderIndex]);
+    
   } catch (error) {
     console.error('Error updating order status:', error);
     res.status(500).json({ error: error.message });
