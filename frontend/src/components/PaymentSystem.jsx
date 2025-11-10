@@ -8,6 +8,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
   const [activeTab, setActiveTab] = useState('pending');
 
   // UPDATE the getPendingPayments function in PaymentSystem.jsx:
+// UPDATE the getPendingPayments function in PaymentSystem.jsx:
 const getPendingPayments = () => {
   const pending = orders.filter(order => {
     // Orders are ready for payment when they are completed OR ready

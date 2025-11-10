@@ -7,7 +7,7 @@ const QRGenerator = ({ tables, isMobile }) => {
   const [generatedUrl, setGeneratedUrl] = useState('');
   const qrRef = useRef();
 
- // In QRGenerator component, update the QR URL generation:
+// UPDATE the QR URL generation:
 const generateQRUrl = (table) => {
   const baseUrl = window.location.origin;
   // ENSURE table parameter is properly included

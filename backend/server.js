@@ -284,7 +284,7 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// In server.js, UPDATE the order status endpoint to ensure payment flow:
+// UPDATE the order status endpoint to ensure payment flow:
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
@@ -306,6 +306,7 @@ app.put('/api/orders/:id/status', (req, res) => {
     // CRITICAL: When order is completed, ensure it's ready for payments
     if (status === 'completed') {
       orders[orderIndex].completedAt = new Date();
+      orders[orderIndex].paymentStatus = 'pending'; // ADD THIS LINE
       console.log(`✅ Order ${orderId} marked as completed - READY FOR PAYMENT`);
       
       // Free the table
@@ -319,6 +320,7 @@ app.put('/api/orders/:id/status', (req, res) => {
     
     // When order is ready, it should also appear in payments
     if (status === 'ready') {
+      orders[orderIndex].paymentStatus = 'pending'; // ADD THIS LINE
       console.log(`💰 Order ${orderId} is ready for payment`);
     }
     

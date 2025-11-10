@@ -1,39 +1,642 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import './DigitalMenu.css';
 
-const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView }) => {
+const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView = false }) => {
+  const [selectedTable, setSelectedTable] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [orderType, setOrderType] = useState('dine-in');
-  const [selectedTable, setSelectedTable] = useState('');
+  const [showPayment, setShowPayment] = useState(false);
   const [tableNumber, setTableNumber] = useState(currentTable || '');
   const [orderSuccess, setOrderSuccess] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('name');
-  const [showCart, setShowCart] = useState(false);
-  const [customerInfo, setCustomerInfo] = useState({
-    name: '',
-    phone: '',
-    specialInstructions: ''
-  });
+  
+// ADD this useEffect to DigitalMenu.jsx for better table detection:
+useEffect(() => {
+  const detectTableFromURL = () => {
+    console.log('🔍 Scanning URL for table number...');
+    
+    const url = new URL(window.location.href);
+    const hash = window.location.hash;
+    const searchParams = url.searchParams;
+    
+    let detectedTable = null;
 
-  // Table detection for QR codes
+    // Check URL search params (/?table=T01)
+    if (searchParams.has('table')) {
+      detectedTable = searchParams.get('table');
+      console.log('✅ Table detected from search params:', detectedTable);
+    }
+    
+    // Check hash parameters (/#menu?table=T01)
+    if (hash.includes('?')) {
+      const hashParams = new URLSearchParams(hash.split('?')[1]);
+      if (hashParams.has('table')) {
+        detectedTable = hashParams.get('table');
+        console.log('✅ Table detected from hash params:', detectedTable);
+      }
+    }
+
+    if (detectedTable) {
+      setTableNumber(detectedTable);
+      console.log('🎯 Table number set to:', detectedTable);
+    } else {
+      console.log('❌ No table number found in URL');
+    }
+  };
+
+  if (isCustomerView) {
+    detectTableFromURL();
+    
+    // Also detect on load in case of slow rendering
+    setTimeout(detectTableFromURL, 1000);
+    
+    // Listen for URL changes
+    window.addEventListener('hashchange', detectTableFromURL);
+    window.addEventListener('popstate', detectTableFromURL);
+    
+    return () => {
+      window.removeEventListener('hashchange', detectTableFromURL);
+      window.removeEventListener('popstate', detectTableFromURL);
+    };
+  }
+}, [isCustomerView]);
+
+  // Get table from URL parameters (for QR code scanning)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tableFromUrl = urlParams.get('table');
+    if (tableFromUrl) {
+      console.log('DigitalMenu - Table from URL params:', tableFromUrl);
+      setSelectedTable(tableFromUrl);
+    }
+  }, []);
+
+  // DEBUG: Log menu data
+  useEffect(() => {
+    console.log('DigitalMenu - Menu data received:', menu);
+  }, [menu]);
+
+  // Reusable Menu Item Card Component
+  const MenuItemCard = ({ item, onAddToCart, isMobile }) => (
+    <div className="menu-item-card">
+      <div className="menu-item-header">
+        <span className="menu-item-image">{item.image}</span>
+        <div className="menu-item-info">
+          <h3 className="menu-item-name">{item.name}</h3>
+          <p className="menu-item-description">
+            {isMobile ? `${item.description?.substring(0, 50)}...` : item.description}
+          </p>
+        </div>
+      </div>
+      <div className="menu-item-meta">
+        <div className="menu-item-tags">
+          <span className="menu-item-tag">⏱️ {item.prepTime}m</span>
+          {item.spicy !== "Mild" && (
+            <span className="menu-item-tag" style={{
+              backgroundColor: item.spicy === 'Medium' ? '#fef3c7' : '#fef2f2',
+              color: item.spicy === 'Medium' ? '#d97706' : '#dc2626'
+            }}>
+              🌶️ {item.spicy}
+            </span>
+          )}
+          {item.popular && (
+            <span className="menu-item-tag" style={{
+              backgroundColor: '#f0f9ff',
+              color: '#0369a1'
+            }}>
+              ⭐ Popular
+            </span>
+          )}
+        </div>
+        <div className="menu-item-actions">
+          <div className="menu-item-price">RM {item.price.toFixed(2)}</div>
+          <button 
+            className="add-to-cart-btn"
+            onClick={() => onAddToCart(item)}
+          >
+            {isMobile ? '+' : 'Add +'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Payment Page Component
+  const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
+    const [paymentMethod, setPaymentMethod] = useState('qr');
+    const [paymentStatus, setPaymentStatus] = useState('pending');
+
+    const handlePayment = () => {
+      setPaymentStatus('processing');
+      
+      // Simulate payment processing
+      setTimeout(() => {
+        setPaymentStatus('success');
+        setTimeout(() => {
+          onPaymentSuccess();
+        }, 2000);
+      }, 3000);
+    };
+
+    if (paymentStatus === 'success') {
+      return (
+        <div className="payment-container">
+          <div className="payment-success">
+            <div className="success-icon">✅</div>
+            <h2 className="success-title">Payment Successful!</h2>
+            <p className="success-message">
+              Thank you for your payment. Your order is being prepared.
+            </p>
+            <button className="continue-btn" onClick={onPaymentSuccess}>
+              Continue
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="payment-container">
+        <div className="payment-header">
+          <button className="back-btn" onClick={onBack}>
+            ← Back to Menu
+          </button>
+          <h2 className="payment-title">Payment</h2>
+        </div>
+
+        <div className="payment-layout">
+          <div className="order-summary">
+            <h3 className="summary-title">Order Summary</h3>
+            <div className="summary-details">
+              <div className="summary-row">
+                <span>Table:</span>
+                <span>{orderDetails.orderType === 'dine-in' ? `Table ${orderDetails.table}` : 'Takeaway'}</span>
+              </div>
+              {orderDetails.items.map((item, index) => {
+                const itemName = item.name || 'Unknown Item';
+                const displayName = isMobile ? truncateText(itemName, 15) : itemName;
+                const itemPrice = item.price || 0;
+                const itemQuantity = item.quantity || 1;
+                
+                return (
+                  <div key={index} className="summary-row">
+                    <span>{itemQuantity}x {displayName}</span>
+                    <span>RM {(itemPrice * itemQuantity).toFixed(2)}</span>
+                  </div>
+                );
+              })}
+              <div className="summary-divider"></div>
+              <div className="summary-row">
+                <span>Subtotal:</span>
+                <span>RM {orderDetails.subtotal.toFixed(2)}</span>
+              </div>
+              <div className="summary-row">
+                <span>Service Tax (6%):</span>
+                <span>RM {orderDetails.serviceTax.toFixed(2)}</span>
+              </div>
+              <div className="summary-row">
+                <span>SST (8%):</span>
+                <span>RM {orderDetails.sst.toFixed(2)}</span>
+              </div>
+              <div className="grand-total-row">
+                <span>Total Amount:</span>
+                <span className="grand-total-text">RM {orderDetails.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="payment-methods">
+            <h3 className="methods-title">Select Payment Method</h3>
+            
+            <div className="method-options">
+              <label className={`method-option ${paymentMethod === 'qr' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="qr"
+                  checked={paymentMethod === 'qr'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="radio-input"
+                />
+                <div className="method-content">
+                  <span className="method-icon">📱</span>
+                  <div>
+                    <div className="method-name">QR Code Payment</div>
+                    <div className="method-desc">Scan QR code with your banking app</div>
+                  </div>
+                </div>
+              </label>
+
+              <label className={`method-option ${paymentMethod === 'card' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="card"
+                  checked={paymentMethod === 'card'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="radio-input"
+                />
+                <div className="method-content">
+                  <span className="method-icon">💳</span>
+                  <div>
+                    <div className="method-name">Credit/Debit Card</div>
+                    <div className="method-desc">Pay with Visa, Mastercard, or UnionPay</div>
+                  </div>
+                </div>
+              </label>
+
+              <label className={`method-option ${paymentMethod === 'cash' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="cash"
+                  checked={paymentMethod === 'cash'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="radio-input"
+                />
+                <div className="method-content">
+                  <span className="method-icon">💵</span>
+                  <div>
+                    <div className="method-name">Cash Payment</div>
+                    <div className="method-desc">Pay with cash at the counter</div>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {paymentMethod === 'qr' && (
+              <div className="qr-payment">
+                <div className="qr-payment-header">
+                  <h4>Scan to Pay</h4>
+                  <p>Use your banking app to scan the QR code</p>
+                </div>
+                <div className="payment-qr-code">
+                  <QRCodeSVG 
+                    value={`flavorflow://payment?amount=${orderDetails.total}&table=${orderDetails.table}`}
+                    size={isMobile ? 150 : 200}
+                    level="H"
+                  />
+                </div>
+                <div className="payment-amount">
+                  Amount: <strong>RM {orderDetails.total.toFixed(2)}</strong>
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === 'card' && (
+              <div className="card-payment">
+                <div className="card-form">
+                  <input 
+                    className="card-input" 
+                    placeholder="Card Number" 
+                    type="text"
+                    maxLength="19"
+                    pattern="[0-9\s]{13,19}"
+                  />
+                  <div className="card-row">
+                    <input 
+                      className="card-input" 
+                      placeholder="MM/YY" 
+                      type="text"
+                      maxLength="5"
+                    />
+                    <input 
+                      className="card-input" 
+                      placeholder="CVV" 
+                      type="text"
+                      maxLength="3"
+                    />
+                  </div>
+                  <input 
+                    className="card-input" 
+                    placeholder="Cardholder Name" 
+                    type="text"
+                  />
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === 'cash' && (
+              <div className="cash-payment">
+                <div className="cash-instructions">
+                  <p>Please proceed to the counter to make cash payment.</p>
+                  <p>Your order number will be called when ready.</p>
+                </div>
+              </div>
+            )}
+
+            <button 
+              className={`pay-now-btn ${paymentStatus === 'processing' ? 'processing' : ''}`}
+              onClick={handlePayment}
+              disabled={paymentStatus === 'processing'}
+            >
+              {paymentStatus === 'processing' ? (
+                <>
+                  <span className="spinner"></span>
+                  Processing Payment...
+                </>
+              ) : (
+                `Pay RM ${orderDetails.total.toFixed(2)}`
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Organized menu structure - ENHANCED with proper IDs and structure
+  const menuSections = [
+    {
+      id: 'signature',
+      name: 'Signature Dishes',
+      items: [
+        {
+          id: '1',
+          _id: '1',
+          name: "Nasi Lemak Royal",
+          description: "Premium coconut rice with traditional sambal, crispy chicken, anchovies, and quail eggs",
+          price: 16.90,
+          category: "signature",
+          prepTime: 15,
+          spicy: "Medium",
+          popular: true,
+          image: "🍛"
+        },
+        {
+          id: '3',
+          _id: '3',
+          name: "Rendang Tok",
+          description: "Traditional dry beef rendang with authentic spices and coconut",
+          price: 22.90,
+          category: "signature",
+          prepTime: 25,
+          spicy: "Hot",
+          popular: true,
+          image: "🍖"
+        },
+        {
+          id: '5',
+          _id: '5',
+          name: "Satay Set (10 sticks)",
+          description: "Grilled chicken and beef satay with peanut sauce and condiments",
+          price: 18.90,
+          category: "signature",
+          prepTime: 12,
+          spicy: "Mild",
+          popular: true,
+          image: "🍢"
+        },
+        {
+          id: '11',
+          _id: '11',
+          name: "Char Kway Teow",
+          description: "Stir-fried rice noodles with prawns, cockles, and Chinese sausage",
+          price: 14.90,
+          category: "signature",
+          prepTime: 12,
+          spicy: "Medium",
+          popular: true,
+          image: "🍜"
+        }
+      ]
+    },
+    {
+      id: 'main',
+      name: 'Main Courses',
+      items: [
+        {
+          id: '7',
+          _id: '7',
+          name: "Chicken Curry",
+          description: "Spicy chicken curry with potatoes and coconut milk",
+          price: 14.90,
+          category: "main",
+          prepTime: 20,
+          spicy: "Medium",
+          popular: false,
+          image: "🍗"
+        },
+        {
+          id: '8',
+          _id: '8',
+          name: "Fried Rice Special",
+          description: "Wok-fried rice with shrimp, chicken, and vegetables",
+          price: 12.90,
+          category: "main",
+          prepTime: 10,
+          spicy: "Mild",
+          popular: true,
+          image: "🍚"
+        },
+        {
+          id: '12',
+          _id: '12',
+          name: "Beef Rendang",
+          description: "Slow-cooked beef in rich coconut and spices",
+          price: 19.90,
+          category: "main",
+          prepTime: 25,
+          spicy: "Hot",
+          popular: true,
+          image: "🥩"
+        }
+      ]
+    },
+    {
+      id: 'drinks',
+      name: 'Beverages',
+      items: [
+        {
+          id: '2',
+          _id: '2',
+          name: "Artisan Teh Tarik",
+          description: "Expertly pulled Malaysian milk tea with rich, creamy foam",
+          price: 6.50,
+          category: "drinks", 
+          prepTime: 5,
+          spicy: "Mild",
+          popular: true,
+          image: "🥤"
+        },
+        {
+          id: '6',
+          _id: '6',
+          name: "Iced Lemon Tea",
+          description: "Refreshing lemon tea with mint leaves and honey",
+          price: 5.90,
+          category: "drinks",
+          prepTime: 3,
+          spicy: "Mild",
+          popular: false,
+          image: "🍋"
+        },
+        {
+          id: '9',
+          _id: '9',
+          name: "Fresh Coconut",
+          description: "Chilled young coconut with natural sweetness",
+          price: 8.90,
+          category: "drinks",
+          prepTime: 2,
+          spicy: "Mild",
+          popular: true,
+          image: "🥥"
+        },
+        {
+          id: '13',
+          _id: '13',
+          name: "Iced Coffee",
+          description: "Rich coffee with condensed milk and ice",
+          price: 7.50,
+          category: "drinks",
+          prepTime: 4,
+          spicy: "Mild",
+          popular: true,
+          image: "☕"
+        }
+      ]
+    },
+    {
+      id: 'desserts',
+      name: 'Desserts',
+      items: [
+        {
+          id: '4',
+          _id: '4',
+          name: "Mango Sticky Rice",
+          description: "Sweet mango with coconut sticky rice and sesame seeds",
+          price: 12.90,
+          category: "desserts",
+          prepTime: 10,
+          spicy: "Mild",
+          popular: false,
+          image: "🥭"
+        },
+        {
+          id: '10',
+          _id: '10',
+          name: "Cendol Delight",
+          description: "Traditional shaved ice with coconut milk and palm sugar",
+          price: 7.90,
+          category: "desserts",
+          prepTime: 5,
+          spicy: "Mild",
+          popular: true,
+          image: "🍧"
+        },
+        {
+          id: '14',
+          _id: '14',
+          name: "Pisang Goreng",
+          description: "Crispy fried bananas with ice cream",
+          price: 8.90,
+          category: "desserts",
+          prepTime: 8,
+          spicy: "Mild",
+          popular: true,
+          image: "🍌"
+        }
+      ]
+    },
+    {
+      id: 'appetizers',
+      name: 'Appetizers',
+      items: [
+        {
+          id: '15',
+          _id: '15',
+          name: "Spring Rolls",
+          description: "Crispy vegetable spring rolls with sweet chili sauce",
+          price: 9.90,
+          category: "appetizers",
+          prepTime: 8,
+          spicy: "Mild",
+          popular: true,
+          image: "🌯"
+        },
+        {
+          id: '16',
+          _id: '16',
+          name: "Prawn Crackers",
+          description: "Light and crispy prawn crackers with dip",
+          price: 6.90,
+          category: "appetizers",
+          prepTime: 3,
+          spicy: "Mild",
+          popular: false,
+          image: "🦐"
+        }
+      ]
+    }
+  ];
+
+  // Use provided menu or fallback to local menu
+  const displayMenu = menu && menu.length > 0 ? menu : menuSections.flatMap(section => section.items);
+
+  // Calculate total items count for "All Items"
+  const totalItemsCount = menuSections.reduce((total, section) => total + section.items.length, 0);
+
+  const menuCategories = [
+    { id: 'all', name: 'All Items', count: totalItemsCount },
+    ...menuSections.map(section => ({
+      id: section.id,
+      name: section.name,
+      count: section.items.length
+    }))
+  ];
+
+  const addToCart = (item) => {
+    console.log('DigitalMenu - Adding to cart:', item);
+    const existingItem = cart.find(cartItem => cartItem.id === item.id);
+    if (existingItem) {
+      setCart(cart.map(cartItem =>
+        cartItem.id === item.id
+          ? { ...cartItem, quantity: cartItem.quantity + 1 }
+          : cartItem
+      ));
+    } else {
+      setCart([...cart, { ...item, quantity: 1 }]);
+    }
+  };
+
+  const removeFromCart = (id) => {
+    setCart(cart.filter(item => item.id !== id));
+  };
+
+  const updateQuantity = (id, change) => {
+    setCart(cart.map(item =>
+      item.id === id
+        ? { ...item, quantity: Math.max(0, item.quantity + change) }
+        : item
+    ).filter(item => item.quantity > 0));
+  };
+
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const serviceTax = subtotal * 0.06;
+  const sst = subtotal * 0.08;
+  const total = subtotal + serviceTax + sst;
+  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+ // CRITICAL: Enhanced table detection from URL
   useEffect(() => {
     const detectTableFromURL = () => {
       console.log('🔍 Scanning URL for table number...');
       
+      // Get current URL components
       const url = new URL(window.location.href);
       const hash = window.location.hash;
       const searchParams = url.searchParams;
       
       let detectedTable = null;
 
-      // Check URL search params (/?table=T01)
+      // Method 1: Check URL search params (/?table=T01)
       if (searchParams.has('table')) {
         detectedTable = searchParams.get('table');
         console.log('✅ Table detected from search params:', detectedTable);
       }
       
-      // Check hash parameters (/#menu?table=T01)
+      // Method 2: Check hash parameters (/#menu?table=T01)
       if (hash.includes('?')) {
         const hashParams = new URLSearchParams(hash.split('?')[1]);
         if (hashParams.has('table')) {
@@ -41,652 +644,335 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           console.log('✅ Table detected from hash params:', detectedTable);
         }
       }
+      
+      // Method 3: Check path parameters (/menu/T01)
+      const pathParts = window.location.pathname.split('/');
+      if (pathParts.length > 2 && pathParts[1] === 'menu') {
+        detectedTable = pathParts[2];
+        console.log('✅ Table detected from path:', detectedTable);
+      }
 
       if (detectedTable) {
         setTableNumber(detectedTable);
         console.log('🎯 Table number set to:', detectedTable);
       } else {
         console.log('❌ No table number found in URL');
+        console.log('📋 URL details:', {
+          href: window.location.href,
+          hash: window.location.hash,
+          search: window.location.search,
+          pathname: window.location.pathname
+        });
       }
     };
 
     if (isCustomerView) {
+      // Detect immediately
       detectTableFromURL();
+      
+      // Also detect on load in case of slow rendering
+      setTimeout(detectTableFromURL, 1000);
+      
+      // Listen for URL changes
       window.addEventListener('hashchange', detectTableFromURL);
+      window.addEventListener('popstate', detectTableFromURL);
       
       return () => {
         window.removeEventListener('hashchange', detectTableFromURL);
+        window.removeEventListener('popstate', detectTableFromURL);
       };
     }
   }, [isCustomerView]);
 
-  // Load cart from localStorage
-  useEffect(() => {
-    if (isCustomerView) {
-      const savedCart = localStorage.getItem('customerCart');
-      if (savedCart) {
-        setCart(JSON.parse(savedCart));
-      }
-    }
-  }, [isCustomerView, setCart]);
+// REPLACE your existing handlePlaceOrder function with this:
+const handlePlaceOrder = async () => {
+  if (cart.length === 0) {
+    alert('Your cart is empty. Please add some items first.');
+    return;
+  }
 
-  // Save cart to localStorage
-  useEffect(() => {
-    if (isCustomerView) {
-      localStorage.setItem('customerCart', JSON.stringify(cart));
-    }
-  }, [cart, isCustomerView]);
+  // CRITICAL: Validate table number for QR orders
+  if (!tableNumber && isCustomerView) {
+    alert('Table number not detected. Please scan the QR code again or contact staff.');
+    console.error('❌ No table number available for QR order');
+    return;
+  }
 
-  // Add item to cart
-  const addToCart = (item) => {
-    const existingItem = cart.find(cartItem => cartItem._id === item._id);
-    
-    if (existingItem) {
-      setCart(cart.map(cartItem =>
-        cartItem._id === item._id
-          ? { ...cartItem, quantity: cartItem.quantity + 1 }
-          : cartItem
-      ));
-    } else {
-      setCart([...cart, { 
-        ...item, 
-        quantity: 1,
-        addedAt: new Date().toISOString()
-      }]);
-    }
-    
-    // Show cart automatically when adding items on mobile
-    if (isMobile) {
-      setShowCart(true);
-    }
-  };
-
-  // Remove item from cart
-  const removeFromCart = (itemId) => {
-    setCart(cart.filter(item => item._id !== itemId));
-  };
-
-  // Update item quantity
-  const updateQuantity = (itemId, newQuantity) => {
-    if (newQuantity < 1) {
-      removeFromCart(itemId);
-    } else {
-      setCart(cart.map(item =>
-        item._id === itemId ? { ...item, quantity: newQuantity } : item
-      ));
-    }
-  };
-
-  // Clear entire cart
-  const clearCart = () => {
-    setCart([]);
-    if (isCustomerView) {
-      localStorage.removeItem('customerCart');
-    }
-  };
-
-  // Calculate total
-  const getTotal = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
-  };
-
-  // Get item count in cart
-  const getItemCount = () => {
-    return cart.reduce((count, item) => count + item.quantity, 0);
-  };
-
-  // Get categories from menu
-  const categories = ['all', ...new Set(menu.map(item => item.category))];
+  const finalTableNumber = tableNumber || 'Walk-in';
   
-  // Filter and sort menu
-  const filteredMenu = menu
-    .filter(item => {
-      const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.description?.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesCategory && matchesSearch;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'price-low':
-          return a.price - b.price;
-        case 'price-high':
-          return b.price - a.price;
-        case 'name':
-        default:
-          return a.name.localeCompare(b.name);
-      }
-    });
+  console.log('🛒 Placing order for table:', finalTableNumber);
 
-  // Place order
-  const handlePlaceOrder = async () => {
-    if (cart.length === 0) {
-      alert('Your cart is empty. Please add some items first.');
-      return;
-    }
+  try {
+    const orderData = cart.map(item => ({
+      menuItemId: item._id,
+      _id: item._id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      category: item.category
+    }));
 
-    // Validate table number for QR orders
-    if (isCustomerView && !tableNumber) {
-      alert('Table number not detected. Please scan the QR code again.');
-      return;
-    }
-
-    // Validate table selection for staff orders
-    if (!isCustomerView && orderType === 'dine-in' && !selectedTable) {
-      alert('Please select a table number.');
-      return;
-    }
-
-    const finalTable = isCustomerView ? tableNumber : selectedTable;
-    const finalOrderType = isCustomerView ? 'dine-in' : orderType;
-
-    console.log('🛒 Placing order:', { 
-      finalTable, 
-      finalOrderType, 
-      items: cart,
-      customerInfo 
-    });
-
-    try {
-      const orderData = {
-        tableId: finalTable,
-        items: cart.map(item => ({
-          menuItemId: item._id,
-          quantity: item.quantity,
-          price: item.price,
-          specialInstructions: item.specialInstructions || ''
-        })),
-        orderType: finalOrderType,
-        customerName: customerInfo.name || (isCustomerView ? 'QR Customer' : ''),
-        customerPhone: customerInfo.phone || ''
-      };
-
-      const result = await onCreateOrder(finalTable, cart, finalOrderType);
-      
-      console.log('✅ Order placed successfully:', result);
-      
-      // Clear cart and show success
-      setCart([]);
-      setCustomerInfo({ name: '', phone: '', specialInstructions: '' });
-      setOrderSuccess(true);
-      setShowCart(false);
-      
-      if (isCustomerView) {
-        localStorage.removeItem('customerCart');
-      }
-      
-      setTimeout(() => setOrderSuccess(false), 5000);
-      
-      alert(`Order placed successfully! Your order number is: ${result.orderNumber}`);
-      
-    } catch (error) {
-      console.error('❌ Order failed:', error);
-      alert('Failed to place order: ' + error.message);
-    }
-  };
-
-  // Get popular items (most added to cart)
-  const getPopularItems = () => {
-    const itemCounts = {};
-    cart.forEach(item => {
-      itemCounts[item._id] = (itemCounts[item._id] || 0) + item.quantity;
-    });
+    const result = await onCreateOrder(finalTableNumber, orderData, 'dine-in');
     
-    return menu
-      .filter(item => itemCounts[item._id])
-      .sort((a, b) => itemCounts[b._id] - itemCounts[a._id])
-      .slice(0, 3);
+    console.log('✅ Order placed successfully:', result);
+    
+    // Clear cart and show success
+    setCart([]);
+    setOrderSuccess(true);
+    
+    setTimeout(() => setOrderSuccess(false), 5000);
+    
+    alert(`Order placed successfully! Your order number is: ${result.orderNumber}`);
+    
+  } catch (error) {
+    console.error('❌ Order failed:', error);
+    alert('Failed to place order: ' + error.message);
+  }
+};
+
+  const handleProceedToPayment = () => {
+    if (cart.length === 0) return;
+    setShowPayment(true);
   };
 
-    // Render header based on view type
-  const renderHeader = () => (
-    <div className="page-header">
-      <div className="menu-header-content">
-        <div className="menu-header-info">
-          <h2 className="page-title">
-            {isCustomerView ? '🍛 FlavorFlow Menu' : 'Digital Menu Management'}
-          </h2>
-          <p className="page-subtitle">
-            {isCustomerView && tableNumber 
-              ? `Welcome to Table ${tableNumber} • Order will be delivered to your table`
-              : isCustomerView && !tableNumber
-                ? 'Scan QR code to start ordering'
-                : orderType === 'takeaway' 
-                  ? 'Takeaway Order Management' 
-                  : selectedTable 
-                    ? `Table ${selectedTable} Order Management`
-                    : 'Select a table to start order'
-            }
-            {isCustomerView && !tableNumber && (
-              <span style={{color: '#ef4444', display: 'block', marginTop: '8px', fontSize: '0.9rem'}}>
-                ⚠️ Table not detected. Please scan QR code again.
-              </span>
-            )}
-          </p>
-        </div>
-        
-        <div className="menu-controls-enhanced">
-          {!isCustomerView && (
-            <>
-              <div className="control-group">
-                <label className="control-label">Order Type</label>
-                <select 
-                  value={orderType}
-                  onChange={(e) => {
-                    setOrderType(e.target.value);
-                    if (e.target.value === 'takeaway') {
-                      setSelectedTable('Takeaway');
-                    } else {
-                      setSelectedTable('');
-                    }
-                  }}
-                  className="control-select enhanced"
-                >
-                  <option value="dine-in">🍽️ Dine In</option>
-                  <option value="takeaway">🥡 Takeaway</option>
-                </select>
-              </div>
-              
-              {orderType === 'dine-in' && (
-                <div className="control-group">
-                  <label className="control-label">Table Number</label>
-                  <select 
-                    value={selectedTable}
-                    onChange={(e) => setSelectedTable(e.target.value)}
-                    className="control-select enhanced"
-                  >
-                    <option value="">Select Table</option>
-                    {['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08', 'T09', 'T10'].map(table => (
-                      <option key={table} value={table}>Table {table}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </>
-          )}
-          
-          {!isCustomerView && (
-            <div className="control-group">
-              <label className="control-label">Preview</label>
-              <button 
-                className="customer-view-btn"
-                onClick={() => window.open('/#menu', '_blank')}
-              >
-                👀 Customer View
-              </button>
-            </div>
-          )}
-          
-          {/* Cart Summary */}
-          {cart.length > 0 && (
-            <div className="control-group">
-              <label className="control-label">Cart</label>
-              <div className="cart-summary">
-                <span className="cart-count">{getItemCount()} items</span>
-                <span className="cart-total">RM {getTotal().toFixed(2)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  // Get filtered items for specific category
+  const filteredItems = activeCategory === 'all' 
+    ? [] // We'll handle "all" differently
+    : menuSections.find(section => section.id === activeCategory)?.items || [];
 
-  // Render search and filters
-  const renderFilters = () => (
-    <div className="menu-filters">
-      <div className="search-box">
-        <input
-          type="text"
-          placeholder="Search menu items..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
-        <span className="search-icon">🔍</span>
-      </div>
-      
-      <div className="filter-controls">
-        <select 
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="filter-select"
-        >
-          <option value="name">Sort by Name</option>
-          <option value="price-low">Price: Low to High</option>
-          <option value="price-high">Price: High to Low</option>
-        </select>
-        
-        <div className="category-filters">
-          {categories.map(category => (
-            <button
-              key={category}
-              className={`category-btn ${activeCategory === category ? 'active' : ''}`}
-              onClick={() => setActiveCategory(category)}
-            >
-              {category === 'all' ? 'All Items' : category.charAt(0).toUpperCase() + category.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Render menu grid
-  const renderMenuGrid = () => (
-    <div className="menu-content">
-      {/* Popular Items Section */}
-      {isCustomerView && getPopularItems().length > 0 && (
-        <div className="popular-section">
-          <h3 className="section-title">Your Favorites</h3>
-          <div className="popular-items">
-            {getPopularItems().map(item => (
-              <div key={item._id} className="popular-item-card" onClick={() => addToCart(item)}>
-                <div className="popular-item-content">
-                  <span className="popular-item-name">{item.name}</span>
-                  <span className="popular-item-price">RM {item.price.toFixed(2)}</span>
-                </div>
-                <button className="quick-add-btn">+ Add</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Menu Items Grid */}
-      <div className="menu-grid-section">
-        <div className="section-header">
-          <h3 className="section-title">
-            {activeCategory === 'all' ? 'All Menu Items' : activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)}
-            <span className="item-count">({filteredMenu.length} items)</span>
-          </h3>
-        </div>
-
-        {filteredMenu.length === 0 ? (
-          <div className="empty-menu">
-            <div className="empty-icon">🍽️</div>
-            <h3>No items found</h3>
-            <p>Try changing your search or filter criteria</p>
-          </div>
-        ) : (
-          <div className="menu-grid">
-            {filteredMenu.map(item => {
-              const cartItem = cart.find(cartItem => cartItem._id === item._id);
-              const quantity = cartItem ? cartItem.quantity : 0;
-              
-              return (
-                <div key={item._id} className="menu-item-card">
-                  <div className="item-image">
-                    <div className="image-placeholder">
-                      {item.emoji || '🍛'}
-                    </div>
-                    {quantity > 0 && (
-                      <div className="cart-badge">{quantity}</div>
-                    )}
-                  </div>
-                  
-                  <div className="item-content">
-                    <div className="item-header">
-                      <h3 className="item-name">{item.name}</h3>
-                      <span className="item-category">{item.category}</span>
-                    </div>
-                    
-                    <p className="item-description">
-                      {item.description || 'Delicious menu item prepared with care'}
-                    </p>
-                    
-                    {item.preparationTime && (
-                      <div className="prep-time">
-                        <span className="prep-icon">⏱️</span>
-                        {item.preparationTime} min
-                      </div>
-                    )}
-                    
-                    <div className="item-footer">
-                      <div className="price-section">
-                        <span className="item-price">RM {item.price.toFixed(2)}</span>
-                        {item.originalPrice && item.originalPrice > item.price && (
-                          <span className="original-price">RM {item.originalPrice.toFixed(2)}</span>
-                        )}
-                      </div>
-                      
-                      <div className="item-actions">
-                        {quantity > 0 ? (
-                          <div className="quantity-controls-compact">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateQuantity(item._id, quantity - 1);
-                              }}
-                              className="qty-btn"
-                            >
-                              -
-                            </button>
-                            <span className="qty-display">{quantity}</span>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateQuantity(item._id, quantity + 1);
-                              }}
-                              className="qty-btn"
-                            >
-                              +
-                            </button>
-                          </div>
-                        ) : (
-                          <button 
-                            className="add-to-cart-btn primary"
-                            onClick={() => addToCart(item)}
-                          >
-                            Add to Cart
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-    // Render cart sidebar
-  const renderCartSidebar = () => (
-    <div className={`cart-sidebar ${showCart ? 'show' : ''}`}>
-      <div className="cart-header">
-        <div className="cart-title">
-          <h3>Your Order</h3>
-          <button 
-            className="close-cart-btn"
-            onClick={() => setShowCart(false)}
-          >
-            ×
-          </button>
-        </div>
-        <div className="cart-summary-header">
-          <span className="item-count">{getItemCount()} items</span>
-          <button 
-            className="clear-cart-btn"
-            onClick={clearCart}
-          >
-            Clear All
-          </button>
-        </div>
-      </div>
-      
-      <div className="cart-items">
-        {cart.length === 0 ? (
-          <div className="empty-cart">
-            <div className="empty-cart-icon">🛒</div>
-            <p>Your cart is empty</p>
-            <small>Add some delicious items to get started</small>
-          </div>
-        ) : (
-          cart.map(item => (
-            <div key={item._id} className="cart-item">
-              <div className="cart-item-content">
-                <div className="cart-item-info">
-                  <span className="cart-item-name">{item.name}</span>
-                  <span className="cart-item-price">RM {item.price.toFixed(2)} each</span>
-                </div>
-                <div className="cart-item-controls">
-                  <div className="quantity-controls">
-                    <button 
-                      onClick={() => updateQuantity(item._id, item.quantity - 1)}
-                      className="quantity-btn"
-                    >
-                      -
-                    </button>
-                    <span className="quantity">{item.quantity}</span>
-                    <button 
-                      onClick={() => updateQuantity(item._id, item.quantity + 1)}
-                      className="quantity-btn"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div className="cart-item-total">
-                    RM {(item.price * item.quantity).toFixed(2)}
-                  </div>
-                  <button 
-                    onClick={() => removeFromCart(item._id)}
-                    className="remove-item-btn"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {cart.length > 0 && (
-        <div className="cart-footer">
-          {/* Customer Info for QR orders */}
-          {isCustomerView && (
-            <div className="customer-info">
-              <h4>Your Information (Optional)</h4>
-              <div className="info-fields">
-                <input
-                  type="text"
-                  placeholder="Your name"
-                  value={customerInfo.name}
-                  onChange={(e) => setCustomerInfo(prev => ({...prev, name: e.target.value}))}
-                  className="info-input"
-                />
-                <input
-                  type="tel"
-                  placeholder="Phone number"
-                  value={customerInfo.phone}
-                  onChange={(e) => setCustomerInfo(prev => ({...prev, phone: e.target.value}))}
-                  className="info-input"
-                />
-                <textarea
-                  placeholder="Special instructions (allergies, preferences, etc.)"
-                  value={customerInfo.specialInstructions}
-                  onChange={(e) => setCustomerInfo(prev => ({...prev, specialInstructions: e.target.value}))}
-                  className="info-textarea"
-                  rows="3"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="cart-total-section">
-            <div className="total-line">
-              <span>Subtotal:</span>
-              <span>RM {getTotal().toFixed(2)}</span>
-            </div>
-            <div className="total-line">
-              <span>Service Tax (0%):</span>
-              <span>RM 0.00</span>
-            </div>
-            <div className="total-line grand-total">
-              <span>Total:</span>
-              <span>RM {getTotal().toFixed(2)}</span>
-            </div>
-          </div>
-
-          <div className="checkout-actions">
-            <button 
-              className="place-order-btn primary"
-              onClick={handlePlaceOrder}
-              disabled={isCustomerView && !tableNumber}
-            >
-              {isCustomerView ? 
-                `Place Order for Table ${tableNumber || '?'}` : 
-                `Place ${orderType === 'takeaway' ? 'Takeaway' : 'Table'} Order`
-              }
-              <span className="order-total">RM {getTotal().toFixed(2)}</span>
-            </button>
-            
-            {isCustomerView && !tableNumber && (
-              <div className="table-warning">
-                ⚠️ Table number required. Please scan QR code.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // Render floating cart button for mobile
-  const renderFloatingCart = () => (
-    cart.length > 0 && isMobile && (
-      <div className="cart-floating">
-        <div 
-          className="floating-cart-trigger"
-          onClick={() => setShowCart(!showCart)}
-        >
-          <div className="floating-cart-info">
-            <span className="floating-count">{getItemCount()} items</span>
-            <span className="floating-total">RM {getTotal().toFixed(2)}</span>
-          </div>
-          <div className="floating-cart-icon">
-            🛒
-            {getItemCount() > 0 && (
-              <span className="floating-badge">{getItemCount()}</span>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  );
-
-  // Render order success banner
-  const renderSuccessBanner = () => (
-    orderSuccess && (
-      <div className="order-success-banner">
-        <div className="success-content">
-          <span className="success-icon">✅</span>
-          <div className="success-message">
-            <h3>Order Placed Successfully!</h3>
-            <p>Your order has been sent to the kitchen. You'll be notified when it's ready.</p>
-          </div>
-          <button 
-            className="close-banner-btn"
-            onClick={() => setOrderSuccess(false)}
-          >
-            ×
-          </button>
-        </div>
-      </div>
-    )
-  );
+  // Safe text truncation
+  const truncateText = (text, maxLength = 20) => {
+    if (!text || typeof text !== 'string') return 'Unknown Item';
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  };
 
   return (
-    <div className="digital-menu">
-      {renderHeader()}
-      {renderSuccessBanner()}
-      {renderFilters()}
-      {renderMenuGrid()}
-      {renderCartSidebar()}
-      {renderFloatingCart()}
+    <div className="page">
+      {/* Improved Header Section */}
+      <div className="page-header">
+        <div className="menu-header-content">
+          <div className="menu-header-info">
+            <h2 className="page-title">
+              {isCustomerView ? '🍛 FlavorFlow Menu' : 'Digital Menu'}
+            </h2>
+            <p className="page-subtitle">
+              {isCustomerView && currentTable 
+                ? `Welcome to Table ${currentTable} • Scan QR code to order`
+                : selectedTable === 'Takeaway' 
+                  ? 'Takeaway Order' 
+                  : `Table ${selectedTable} • Scan QR code to order`
+              }
+            </p>
+          </div>
+          
+          <div className="menu-controls-enhanced">
+            <div className="control-group">
+              <label className="control-label">Order Type</label>
+              <select 
+                value={orderType}
+                onChange={(e) => setOrderType(e.target.value)}
+                className="control-select enhanced"
+              >
+                <option value="dine-in">🍽️ Dine In</option>
+                <option value="takeaway">🥡 Takeaway</option>
+              </select>
+            </div>
+            
+            {orderType === 'dine-in' && (
+              <div className="control-group">
+                <label className="control-label">Table Number</label>
+                <select 
+                  value={selectedTable}
+                  onChange={(e) => setSelectedTable(e.target.value)}
+                  className="control-select enhanced"
+                >
+                  <option value="">Select Table</option>
+                  {['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08'].map(table => (
+                    <option key={table} value={table}>Table {table}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {!isCustomerView && (
+              <div className="control-group">
+                <label className="control-label">View</label>
+                <button 
+                  className="customer-view-btn"
+                  onClick={() => window.open('/#menu', '_blank')}
+                >
+                  👀 Customer View
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showPayment ? (
+        <PaymentPage 
+          orderDetails={{
+            table: selectedTable,
+            items: cart,
+            subtotal,
+            serviceTax,
+            sst,
+            total,
+            orderType
+          }}
+          onBack={() => setShowPayment(false)}
+          onPaymentSuccess={() => {
+            handlePlaceOrder();
+          }}
+          isMobile={isMobile}
+        />
+      ) : (
+        <div className="menu-layout">
+          {/* Categories Sidebar */}
+          <div className="categories-sidebar">
+            <h3 className="categories-title">Categories</h3>
+            <div className="categories-list">
+              {menuCategories.map(category => (
+                <button
+                  key={category.id}
+                  className={`category-button ${activeCategory === category.id ? 'active' : ''}`}
+                  onClick={() => setActiveCategory(category.id)}
+                >
+                  <span className="category-name">
+                    {isMobile ? category.name.split(' ')[0] : category.name}
+                  </span>
+                  <span className="category-count">{category.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Menu Items Container */}
+          <div className="menu-items-container">
+            {activeCategory === 'all' ? (
+              // Show all sections when "All Items" is selected
+              menuSections.map(section => (
+                <div key={section.id} className="menu-section">
+                  <h3 className="section-title">{section.name}</h3>
+                  <div className="menu-items-grid">
+                    {section.items.map(item => (
+                      <MenuItemCard 
+                        key={item.id} 
+                        item={item} 
+                        onAddToCart={addToCart}
+                        isMobile={isMobile}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              // Show filtered items when a specific category is selected
+              <div className="menu-section">
+                <h3 className="section-title">
+                  {menuSections.find(s => s.id === activeCategory)?.name}
+                </h3>
+                <div className="menu-items-grid">
+                  {filteredItems.map(item => (
+                    <MenuItemCard 
+                      key={item.id} 
+                      item={item} 
+                      onAddToCart={addToCart}
+                      isMobile={isMobile}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Cart Sidebar */}
+          <div className="cart-sidebar">
+            <div className="cart-header">
+              <h3 className="cart-title">Your Order</h3>
+              <div className="cart-summary">
+                {orderType === 'dine-in' ? `Table ${selectedTable}` : 'Takeaway'} • {itemCount} items
+              </div>
+            </div>
+
+            {cart.length === 0 ? (
+              <div className="empty-cart">
+                <div className="empty-cart-icon">🛒</div>
+                <p className="empty-cart-text">Your cart is empty</p>
+                <p className="empty-cart-subtext">Add items from the menu</p>
+              </div>
+            ) : (
+              <>
+                <div className="cart-items">
+                  {cart.map(item => (
+                    <div key={item.id} className="cart-item">
+                      <div className="cart-item-info">
+                        <div className="cart-item-name">
+                          {isMobile ? `${item.name.substring(0, 20)}...` : item.name}
+                        </div>
+                        <div className="cart-item-price">RM {item.price.toFixed(2)} each</div>
+                      </div>
+                      <div className="cart-item-controls">
+                        <button 
+                          className="quantity-btn"
+                          onClick={() => updateQuantity(item.id, -1)}
+                        >
+                          -
+                        </button>
+                        <span className="quantity-display">{item.quantity}</span>
+                        <button 
+                          className="quantity-btn"
+                          onClick={() => updateQuantity(item.id, 1)}
+                        >
+                          +
+                        </button>
+                        <button 
+                          className="remove-btn"
+                          onClick={() => removeFromCart(item.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="cart-total">
+                  <div className="total-line">
+                    <span>Subtotal</span>
+                    <span>RM {subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="total-line">
+                    <span>Service Tax (6%)</span>
+                    <span>RM {serviceTax.toFixed(2)}</span>
+                  </div>
+                  <div className="total-line">
+                    <span>SST (8%)</span>
+                    <span>RM {sst.toFixed(2)}</span>
+                  </div>
+                  <div className="grand-total">
+                    <span>Total Amount</span>
+                    <span className="grand-total-amount">
+                      RM {total.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="cart-actions">
+                  <button className="checkout-btn" onClick={handleProceedToPayment}>
+                    <span className="checkout-icon">💳</span>
+                    {isMobile ? `Pay RM ${total.toFixed(2)}` : `Proceed to Payment - RM ${total.toFixed(2)}`}
+                  </button>
+                  <button className="place-order-btn" onClick={handlePlaceOrder}>
+                    <span className="checkout-icon">📦</span>
+                    {isMobile ? 'Place Order' : 'Place Order Only'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

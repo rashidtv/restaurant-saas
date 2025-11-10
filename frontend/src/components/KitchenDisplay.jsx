@@ -14,19 +14,23 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return () => clearInterval(timer);
   }, []);
 
-// In the status update function, ensure it flows to payments:
+// UPDATE the status update function in KitchenDisplay:
 const handleUpdateOrderStatus = async (orderId, newStatus) => {
   try {
     console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
     
-    await onUpdateOrderStatus(orderId, newStatus);
+    // When marking as ready or completed, ensure paymentStatus is updated
+    const updateData = { status: newStatus };
+    if (newStatus === 'ready' || newStatus === 'completed') {
+      updateData.paymentStatus = 'pending'; // Ready for payment
+    }
     
-    // If marking as ready, it should appear in payments
+    await onUpdateOrderStatus(orderId, updateData);
+    
     if (newStatus === 'ready') {
       console.log(`💰 Order ${orderId} is now ready for payment`);
     }
     
-    // If completing, it should also appear in payments
     if (newStatus === 'completed') {
       console.log(`✅ Order ${orderId} completed and ready for payment`);
     }
