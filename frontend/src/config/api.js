@@ -32,4 +32,31 @@ export const apiFetch = async (url, options = {}) => {
   }
 };
 
+// Order-specific API functions
+export const updateOrderStatus = async (orderId, status) => {
+  return apiFetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status })
+  });
+};
+
+export const createOrder = async (orderData) => {
+  return apiFetch(`${API_BASE_URL}/api/orders`, {
+    method: 'POST',
+    body: JSON.stringify(orderData)
+  });
+};
+
+export const fetchOrders = async () => {
+  return apiFetch(`${API_BASE_URL}/api/orders`);
+};
+
+export const fetchTables = async () => {
+  return apiFetch(`${API_BASE_URL}/api/tables`);
+};
+
+export const fetchMenu = async () => {
+  return apiFetch(`${API_BASE_URL}/api/menu`);
+};
+
 export default API_BASE_URL;

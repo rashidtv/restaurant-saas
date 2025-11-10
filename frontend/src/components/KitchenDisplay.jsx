@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { updateOrderStatus } from '../config/api'; // ADD THIS IMPORT
 import './KitchenDisplay.css';
 
 const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onUpdateOrderStatus, apiConnected }) => {
@@ -13,26 +14,25 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return () => clearInterval(timer);
   }, []);
 
-  const updateOrderStatus = (orderId, newStatus) => {
-    if (apiConnected && onUpdateOrderStatus) {
-      onUpdateOrderStatus(orderId, newStatus);
-    } else {
-      // Fallback to local state update
-      setOrders(orders.map(order => {
-        if (order.id === orderId || order._id === orderId) {
-          const updatedOrder = { 
-            ...order, 
-            status: newStatus 
-          };
-          
-          if (newStatus === 'preparing' && !order.preparationStart) {
-            updatedOrder.preparationStart = new Date();
-          }
-          
-          return updatedOrder;
+    const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    try {
+      console.log(`Updating order ${orderId} to status: ${newStatus}`);
+      
+      if (apiConnected && onUpdateOrderStatus) {
+        // Use parent component's API call if provided
+        await onUpdateOrderStatus(orderId, newStatus);
+      } else {
+        // Use direct API call
+        await updateOrderStatus(orderId, newStatus);
+        // Refresh orders after successful update
+        if (typeof setOrders === 'function') {
+          // You might want to add a fetchOrders function here
+          console.log('Order status updated successfully');
         }
-        return order;
-      }));
+      }
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+      alert(`Failed to update order status: ${error.message}`);
     }
   };
 

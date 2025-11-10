@@ -16,7 +16,7 @@ console.log('🔧 CORS configured for frontend:', FRONTEND_URL);
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://restaurant-saas-demo.onrender.com",
+    "https://restaurant-saas-demo.onrender.com", // YOUR ACTUAL FRONTEND
     FRONTEND_URL
   ].filter(Boolean),
   credentials: true,
@@ -30,8 +30,8 @@ app.options('*', cors());
 const io = new Server(server, {
   cors: {
     origin: [
-      "http://localhost:5173",
-      "https://restaurant-saas-demo.onrender.com",
+      "http://localhost:5173", 
+      "https://restaurant-saas-demo.onrender.com", // YOUR ACTUAL FRONTEND
       FRONTEND_URL
     ].filter(Boolean),
     methods: ["GET", "POST", "PUT", "DELETE"]
