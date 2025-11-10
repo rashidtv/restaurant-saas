@@ -618,25 +618,22 @@ useEffect(() => {
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
- // CRITICAL: Enhanced table detection from URL
-  useEffect(() => {
-    const detectTableFromURL = () => {
-      console.log('🔍 Scanning URL for table number...');
-      
-      // Get current URL components
-      const url = new URL(window.location.href);
-      const hash = window.location.hash;
-      const searchParams = url.searchParams;
-      
-      let detectedTable = null;
+// REPLACE the entire table detection useEffect in DigitalMenu.jsx:
+useEffect(() => {
+  const detectTableFromURL = () => {
+    console.log('🔍 DigitalMenu - Scanning URL for table number...');
+    
+    // Get current URL
+    const currentUrl = window.location.href;
+    console.log('📋 Current URL:', currentUrl);
+    
+    let detectedTable = null;
 
-      // Method 1: Check URL search params (/?table=T01)
-      if (searchParams.has('table')) {
-        detectedTable = searchParams.get('table');
-        console.log('✅ Table detected from search params:', detectedTable);
-      }
+    // Method 1: Check hash parameters (/#/menu?table=T01)
+    if (window.location.hash) {
+      const hash = window.location.hash;
+      console.log('🔍 Hash found:', hash);
       
-      // Method 2: Check hash parameters (/#menu?table=T01)
       if (hash.includes('?')) {
         const hashParams = new URLSearchParams(hash.split('?')[1]);
         if (hashParams.has('table')) {
@@ -645,72 +642,92 @@ useEffect(() => {
         }
       }
       
-      // Method 3: Check path parameters (/menu/T01)
-      const pathParts = window.location.pathname.split('/');
-      if (pathParts.length > 2 && pathParts[1] === 'menu') {
-        detectedTable = pathParts[2];
-        console.log('✅ Table detected from path:', detectedTable);
+      // Also check for /#/menu/table/T01 format
+      const hashParts = hash.split('/');
+      const tableIndex = hashParts.findIndex(part => part === 'table');
+      if (tableIndex !== -1 && hashParts[tableIndex + 1]) {
+        detectedTable = hashParts[tableIndex + 1];
+        console.log('✅ Table detected from hash path:', detectedTable);
       }
-
-      if (detectedTable) {
-        setTableNumber(detectedTable);
-        console.log('🎯 Table number set to:', detectedTable);
-      } else {
-        console.log('❌ No table number found in URL');
-        console.log('📋 URL details:', {
-          href: window.location.href,
-          hash: window.location.hash,
-          search: window.location.search,
-          pathname: window.location.pathname
-        });
-      }
-    };
-
-    if (isCustomerView) {
-      // Detect immediately
-      detectTableFromURL();
-      
-      // Also detect on load in case of slow rendering
-      setTimeout(detectTableFromURL, 1000);
-      
-      // Listen for URL changes
-      window.addEventListener('hashchange', detectTableFromURL);
-      window.addEventListener('popstate', detectTableFromURL);
-      
-      return () => {
-        window.removeEventListener('hashchange', detectTableFromURL);
-        window.removeEventListener('popstate', detectTableFromURL);
-      };
     }
-  }, [isCustomerView]);
 
-// REPLACE your existing handlePlaceOrder function with this:
+    // Method 2: Check URL search params (/?table=T01)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('table')) {
+      detectedTable = urlParams.get('table');
+      console.log('✅ Table detected from search params:', detectedTable);
+    }
+
+    if (detectedTable) {
+      console.log('🎯 Setting table number to:', detectedTable);
+      setTableNumber(detectedTable);
+      setSelectedTable(detectedTable);
+    } else {
+      console.log('❌ No table number detected in URL');
+      console.log('📋 URL analysis:', {
+        href: window.location.href,
+        hash: window.location.hash,
+        search: window.location.search,
+        pathname: window.location.pathname
+      });
+    }
+  };
+
+  if (isCustomerView) {
+    console.log('👤 Customer view - starting table detection');
+    
+    // Detect immediately
+    detectTableFromURL();
+    
+    // Also detect after a short delay (for SPA routing)
+    const timeoutId = setTimeout(detectTableFromURL, 500);
+    
+    // Listen for URL changes
+    window.addEventListener('hashchange', detectTableFromURL);
+    window.addEventListener('popstate', detectTableFromURL);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('hashchange', detectTableFromURL);
+      window.removeEventListener('popstate', detectTableFromURL);
+    };
+  }
+}, [isCustomerView]);
+
+// UPDATE the handlePlaceOrder function in DigitalMenu.jsx:
 const handlePlaceOrder = async () => {
   if (cart.length === 0) {
     alert('Your cart is empty. Please add some items first.');
     return;
   }
 
-  // CRITICAL: Validate table number for QR orders
-  if (!tableNumber && isCustomerView) {
+  // Use detected table number or manual selection
+  const finalTableNumber = tableNumber || selectedTable;
+  
+  if (!finalTableNumber && isCustomerView) {
     alert('Table number not detected. Please scan the QR code again or contact staff.');
     console.error('❌ No table number available for QR order');
     return;
   }
 
-  const finalTableNumber = tableNumber || 'Walk-in';
-  
   console.log('🛒 Placing order for table:', finalTableNumber);
+  console.log('📦 Cart items:', cart);
 
   try {
     const orderData = cart.map(item => ({
-      menuItemId: item._id,
-      _id: item._id,
+      menuItemId: item._id || item.id,
+      _id: item._id || item.id,
       name: item.name,
       price: item.price,
       quantity: item.quantity,
       category: item.category
     }));
+
+    console.log('📤 Sending order data:', {
+      tableNumber: finalTableNumber,
+      items: orderData,
+      orderType: 'dine-in'
+    });
 
     const result = await onCreateOrder(finalTableNumber, orderData, 'dine-in');
     

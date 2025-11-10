@@ -36,6 +36,30 @@ function App() {
   const [isCustomerView, setIsCustomerView] = useState(false);
 
   // WebSocket Connection with error handling
+  // Add this to your WebSocket connection in App.jsx
+useEffect(() => {
+  if (socket) {
+    socket.on('newOrder', (order) => {
+      console.log('🔔 WebSocket - New order received:', order);
+      setOrders(prev => [...prev, order]);
+    });
+    
+    socket.on('orderUpdated', (order) => {
+      console.log('🔔 WebSocket - Order updated:', order);
+      setOrders(prev => prev.map(o => 
+        o._id === order._id || o.orderNumber === order.orderNumber ? order : o
+      ));
+    });
+
+    socket.on('tableUpdated', (table) => {
+      console.log('🔔 WebSocket - Table updated:', table);
+      setTables(prev => prev.map(t => 
+        t._id === table._id ? table : t
+      ));
+    });
+  }
+}, [socket]);
+
   useEffect(() => {
     let socket;
     

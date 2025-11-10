@@ -14,26 +14,14 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return () => clearInterval(timer);
   }, []);
 
-// UPDATE the status update function in KitchenDisplay:
 const handleUpdateOrderStatus = async (orderId, newStatus) => {
   try {
     console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
     
-    // When marking as ready or completed, ensure paymentStatus is updated
-    const updateData = { status: newStatus };
-    if (newStatus === 'ready' || newStatus === 'completed') {
-      updateData.paymentStatus = 'pending'; // Ready for payment
-    }
+    // Only update order status, don't handle table cleaning here
+    await onUpdateOrderStatus(orderId, newStatus);
     
-    await onUpdateOrderStatus(orderId, updateData);
-    
-    if (newStatus === 'ready') {
-      console.log(`💰 Order ${orderId} is now ready for payment`);
-    }
-    
-    if (newStatus === 'completed') {
-      console.log(`✅ Order ${orderId} completed and ready for payment`);
-    }
+    console.log(`✅ Order ${orderId} updated to ${newStatus}`);
     
   } catch (error) {
     console.error('❌ Status update failed:', error);
@@ -325,26 +313,17 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
                   </button>
                 )}
                 {order.status === 'ready' && (
-                  <div className="ready-actions">
-                    <button 
-                      className="kitchen-action-btn-complete"
-                      onClick={() => {
-                        updateOrderStatus(orderId, 'completed');
-                        if (orderType === 'dine-in') {
-                          markTableForCleaning(tableNumber);
-                        }
-                      }}
-                    >
-                      <span className="action-icon">🎉</span>
-                      Complete Order
-                    </button>
-                    {orderType === 'dine-in' && (
-                      <div className="cleaning-note">
-                        Table will be marked for cleaning
-                      </div>
-                    )}
-                  </div>
-                )}
+  <div className="ready-actions">
+    <button 
+      className="kitchen-action-btn-complete"
+      onClick={() => updateOrderStatus(orderId, 'completed')}
+    >
+      <span className="action-icon">🎉</span>
+      Complete Order
+    </button>
+    {/* REMOVE the cleaning note - backend will handle table status */}
+  </div>
+)}
               </div>
             </div>
           );

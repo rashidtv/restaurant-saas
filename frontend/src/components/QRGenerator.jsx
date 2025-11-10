@@ -7,17 +7,21 @@ const QRGenerator = ({ tables, isMobile }) => {
   const [generatedUrl, setGeneratedUrl] = useState('');
   const qrRef = useRef();
 
-// UPDATE the QR URL generation:
+// UPDATE the QR URL generation in QRGenerator.jsx:
 const generateQRUrl = (table) => {
   const baseUrl = window.location.origin;
-  // ENSURE table parameter is properly included
-  return `${baseUrl}/#menu?table=${encodeURIComponent(table.number)}`;
+  // Use hash-based routing for better compatibility
+  return `${baseUrl}/#/menu?table=${encodeURIComponent(table)}`;
 };
 
-  const handleTableSelect = (tableNumber) => {
-    setSelectedTable(tableNumber);
-    setGeneratedUrl(generateQRUrl(tableNumber));
-  };
+// UPDATE the handleTableSelect function:
+const handleTableSelect = (tableNumber) => {
+  console.log('🎯 Selected table for QR:', tableNumber);
+  setSelectedTable(tableNumber);
+  const url = generateQRUrl(tableNumber);
+  setGeneratedUrl(url);
+  console.log('🔗 Generated QR URL:', url);
+};
 
   const downloadQR = () => {
     if (!selectedTable || !qrRef.current) return;
