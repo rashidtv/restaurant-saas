@@ -246,125 +246,43 @@ useEffect(() => {
 
 const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
   try {
-    // Generate unique order ID for this specific table
-    const uniqueOrderId = `ORD-${Date.now()}-${tableNumber}`;
-    const orderNumber = `MESRA${Date.now().toString().slice(-6)}`;
+    // SIMPLE: Generate order data
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
     
-    console.log('App - Creating order with raw items:', orderItems);
-
-    // **FIXED: Enhanced item processing with proper structure**
-    const processedItems = orderItems.map(item => {
-      console.log('App - Processing item:', item);
-      
-      // Extract name from available sources
-      let itemName = item.name || (item.menuItem && item.menuItem.name) || 'Menu Item';
-      const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
-      const itemQuantity = item.quantity || 1;
-      
-      // **CRITICAL: Create consistent data structure**
-      const processedItem = {
-        // Core item data (direct properties)
-        id: item.id || item._id,
-        _id: item._id || item.id,
-        name: itemName,
-        price: itemPrice,
-        quantity: itemQuantity,
-        
-        // KitchenDisplay compatibility (nested menuItem)
-        menuItem: {
-          _id: item._id || item.id,
-          name: itemName,
-          price: itemPrice,
-          category: item.category || 'main',
-          image: item.image || '🍽️'
-        }
-      };
-
-      console.log('App - Processed item:', processedItem);
-      return processedItem;
-    });
-
     const orderData = {
-      id: uniqueOrderId,
-      _id: uniqueOrderId,
-      orderNumber: orderNumber, // **FIXED: Use the variable, not inline**
+      id: orderNumber,
+      orderNumber: orderNumber,
       table: tableNumber,
       tableId: tableNumber,
-      items: processedItems,
-      orderType,
-      customerName: '',
-      customerPhone: '',
+      items: orderItems,
+      orderType: orderType,
       status: 'pending',
-      total: processedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      orderedAt: new Date(),
+      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
       createdAt: new Date(),
-      time: 'Just now',
-      preparationStart: null
+      time: 'Just now'
     };
 
-    console.log('App - Final order data:', orderData);
+    console.log('Creating order:', orderData);
 
-    if (apiConnected) {
-      const response = await fetch(API_ENDPOINTS.ORDERS, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData),
-      });
+    // SIMPLE: Add to orders
+    setOrders(prev => [orderData, ...prev]);
+    
+    // SIMPLE: Update table status
+    setTables(prev => prev.map(table => 
+      table.number === tableNumber 
+        ? { ...table, status: 'occupied', orderId: orderNumber }
+        : table
+    ));
 
-      const newOrder = await response.json();
-      setOrders(prev => [newOrder, ...prev]);
-      
-      // Refresh tables to get updated status
-      const tablesResponse = await fetch(API_ENDPOINTS.TABLES);
-      const updatedTables = await tablesResponse.json();
-      setTables(updatedTables);
-      
-      setNotifications(prev => [{
-        id: Date.now(),
-        message: `New ${orderType} order from ${tableNumber}`,
-        type: 'order',
-        time: 'Just now',
-        read: false
-      }, ...prev]);
+    return orderData; // RETURN THE ORDER DATA
 
-      return newOrder;
-    } else {
-      // Fallback to local state
-      setOrders(prev => [orderData, ...prev]);
-      
-      // Update ONLY the specific table
-      setTables(prev => prev.map(table => 
-        table.number === tableNumber 
-          ? { ...table, status: 'occupied', orderId: uniqueOrderId }
-          : table
-      ));
-
-      setNotifications(prev => [{
-        id: Date.now(),
-        message: `New ${orderType} order from ${tableNumber}`,
-        type: 'order',
-        time: 'Just now',
-        read: false
-      }, ...prev]);
-
-      return orderData; // **FIXED: Return the actual order data**
-    }
   } catch (error) {
     console.error('Error creating order:', error);
-    setNotifications(prev => [{
-      id: Date.now(),
-      message: 'Failed to create order',
-      type: 'error',
-      time: 'Just now',
-      read: false
-    }, ...prev]);
     
-    // Return a fallback order to prevent undefined
+    // SIMPLE fallback
     return {
       id: `ORD-${Date.now()}`,
-      orderNumber: `MESRA${Date.now().toString().slice(-6)}`,
+      orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
       table: tableNumber,
       status: 'pending'
     };

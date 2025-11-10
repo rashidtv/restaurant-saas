@@ -405,23 +405,22 @@ const getItemName = (item) => {
               <div className="order-items">
                 <h3 className="form-label">Order Items</h3>
                 {(selectedOrder.items || []).map((item, index) => {
-                  // **FIXED: Use enhanced getItemName function**
-                  const itemName = getItemName(item);
-                  const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
-                  const itemQuantity = item.quantity || 1;
-                  
-                  return (
-                    <div key={index} className="order-item">
-                      <div className="item-details">
-                        <div className="item-name">{itemQuantity}x {truncateText(itemName, 25)}</div>
-                        <div className="item-price">RM {itemPrice.toFixed(2)} each</div>
-                      </div>
-                      <div className="item-total">
-                        RM {(itemPrice * itemQuantity).toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
+  const itemName = item.name || item.menuItem?.name || 'Menu Item';
+  const itemPrice = item.price || item.menuItem?.price || 0;
+  const itemQuantity = item.quantity || 1;
+  
+  return (
+    <div key={index} className="order-item">
+      <div className="item-details">
+        <div className="item-name">{itemQuantity}x {itemName}</div>
+        <div className="item-price">RM {itemPrice.toFixed(2)} each</div>
+      </div>
+      <div className="item-total">
+        RM {(itemPrice * itemQuantity).toFixed(2)}
+      </div>
+    </div>
+  );
+})}
               </div>
 
               <div className="order-total">

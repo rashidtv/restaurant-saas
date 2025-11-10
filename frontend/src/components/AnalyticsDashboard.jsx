@@ -85,14 +85,14 @@ const AnalyticsDashboard = ({ orders, payments, tables, isMobile }) => {
   // Calculate table performance
   const tablePerformance = calculateTablePerformance(tables, orders);
 
-// Then update the calculatePopularItems function to use getItemName:
+// SIMPLE: Calculate popular items
 function calculatePopularItems(orders) {
   const itemCount = {};
   
   orders.forEach(order => {
     (order.items || []).forEach(item => {
-      const itemName = getItemName(item); // **USE THE FUNCTION HERE**
-      const itemPrice = getItemPrice(item);
+      const itemName = item.name || item.menuItem?.name || 'Menu Item';
+      const itemPrice = item.price || item.menuItem?.price || 0;
       const itemQuantity = item.quantity || 1;
       
       if (itemCount[itemName]) {
@@ -102,7 +102,7 @@ function calculatePopularItems(orders) {
         itemCount[itemName] = {
           quantity: itemQuantity,
           revenue: itemPrice * itemQuantity,
-          image: item.image || '🍽️'
+          image: '🍽️'
         };
       }
     });

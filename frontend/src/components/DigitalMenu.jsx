@@ -573,50 +573,16 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // FIXED: Enhanced handlePlaceOrder with proper data structure
 const handlePlaceOrder = () => {
   if (cart.length === 0) return;
-  
-  console.log('DigitalMenu - Placing order:', {
-    table: selectedTable,
-    items: cart,
-    orderType,
-    isCustomerView
-  });
 
-  // Ensure cart items have proper structure
-  const processedCart = cart.map(item => ({
-    id: item.id,
-    _id: item._id || item.id,
-    name: item.name,
-    price: item.price,
-    quantity: item.quantity,
-    category: item.category,
-    image: item.image,
-    
-    // KitchenDisplay compatibility
-    menuItem: {
-      _id: item._id || item.id,
-      name: item.name,
-      price: item.price,
-      category: item.category,
-      image: item.image
-    }
-  }));
-
-  console.log('DigitalMenu - Processed cart for order:', processedCart);
-
-  const newOrder = onCreateOrder(selectedTable, processedCart, orderType);
+  const newOrder = onCreateOrder(selectedTable, cart, orderType);
   setCart([]);
   setShowPayment(false);
   
-  // **FIXED: Better success message handling**
-  if (newOrder) {
-    const orderNumber = newOrder.orderNumber || newOrder.id || 'Unknown';
-    alert(`Order placed successfully! Your order number is ${orderNumber}. Please proceed to payment when ready.`);
-  } else {
-    alert('Order placed successfully! Please proceed to payment when ready.');
-  }
+  // SIMPLE: Always show order number
+  const orderNumber = newOrder?.orderNumber || newOrder?.id || 'ORDER-' + Date.now().toString().slice(-6);
+  alert(`Order placed successfully! Order number: ${orderNumber}`);
 };
 
   const handleProceedToPayment = () => {
