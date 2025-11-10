@@ -284,26 +284,26 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// REPLACE this endpoint in server.js:
+// UPDATE order status to handle payment sync:
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
-    const orderId = req.params.id; // This expects 'id' but frontend sends orderNumber
+    const orderId = req.params.id;
     
     console.log(`🔄 Updating order ${orderId} to status: ${status}`);
     
     const orderIndex = orders.findIndex(o => 
-      o._id === orderId || o.orderNumber === orderId // Check both ID formats
+      o._id === orderId || o.orderNumber === orderId
     );
     
     if (orderIndex === -1) {
       console.log(`❌ Order not found: ${orderId}`);
-      console.log(`📋 Available orders:`, orders.map(o => ({ id: o._id, orderNumber: o.orderNumber })));
       return res.status(404).json({ error: 'Order not found' });
     }
     
     orders[orderIndex].status = status;
     
+    // When order is completed, ensure it's ready for payments
     if (status === 'completed') {
       orders[orderIndex].completedAt = new Date();
       
@@ -313,9 +313,15 @@ app.put('/api/orders/:id/status', (req, res) => {
         tables[tableIndex].status = 'needs_cleaning';
         tables[tableIndex].orderId = null;
       }
+      
+      console.log(`✅ Order ${orderId} completed and ready for payment`);
     }
     
-    console.log(`✅ Order ${orderId} updated to: ${status}`);
+    // When order is ready, it should appear in payments
+    if (status === 'ready') {
+      console.log(`💰 Order ${orderId} is ready for payment`);
+    }
+    
     io.emit('orderUpdated', orders[orderIndex]);
     res.json(orders[orderIndex]);
   } catch (error) {
@@ -388,31 +394,39 @@ app.post('/api/payments', (req, res) => {
 });
 
 // ADD this endpoint for QR code orders:
+// UPDATE the QR order endpoint to fix item structure:
 app.post('/api/customer/orders', (req, res) => {
   try {
-    const { items, customerName, customerPhone, orderType = 'takeaway' } = req.body;
+    const { items, customerName, customerPhone, orderType = 'takeaway', tableNumber } = req.body;
     
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'No items in order' });
     }
     
-    // Calculate total
+    console.log('📱 QR Order received:', { items, tableNumber });
+    
+    // Calculate total and properly map items
     const total = items.reduce((sum, item) => {
-      const menuItem = menuItems.find(m => m._id === item.menuItemId);
-      return sum + ((menuItem?.price || 0) * item.quantity);
+      const menuItem = menuItems.find(m => m._id === item.menuItemId || m._id === item._id || m._id === item.id);
+      return sum + ((menuItem?.price || item.price || 0) * (item.quantity || 1));
     }, 0);
     
     const order = {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
-      tableId: 'QR-ORDER',
+      tableId: tableNumber || 'QR-ORDER',
       items: items.map(item => {
-        const menuItem = menuItems.find(m => m._id === item.menuItemId);
+        const menuItem = menuItems.find(m => m._id === item.menuItemId || m._id === item._id || m._id === item.id);
         return {
-          menuItem: menuItem || { name: 'Unknown Item', price: 0 },
-          quantity: item.quantity,
+          menuItem: menuItem || { 
+            _id: item.menuItemId || item._id || item.id,
+            name: item.name || 'Menu Item',
+            price: item.price || 0,
+            category: item.category || 'main'
+          },
+          quantity: item.quantity || 1,
           specialInstructions: item.specialInstructions || '',
-          price: menuItem?.price || 0
+          price: menuItem?.price || item.price || 0
         };
       }),
       total,
@@ -427,7 +441,7 @@ app.post('/api/customer/orders', (req, res) => {
     
     orders.push(order);
     
-    console.log(`📱 QR Order created: ${order.orderNumber} for ${customerName}`);
+    console.log(`📱 QR Order created: ${order.orderNumber}`, order.items);
     io.emit('newOrder', order);
     
     res.json({
@@ -437,6 +451,7 @@ app.post('/api/customer/orders', (req, res) => {
       order: order
     });
   } catch (error) {
+    console.error('QR Order error:', error);
     res.status(500).json({ error: error.message });
   }
 });
