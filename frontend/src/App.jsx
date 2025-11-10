@@ -245,32 +245,38 @@ useEffect(() => {
   };
 
 // In App.jsx, replace the createNewOrder function:
+// Enhanced createNewOrder function with proper data structure
 const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
   try {
     // Generate unique order ID for this specific table
     const uniqueOrderId = `ORD-${Date.now()}-${tableNumber}`;
     
-    // FIXED: Ensure proper item structure for KitchenDisplay compatibility
-    const processedItems = orderItems.map(item => ({
-      // Core item data
-      id: item.id || item._id,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      
-      // KitchenDisplay compatibility - ensure menuItem structure
-      menuItem: {
-        _id: item.id || item._id,
+    console.log('App - Creating order with items:', orderItems);
+
+    // FIXED: Enhanced item processing for KitchenDisplay compatibility
+    const processedItems = orderItems.map(item => {
+      // Ensure consistent data structure
+      const processedItem = {
+        // Core item data
+        id: item.id || item._id,
+        _id: item._id || item.id,
         name: item.name,
         price: item.price,
-        category: item.category || 'main',
-        image: item.image || '🍽️'
-      },
-      
-      // Additional fields for different components
-      menuItemId: item.id || item._id,
-      specialInstructions: item.specialInstructions || ''
-    }));
+        quantity: item.quantity,
+        
+        // KitchenDisplay compatibility - ensure menuItem structure
+        menuItem: {
+          _id: item._id || item.id,
+          name: item.name,
+          price: item.price,
+          category: item.category || 'main',
+          image: item.image || '🍽️'
+        }
+      };
+
+      console.log('App - Processed item:', processedItem);
+      return processedItem;
+    });
 
     const orderData = {
       id: uniqueOrderId,
@@ -286,8 +292,11 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
       total: processedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
       orderedAt: new Date(),
       createdAt: new Date(),
-      time: 'Just now'
+      time: 'Just now',
+      preparationStart: null
     };
+
+    console.log('App - Final order data:', orderData);
 
     if (apiConnected) {
       const response = await fetch(API_ENDPOINTS.ORDERS, {
@@ -348,12 +357,14 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
   }
 };
 
-// Add this function to handle QR code orders from customers
+// Enhanced handleCustomerOrder for QR code orders
 const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-  console.log('Customer order received:', { tableNumber, orderItems, orderType });
+  console.log('🔵 handleCustomerOrder called:', { tableNumber, orderItems, orderType });
   
   // Process the order same as staff orders
   const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
+  
+  console.log('🔵 New customer order created:', newOrder);
   
   // Additional notification for customer orders
   setNotifications(prev => [{
@@ -556,11 +567,11 @@ const completeOrder = async (orderId, tableNumber) => {
           {currentPage === 'qr-generator' && (
             <QRGenerator tables={tables} isMobile={isMobile} />
           )}
-        {currentPage === 'menu' && (
+   {currentPage === 'menu' && (
   <DigitalMenu 
     cart={cart} 
     setCart={setCart}
-    onCreateOrder={isCustomerView ? handleCustomerOrder : createNewOrder} // FIXED
+    onCreateOrder={isCustomerView ? handleCustomerOrder : createNewOrder}
     isMobile={isMobile}
     menu={menu}
     apiConnected={apiConnected}

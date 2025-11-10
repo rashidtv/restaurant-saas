@@ -110,10 +110,9 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return 0;
   };
 
-// Get item name safely - handles all data formats
-// Enhanced getItemName function for better compatibility
+// Enhanced getItemName function with better error handling
 const getItemName = (item) => {
-  console.log('Kitchen Display - Processing item:', item);
+  console.log('Kitchen Display - Processing item for display:', item);
   
   // Handle all possible data formats
   if (item.menuItem && item.menuItem.name) {
@@ -128,9 +127,23 @@ const getItemName = (item) => {
     if (menuItemName) return getSafeString(menuItemName);
   }
   
-  console.warn('Kitchen Display - Unknown item structure:', item);
+  console.warn('Kitchen Display - Unknown item structure, returning fallback:', item);
   return 'Menu Item';
 };
+
+// Add this debug useEffect to KitchenDisplay
+useEffect(() => {
+  console.log('KitchenDisplay - All orders:', orders);
+  console.log('KitchenDisplay - Filtered orders:', filteredOrders);
+  
+  // Log item structures for debugging
+  orders.forEach((order, index) => {
+    console.log(`Order ${index} items:`, order.items);
+    order.items?.forEach((item, itemIndex) => {
+      console.log(`Order ${index} - Item ${itemIndex}:`, item);
+    });
+  });
+}, [orders, filteredOrders]);
 
   // Get item price safely - handles both data formats
   const getItemPrice = (item) => {

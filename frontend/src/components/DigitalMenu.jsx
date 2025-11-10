@@ -11,7 +11,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   // Use the currentTable from URL parameters
   useEffect(() => {
     if (currentTable && isCustomerView) {
-      // Set the selected table automatically for customers
+      console.log('DigitalMenu - Setting table from URL:', currentTable);
       setSelectedTable(currentTable);
     }
   }, [currentTable, isCustomerView]);
@@ -21,289 +21,294 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const urlParams = new URLSearchParams(window.location.search);
     const tableFromUrl = urlParams.get('table');
     if (tableFromUrl) {
+      console.log('DigitalMenu - Table from URL params:', tableFromUrl);
       setSelectedTable(tableFromUrl);
     }
   }, []);
 
-// Reusable Menu Item Card Component
-const MenuItemCard = ({ item, onAddToCart, isMobile }) => (
-  <div className="menu-item-card">
-    <div className="menu-item-header">
-      <span className="menu-item-image">{item.image}</span>
-      <div className="menu-item-info">
-        <h3 className="menu-item-name">{item.name}</h3>
-        <p className="menu-item-description">
-          {isMobile ? `${item.description.substring(0, 50)}...` : item.description}
-        </p>
+  // DEBUG: Log menu data
+  useEffect(() => {
+    console.log('DigitalMenu - Menu data received:', menu);
+  }, [menu]);
+
+  // Reusable Menu Item Card Component
+  const MenuItemCard = ({ item, onAddToCart, isMobile }) => (
+    <div className="menu-item-card">
+      <div className="menu-item-header">
+        <span className="menu-item-image">{item.image}</span>
+        <div className="menu-item-info">
+          <h3 className="menu-item-name">{item.name}</h3>
+          <p className="menu-item-description">
+            {isMobile ? `${item.description?.substring(0, 50)}...` : item.description}
+          </p>
+        </div>
+      </div>
+      <div className="menu-item-meta">
+        <div className="menu-item-tags">
+          <span className="menu-item-tag">⏱️ {item.prepTime}m</span>
+          {item.spicy !== "Mild" && (
+            <span className="menu-item-tag" style={{
+              backgroundColor: item.spicy === 'Medium' ? '#fef3c7' : '#fef2f2',
+              color: item.spicy === 'Medium' ? '#d97706' : '#dc2626'
+            }}>
+              🌶️ {item.spicy}
+            </span>
+          )}
+          {item.popular && (
+            <span className="menu-item-tag" style={{
+              backgroundColor: '#f0f9ff',
+              color: '#0369a1'
+            }}>
+              ⭐ Popular
+            </span>
+          )}
+        </div>
+        <div className="menu-item-actions">
+          <div className="menu-item-price">RM {item.price.toFixed(2)}</div>
+          <button 
+            className="add-to-cart-btn"
+            onClick={() => onAddToCart(item)}
+          >
+            {isMobile ? '+' : 'Add +'}
+          </button>
+        </div>
       </div>
     </div>
-    <div className="menu-item-meta">
-      <div className="menu-item-tags">
-        <span className="menu-item-tag">⏱️ {item.prepTime}m</span>
-        {item.spicy !== "Mild" && (
-          <span className="menu-item-tag" style={{
-            backgroundColor: item.spicy === 'Medium' ? '#fef3c7' : '#fef2f2',
-            color: item.spicy === 'Medium' ? '#d97706' : '#dc2626'
-          }}>
-            🌶️ {item.spicy}
-          </span>
-        )}
-        {item.popular && (
-          <span className="menu-item-tag" style={{
-            backgroundColor: '#f0f9ff',
-            color: '#0369a1'
-          }}>
-            ⭐ Popular
-          </span>
-        )}
-      </div>
-      <div className="menu-item-actions">
-        <div className="menu-item-price">RM {item.price.toFixed(2)}</div>
-        <button 
-          className="add-to-cart-btn"
-          onClick={() => onAddToCart(item)}
-        >
-          {isMobile ? '+' : 'Add +'}
-        </button>
-      </div>
-    </div>
-  </div>
-);
+  );
 
+  // Payment Page Component
+  const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
+    const [paymentMethod, setPaymentMethod] = useState('qr');
+    const [paymentStatus, setPaymentStatus] = useState('pending');
 
-// Payment Page Component
-const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
-  const [paymentMethod, setPaymentMethod] = useState('qr');
-  const [paymentStatus, setPaymentStatus] = useState('pending');
-
-  const handlePayment = () => {
-    setPaymentStatus('processing');
-    
-    // Simulate payment processing
-    setTimeout(() => {
-      setPaymentStatus('success');
+    const handlePayment = () => {
+      setPaymentStatus('processing');
+      
+      // Simulate payment processing
       setTimeout(() => {
-        onPaymentSuccess();
-      }, 2000);
-    }, 3000);
-  };
+        setPaymentStatus('success');
+        setTimeout(() => {
+          onPaymentSuccess();
+        }, 2000);
+      }, 3000);
+    };
 
-  if (paymentStatus === 'success') {
+    if (paymentStatus === 'success') {
+      return (
+        <div className="payment-container">
+          <div className="payment-success">
+            <div className="success-icon">✅</div>
+            <h2 className="success-title">Payment Successful!</h2>
+            <p className="success-message">
+              Thank you for your payment. Your order is being prepared.
+            </p>
+            <button className="continue-btn" onClick={onPaymentSuccess}>
+              Continue
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="payment-container">
-        <div className="payment-success">
-          <div className="success-icon">✅</div>
-          <h2 className="success-title">Payment Successful!</h2>
-          <p className="success-message">
-            Thank you for your payment. Your order is being prepared.
-          </p>
-          <button className="continue-btn" onClick={onPaymentSuccess}>
-            Continue
+        <div className="payment-header">
+          <button className="back-btn" onClick={onBack}>
+            ← Back to Menu
           </button>
+          <h2 className="payment-title">Payment</h2>
+        </div>
+
+        <div className="payment-layout">
+          <div className="order-summary">
+            <h3 className="summary-title">Order Summary</h3>
+            <div className="summary-details">
+              <div className="summary-row">
+                <span>Table:</span>
+                <span>{orderDetails.orderType === 'dine-in' ? `Table ${orderDetails.table}` : 'Takeaway'}</span>
+              </div>
+              {orderDetails.items.map((item, index) => {
+                const itemName = item.name || 'Unknown Item';
+                const displayName = isMobile ? truncateText(itemName, 15) : itemName;
+                const itemPrice = item.price || 0;
+                const itemQuantity = item.quantity || 1;
+                
+                return (
+                  <div key={index} className="summary-row">
+                    <span>{itemQuantity}x {displayName}</span>
+                    <span>RM {(itemPrice * itemQuantity).toFixed(2)}</span>
+                  </div>
+                );
+              })}
+              <div className="summary-divider"></div>
+              <div className="summary-row">
+                <span>Subtotal:</span>
+                <span>RM {orderDetails.subtotal.toFixed(2)}</span>
+              </div>
+              <div className="summary-row">
+                <span>Service Tax (6%):</span>
+                <span>RM {orderDetails.serviceTax.toFixed(2)}</span>
+              </div>
+              <div className="summary-row">
+                <span>SST (8%):</span>
+                <span>RM {orderDetails.sst.toFixed(2)}</span>
+              </div>
+              <div className="grand-total-row">
+                <span>Total Amount:</span>
+                <span className="grand-total-text">RM {orderDetails.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="payment-methods">
+            <h3 className="methods-title">Select Payment Method</h3>
+            
+            <div className="method-options">
+              <label className={`method-option ${paymentMethod === 'qr' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="qr"
+                  checked={paymentMethod === 'qr'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="radio-input"
+                />
+                <div className="method-content">
+                  <span className="method-icon">📱</span>
+                  <div>
+                    <div className="method-name">QR Code Payment</div>
+                    <div className="method-desc">Scan QR code with your banking app</div>
+                  </div>
+                </div>
+              </label>
+
+              <label className={`method-option ${paymentMethod === 'card' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="card"
+                  checked={paymentMethod === 'card'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="radio-input"
+                />
+                <div className="method-content">
+                  <span className="method-icon">💳</span>
+                  <div>
+                    <div className="method-name">Credit/Debit Card</div>
+                    <div className="method-desc">Pay with Visa, Mastercard, or UnionPay</div>
+                  </div>
+                </div>
+              </label>
+
+              <label className={`method-option ${paymentMethod === 'cash' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="cash"
+                  checked={paymentMethod === 'cash'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="radio-input"
+                />
+                <div className="method-content">
+                  <span className="method-icon">💵</span>
+                  <div>
+                    <div className="method-name">Cash Payment</div>
+                    <div className="method-desc">Pay with cash at the counter</div>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {paymentMethod === 'qr' && (
+              <div className="qr-payment">
+                <div className="qr-payment-header">
+                  <h4>Scan to Pay</h4>
+                  <p>Use your banking app to scan the QR code</p>
+                </div>
+                <div className="payment-qr-code">
+                  <QRCodeSVG 
+                    value={`flavorflow://payment?amount=${orderDetails.total}&table=${orderDetails.table}`}
+                    size={isMobile ? 150 : 200}
+                    level="H"
+                  />
+                </div>
+                <div className="payment-amount">
+                  Amount: <strong>RM {orderDetails.total.toFixed(2)}</strong>
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === 'card' && (
+              <div className="card-payment">
+                <div className="card-form">
+                  <input 
+                    className="card-input" 
+                    placeholder="Card Number" 
+                    type="text"
+                    maxLength="19"
+                    pattern="[0-9\s]{13,19}"
+                  />
+                  <div className="card-row">
+                    <input 
+                      className="card-input" 
+                      placeholder="MM/YY" 
+                      type="text"
+                      maxLength="5"
+                    />
+                    <input 
+                      className="card-input" 
+                      placeholder="CVV" 
+                      type="text"
+                      maxLength="3"
+                    />
+                  </div>
+                  <input 
+                    className="card-input" 
+                    placeholder="Cardholder Name" 
+                    type="text"
+                  />
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === 'cash' && (
+              <div className="cash-payment">
+                <div className="cash-instructions">
+                  <p>Please proceed to the counter to make cash payment.</p>
+                  <p>Your order number will be called when ready.</p>
+                </div>
+              </div>
+            )}
+
+            <button 
+              className={`pay-now-btn ${paymentStatus === 'processing' ? 'processing' : ''}`}
+              onClick={handlePayment}
+              disabled={paymentStatus === 'processing'}
+            >
+              {paymentStatus === 'processing' ? (
+                <>
+                  <span className="spinner"></span>
+                  Processing Payment...
+                </>
+              ) : (
+                `Pay RM ${orderDetails.total.toFixed(2)}`
+              )}
+            </button>
+          </div>
         </div>
       </div>
     );
-  }
+  };
 
-  return (
-    <div className="payment-container">
-      <div className="payment-header">
-        <button className="back-btn" onClick={onBack}>
-          ← Back to Menu
-        </button>
-        <h2 className="payment-title">Payment</h2>
-      </div>
-
-      <div className="payment-layout">
-        <div className="order-summary">
-          <h3 className="summary-title">Order Summary</h3>
-          <div className="summary-details">
-            <div className="summary-row">
-              <span>Table:</span>
-              <span>{orderDetails.orderType === 'dine-in' ? `Table ${orderDetails.table}` : 'Takeaway'}</span>
-            </div>
-           {orderDetails.items.map((item, index) => {
-  // Safe item name extraction for both data formats
-  const itemName = item.name || item.menuItem?.name || 'Unknown Item';
-  const displayName = isMobile ? truncateText(itemName, 15) : itemName;
-  const itemPrice = item.price || item.menuItem?.price || 0;
-  const itemQuantity = item.quantity || 1;
-  
-  return (
-    <div key={index} className="summary-row">
-      <span>{itemQuantity}x {displayName}</span>
-      <span>RM {(itemPrice * itemQuantity).toFixed(2)}</span>
-    </div>
-  );
-})}
-            <div className="summary-divider"></div>
-            <div className="summary-row">
-              <span>Subtotal:</span>
-              <span>RM {orderDetails.subtotal.toFixed(2)}</span>
-            </div>
-            <div className="summary-row">
-              <span>Service Tax (6%):</span>
-              <span>RM {orderDetails.serviceTax.toFixed(2)}</span>
-            </div>
-            <div className="summary-row">
-              <span>SST (8%):</span>
-              <span>RM {orderDetails.sst.toFixed(2)}</span>
-            </div>
-            <div className="grand-total-row">
-              <span>Total Amount:</span>
-              <span className="grand-total-text">RM {orderDetails.total.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="payment-methods">
-          <h3 className="methods-title">Select Payment Method</h3>
-          
-          <div className="method-options">
-            <label className={`method-option ${paymentMethod === 'qr' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="qr"
-                checked={paymentMethod === 'qr'}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="radio-input"
-              />
-              <div className="method-content">
-                <span className="method-icon">📱</span>
-                <div>
-                  <div className="method-name">QR Code Payment</div>
-                  <div className="method-desc">Scan QR code with your banking app</div>
-                </div>
-              </div>
-            </label>
-
-            <label className={`method-option ${paymentMethod === 'card' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="card"
-                checked={paymentMethod === 'card'}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="radio-input"
-              />
-              <div className="method-content">
-                <span className="method-icon">💳</span>
-                <div>
-                  <div className="method-name">Credit/Debit Card</div>
-                  <div className="method-desc">Pay with Visa, Mastercard, or UnionPay</div>
-                </div>
-              </div>
-            </label>
-
-            <label className={`method-option ${paymentMethod === 'cash' ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="cash"
-                checked={paymentMethod === 'cash'}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="radio-input"
-              />
-              <div className="method-content">
-                <span className="method-icon">💵</span>
-                <div>
-                  <div className="method-name">Cash Payment</div>
-                  <div className="method-desc">Pay with cash at the counter</div>
-                </div>
-              </div>
-            </label>
-          </div>
-
-          {paymentMethod === 'qr' && (
-            <div className="qr-payment">
-              <div className="qr-payment-header">
-                <h4>Scan to Pay</h4>
-                <p>Use your banking app to scan the QR code</p>
-              </div>
-              <div className="payment-qr-code">
-                <QRCodeSVG 
-                  value={`flavorflow://payment?amount=${orderDetails.total}&table=${orderDetails.table}`}
-                  size={isMobile ? 150 : 200}
-                  level="H"
-                />
-              </div>
-              <div className="payment-amount">
-                Amount: <strong>RM {orderDetails.total.toFixed(2)}</strong>
-              </div>
-            </div>
-          )}
-
-          {paymentMethod === 'card' && (
-            <div className="card-payment">
-              <div className="card-form">
-                <input 
-                  className="card-input" 
-                  placeholder="Card Number" 
-                  type="text"
-                  maxLength="19"
-                  pattern="[0-9\s]{13,19}"
-                />
-                <div className="card-row">
-                  <input 
-                    className="card-input" 
-                    placeholder="MM/YY" 
-                    type="text"
-                    maxLength="5"
-                  />
-                  <input 
-                    className="card-input" 
-                    placeholder="CVV" 
-                    type="text"
-                    maxLength="3"
-                  />
-                </div>
-                <input 
-                  className="card-input" 
-                  placeholder="Cardholder Name" 
-                  type="text"
-                />
-              </div>
-            </div>
-          )}
-
-          {paymentMethod === 'cash' && (
-            <div className="cash-payment">
-              <div className="cash-instructions">
-                <p>Please proceed to the counter to make cash payment.</p>
-                <p>Your order number will be called when ready.</p>
-              </div>
-            </div>
-          )}
-
-          <button 
-            className={`pay-now-btn ${paymentStatus === 'processing' ? 'processing' : ''}`}
-            onClick={handlePayment}
-            disabled={paymentStatus === 'processing'}
-          >
-            {paymentStatus === 'processing' ? (
-              <>
-                <span className="spinner"></span>
-                Processing Payment...
-              </>
-            ) : (
-              `Pay RM ${orderDetails.total.toFixed(2)}`
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-  // Organized menu structure
+  // Organized menu structure - ENHANCED with proper IDs and structure
   const menuSections = [
     {
       id: 'signature',
       name: 'Signature Dishes',
       items: [
         {
-          id: 1,
+          id: '1',
+          _id: '1',
           name: "Nasi Lemak Royal",
           description: "Premium coconut rice with traditional sambal, crispy chicken, anchovies, and quail eggs",
           price: 16.90,
@@ -314,7 +319,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🍛"
         },
         {
-          id: 3,
+          id: '3',
+          _id: '3',
           name: "Rendang Tok",
           description: "Traditional dry beef rendang with authentic spices and coconut",
           price: 22.90,
@@ -325,7 +331,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🍖"
         },
         {
-          id: 5,
+          id: '5',
+          _id: '5',
           name: "Satay Set (10 sticks)",
           description: "Grilled chicken and beef satay with peanut sauce and condiments",
           price: 18.90,
@@ -336,7 +343,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🍢"
         },
         {
-          id: 11,
+          id: '11',
+          _id: '11',
           name: "Char Kway Teow",
           description: "Stir-fried rice noodles with prawns, cockles, and Chinese sausage",
           price: 14.90,
@@ -353,7 +361,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
       name: 'Main Courses',
       items: [
         {
-          id: 7,
+          id: '7',
+          _id: '7',
           name: "Chicken Curry",
           description: "Spicy chicken curry with potatoes and coconut milk",
           price: 14.90,
@@ -364,7 +373,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🍗"
         },
         {
-          id: 8,
+          id: '8',
+          _id: '8',
           name: "Fried Rice Special",
           description: "Wok-fried rice with shrimp, chicken, and vegetables",
           price: 12.90,
@@ -375,7 +385,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🍚"
         },
         {
-          id: 12,
+          id: '12',
+          _id: '12',
           name: "Beef Rendang",
           description: "Slow-cooked beef in rich coconut and spices",
           price: 19.90,
@@ -392,7 +403,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
       name: 'Beverages',
       items: [
         {
-          id: 2,
+          id: '2',
+          _id: '2',
           name: "Artisan Teh Tarik",
           description: "Expertly pulled Malaysian milk tea with rich, creamy foam",
           price: 6.50,
@@ -403,7 +415,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🥤"
         },
         {
-          id: 6,
+          id: '6',
+          _id: '6',
           name: "Iced Lemon Tea",
           description: "Refreshing lemon tea with mint leaves and honey",
           price: 5.90,
@@ -414,7 +427,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🍋"
         },
         {
-          id: 9,
+          id: '9',
+          _id: '9',
           name: "Fresh Coconut",
           description: "Chilled young coconut with natural sweetness",
           price: 8.90,
@@ -425,7 +439,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🥥"
         },
         {
-          id: 13,
+          id: '13',
+          _id: '13',
           name: "Iced Coffee",
           description: "Rich coffee with condensed milk and ice",
           price: 7.50,
@@ -442,7 +457,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
       name: 'Desserts',
       items: [
         {
-          id: 4,
+          id: '4',
+          _id: '4',
           name: "Mango Sticky Rice",
           description: "Sweet mango with coconut sticky rice and sesame seeds",
           price: 12.90,
@@ -453,7 +469,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🥭"
         },
         {
-          id: 10,
+          id: '10',
+          _id: '10',
           name: "Cendol Delight",
           description: "Traditional shaved ice with coconut milk and palm sugar",
           price: 7.90,
@@ -464,7 +481,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🍧"
         },
         {
-          id: 14,
+          id: '14',
+          _id: '14',
           name: "Pisang Goreng",
           description: "Crispy fried bananas with ice cream",
           price: 8.90,
@@ -481,7 +499,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
       name: 'Appetizers',
       items: [
         {
-          id: 15,
+          id: '15',
+          _id: '15',
           name: "Spring Rolls",
           description: "Crispy vegetable spring rolls with sweet chili sauce",
           price: 9.90,
@@ -492,7 +511,8 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
           image: "🌯"
         },
         {
-          id: 16,
+          id: '16',
+          _id: '16',
           name: "Prawn Crackers",
           description: "Light and crispy prawn crackers with dip",
           price: 6.90,
@@ -505,6 +525,9 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
       ]
     }
   ];
+
+  // Use provided menu or fallback to local menu
+  const displayMenu = menu && menu.length > 0 ? menu : menuSections.flatMap(section => section.items);
 
   // Calculate total items count for "All Items"
   const totalItemsCount = menuSections.reduce((total, section) => total + section.items.length, 0);
@@ -519,6 +542,7 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
   ];
 
   const addToCart = (item) => {
+    console.log('DigitalMenu - Adding to cart:', item);
     const existingItem = cart.find(cartItem => cartItem.id === item.id);
     if (existingItem) {
       setCart(cart.map(cartItem =>
@@ -549,37 +573,49 @@ const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // In DigitalMenu.jsx, update the handlePlaceOrder function:
-const handlePlaceOrder = () => {
-  if (cart.length === 0) return;
-  
-  // FIXED: Ensure cart items have proper structure for KitchenDisplay
-  const processedCart = cart.map(item => ({
-    id: item.id,
-    name: item.name,
-    price: item.price,
-    quantity: item.quantity,
-    category: item.category,
-    image: item.image,
-    // KitchenDisplay compatibility
-    menuItem: {
-      _id: item.id,
+  // FIXED: Enhanced handlePlaceOrder with proper data structure
+  const handlePlaceOrder = () => {
+    if (cart.length === 0) return;
+    
+    console.log('DigitalMenu - Placing order:', {
+      table: selectedTable,
+      items: cart,
+      orderType,
+      isCustomerView
+    });
+
+    // FIXED: Ensure cart items have proper structure for KitchenDisplay compatibility
+    const processedCart = cart.map(item => ({
+      // Core item data
+      id: item.id,
+      _id: item._id || item.id,
       name: item.name,
       price: item.price,
+      quantity: item.quantity,
       category: item.category,
-      image: item.image
-    }
-  }));
+      image: item.image,
+      
+      // KitchenDisplay compatibility - ensure menuItem structure
+      menuItem: {
+        _id: item._id || item.id,
+        name: item.name,
+        price: item.price,
+        category: item.category,
+        image: item.image
+      }
+    }));
 
-  const newOrder = onCreateOrder(selectedTable, processedCart, orderType);
-  setCart([]);
-  setShowPayment(false);
-  
-  // Show confirmation
-  if (newOrder) {
-    alert(`Order placed successfully! Your order number is ${newOrder.orderNumber || newOrder.id}. Please proceed to payment when ready.`);
-  }
-};
+    console.log('DigitalMenu - Processed cart for order:', processedCart);
+
+    const newOrder = onCreateOrder(selectedTable, processedCart, orderType);
+    setCart([]);
+    setShowPayment(false);
+    
+    // Show confirmation
+    if (newOrder) {
+      alert(`Order placed successfully! Your order number is ${newOrder.orderNumber || newOrder.id}. Please proceed to payment when ready.`);
+    }
+  };
 
   const handleProceedToPayment = () => {
     if (cart.length === 0) return;
@@ -591,7 +627,13 @@ const handlePlaceOrder = () => {
     ? [] // We'll handle "all" differently
     : menuSections.find(section => section.id === activeCategory)?.items || [];
 
-    return (
+  // Safe text truncation
+  const truncateText = (text, maxLength = 20) => {
+    if (!text || typeof text !== 'string') return 'Unknown Item';
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  };
+
+  return (
     <div className="page">
       {/* Improved Header Section */}
       <div className="page-header">
