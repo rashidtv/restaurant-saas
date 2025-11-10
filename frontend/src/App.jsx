@@ -8,7 +8,7 @@ import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
 import { 
   API_ENDPOINTS, 
   fetchOrders, 
@@ -38,83 +38,82 @@ function App() {
 
 const [socket, setSocket] = useState(null);
 
-// WebSocket Connection - FIXED
-useEffect(() => {
-  let socketInstance;
-  
-  const initializeWebSocket = () => {
-    try {
-      console.log('🔌 Initializing WebSocket connection...');
-      socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
-        transports: ['websocket', 'polling'],
-        timeout: 10000
-      });
-      
-      setSocket(socketInstance);
+  useEffect(() => {
+    let socketInstance;
 
-      socketInstance.on('connect', () => {
-        console.log('🔌 Connected to backend via WebSocket');
-        setApiConnected(true);
-      });
-      
-      socketInstance.on('connect_error', (error) => {
-        console.log('❌ WebSocket connection error:', error);
-        setApiConnected(false);
-      });
-      
-      socketInstance.on('disconnect', () => {
-        console.log('❌ WebSocket disconnected');
-        setApiConnected(false);
-      });
-      
-      // All event listeners in one place
-      socketInstance.on('newOrder', (order) => {
-        console.log('📦 New order received via WebSocket:', order);
-        setOrders(prev => {
-          const exists = prev.some(o => 
-            o._id === order._id || o.orderNumber === order.orderNumber
-          );
-          return exists ? prev : [...prev, order];
+    const initializeWebSocket = () => {
+      try {
+        console.log('🔌 Initializing WebSocket connection...');
+        socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
+          transports: ['websocket', 'polling'],
+          timeout: 10000
         });
-      });
-      
-      socketInstance.on('orderUpdated', (updatedOrder) => {
-        console.log('🔄 Order updated via WebSocket:', updatedOrder);
-        setOrders(prev => prev.map(order => 
-          (order._id === updatedOrder._id || order.orderNumber === updatedOrder.orderNumber) 
-            ? { ...order, ...updatedOrder }
-            : order
-        ));
-      });
 
-      socketInstance.on('tableUpdated', (table) => {
-        console.log('🔄 Table updated via WebSocket:', table);
-        setTables(prev => prev.map(t => 
-          t._id === table._id ? table : t
-        ));
-      });
+        setSocket(socketInstance);
 
-      socketInstance.on('paymentProcessed', (payment) => {
-        console.log('💰 Payment processed via WebSocket:', payment);
-        setPayments(prev => [...prev, payment]);
-      });
+        socketInstance.on('connect', () => {
+          console.log('🔌 Connected to backend via WebSocket');
+          setApiConnected(true);
+        });
 
-    } catch (error) {
-      console.error('WebSocket initialization error:', error);
+        socketInstance.on('connect_error', (error) => {
+          console.log('❌ WebSocket connection error:', error);
+          setApiConnected(false);
+        });
+
+        socketInstance.on('disconnect', () => {
+          console.log('❌ WebSocket disconnected');
+          setApiConnected(false);
+        });
+
+        // ALL socket event listeners in one place
+        socketInstance.on('newOrder', (order) => {
+          console.log('📦 New order received via WebSocket:', order);
+          setOrders(prev => {
+            const exists = prev.some(o => 
+              o._id === order._id || o.orderNumber === order.orderNumber
+            );
+            return exists ? prev : [...prev, order];
+          });
+        });
+
+        socketInstance.on('orderUpdated', (updatedOrder) => {
+          console.log('🔄 Order updated via WebSocket:', updatedOrder);
+          setOrders(prev => prev.map(order => 
+            (order._id === updatedOrder._id || order.orderNumber === updatedOrder.orderNumber) 
+              ? { ...order, ...updatedOrder }
+              : order
+          ));
+        });
+
+        socketInstance.on('tableUpdated', (table) => {
+          console.log('🔄 Table updated via WebSocket:', table);
+          setTables(prev => prev.map(t => 
+            t._id === table._id ? table : t
+          ));
+        });
+
+        socketInstance.on('paymentProcessed', (payment) => {
+          console.log('💰 Payment processed via WebSocket:', payment);
+          setPayments(prev => [...prev, payment]);
+        });
+
+      } catch (error) {
+        console.error('WebSocket initialization error:', error);
+      }
+    };
+
+    if (apiConnected) {
+      initializeWebSocket();
     }
-  };
-
-  if (apiConnected) {
-    initializeWebSocket();
-  }
-  
-  return () => {
-    console.log('🧹 Cleaning up WebSocket connection');
-    if (socketInstance) {
-      socketInstance.disconnect();
-    }
-  };
-}, [apiConnected]);
+    
+    return () => {
+      console.log('🧹 Cleaning up WebSocket connection');
+      if (socketInstance) {
+        socketInstance.disconnect();
+      }
+    };
+  }, [apiConnected]);
 
   // Polling fallback for data refresh
   useEffect(() => {

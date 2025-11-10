@@ -8,6 +8,14 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
 
+  useEffect(() => {
+    if (socket) {
+      console.log('✅ Socket available in TableManagement');
+    } else {
+      console.log('⚠️ Socket not available in TableManagement');
+    }
+  }, [socket]);
+
   // USE THE MENU FROM PROPS (Digital Menu data)
   const menuItems = menu || [];
   
