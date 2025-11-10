@@ -36,82 +36,85 @@ function App() {
   const [currentTable, setCurrentTable] = useState(null);
   const [isCustomerView, setIsCustomerView] = useState(false);
 
-  // WebSocket Connection with error handling
-  // Add this to your WebSocket connection in App.jsx
+const [socket, setSocket] = useState(null);
+
+// WebSocket Connection - FIXED
 useEffect(() => {
-  if (socket) {
-    socket.on('newOrder', (order) => {
-      console.log('🔔 WebSocket - New order received:', order);
-      setOrders(prev => [...prev, order]);
-    });
-    
-    socket.on('orderUpdated', (order) => {
-      console.log('🔔 WebSocket - Order updated:', order);
-      setOrders(prev => prev.map(o => 
-        o._id === order._id || o.orderNumber === order.orderNumber ? order : o
-      ));
-    });
+  let socketInstance;
+  
+  const initializeWebSocket = () => {
+    try {
+      console.log('🔌 Initializing WebSocket connection...');
+      socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
+        transports: ['websocket', 'polling'],
+        timeout: 10000
+      });
+      
+      setSocket(socketInstance);
 
-    socket.on('tableUpdated', (table) => {
-      console.log('🔔 WebSocket - Table updated:', table);
-      setTables(prev => prev.map(t => 
-        t._id === table._id ? table : t
-      ));
-    });
-  }
-}, [socket]);
+      socketInstance.on('connect', () => {
+        console.log('🔌 Connected to backend via WebSocket');
+        setApiConnected(true);
+      });
+      
+      socketInstance.on('connect_error', (error) => {
+        console.log('❌ WebSocket connection error:', error);
+        setApiConnected(false);
+      });
+      
+      socketInstance.on('disconnect', () => {
+        console.log('❌ WebSocket disconnected');
+        setApiConnected(false);
+      });
+      
+      // All event listeners in one place
+      socketInstance.on('newOrder', (order) => {
+        console.log('📦 New order received via WebSocket:', order);
+        setOrders(prev => {
+          const exists = prev.some(o => 
+            o._id === order._id || o.orderNumber === order.orderNumber
+          );
+          return exists ? prev : [...prev, order];
+        });
+      });
+      
+      socketInstance.on('orderUpdated', (updatedOrder) => {
+        console.log('🔄 Order updated via WebSocket:', updatedOrder);
+        setOrders(prev => prev.map(order => 
+          (order._id === updatedOrder._id || order.orderNumber === updatedOrder.orderNumber) 
+            ? { ...order, ...updatedOrder }
+            : order
+        ));
+      });
 
-  useEffect(() => {
-    let socket;
-    
-    const initializeWebSocket = () => {
-      try {
-        socket = io('https://restaurant-saas-backend-hbdz.onrender.com', {
-          transports: ['websocket', 'polling'],
-          timeout: 10000
-        });
-        
-        socket.on('connect', () => {
-          console.log('🔌 Connected to backend via WebSocket');
-        });
-        
-        socket.on('connect_error', (error) => {
-          console.log('❌ WebSocket connection error:', error);
-        });
-        
-        socket.on('newOrder', (order) => {
-          console.log('📦 New order received via WebSocket:', order);
-          setOrders(prev => {
-            const exists = prev.some(o => 
-              o._id === order._id || o.orderNumber === order.orderNumber
-            );
-            return exists ? prev : [...prev, order];
-          });
-        });
-        
-        socket.on('orderUpdated', (updatedOrder) => {
-          console.log('🔄 Order updated via WebSocket:', updatedOrder);
-          setOrders(prev => prev.map(order => 
-            (order._id === updatedOrder._id || order.orderNumber === updatedOrder.orderNumber) 
-              ? { ...order, ...updatedOrder }
-              : order
-          ));
-        });
-      } catch (error) {
-        console.error('WebSocket initialization error:', error);
-      }
-    };
+      socketInstance.on('tableUpdated', (table) => {
+        console.log('🔄 Table updated via WebSocket:', table);
+        setTables(prev => prev.map(t => 
+          t._id === table._id ? table : t
+        ));
+      });
 
-    if (apiConnected) {
-      initializeWebSocket();
+      socketInstance.on('paymentProcessed', (payment) => {
+        console.log('💰 Payment processed via WebSocket:', payment);
+        setPayments(prev => [...prev, payment]);
+      });
+
+    } catch (error) {
+      console.error('WebSocket initialization error:', error);
     }
-    
-    return () => {
-      if (socket) {
-        socket.disconnect();
-      }
-    };
-  }, [apiConnected]);
+  };
+
+  if (apiConnected) {
+    initializeWebSocket();
+  }
+  
+  return () => {
+    console.log('🧹 Cleaning up WebSocket connection');
+    if (socketInstance) {
+      socketInstance.disconnect();
+    }
+  };
+}, [apiConnected]);
 
   // Polling fallback for data refresh
   useEffect(() => {
