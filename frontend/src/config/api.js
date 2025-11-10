@@ -11,8 +11,11 @@ export const API_ENDPOINTS = {
 };
 
 // Enhanced fetch function with error handling
+// Enhanced fetch function with better error handling
 export const apiFetch = async (url, options = {}) => {
   try {
+    console.log(`🔗 API Call: ${options.method || 'GET'} ${url}`);
+    
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -22,12 +25,16 @@ export const apiFetch = async (url, options = {}) => {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ API Error ${response.status}:`, errorText);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log(`✅ API Success:`, data);
+    return data;
   } catch (error) {
-    console.error('API fetch error:', error);
+    console.error('🚨 API fetch error:', error);
     throw error;
   }
 };

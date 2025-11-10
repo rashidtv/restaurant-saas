@@ -8,7 +8,8 @@ import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
-import { API_ENDPOINTS, apiFetch } from './config/api';
+import { API_ENDPOINTS, apiFetch, fetchOrders, fetchTables, fetchMenu, fetchPayments, updateOrderStatus as apiUpdateOrderStatus, createOrder as apiCreateOrder } from './config/api';
+import { io } from 'socket.io-client';
 import './App.css';
 
 function App() {
@@ -25,39 +26,132 @@ function App() {
   const [apiConnected, setApiConnected] = useState(false);
   const [isMenuRoute, setIsMenuRoute] = useState(false);
   const [currentTable, setCurrentTable] = useState(null);
+  const [isCustomerView, setIsCustomerView] = useState(false);
 
-
-  
-// Check URL on component mount and URL changes
-useEffect(() => {
-  const checkRoute = () => {
-    const hash = window.location.hash;
-    const searchParams = new URLSearchParams(hash.split('?')[1]);
-    const tableParam = searchParams.get('table');
+  // WebSocket Connection with error handling
+  useEffect(() => {
+    let socket;
     
-    if (hash.includes('#menu')) {
-      setIsMenuRoute(true);
-      setCurrentPage('menu');
-      if (tableParam) {
-        setCurrentTable(tableParam);
+    const initializeWebSocket = () => {
+      try {
+        socket = io('https://restaurant-saas-backend-hbdz.onrender.com', {
+          transports: ['websocket', 'polling'],
+          timeout: 10000
+        });
+        
+        socket.on('connect', () => {
+          console.log('🔌 Connected to backend via WebSocket');
+        });
+        
+        socket.on('connect_error', (error) => {
+          console.log('❌ WebSocket connection error:', error);
+          // Continue without WebSocket - use polling instead
+        });
+        
+        socket.on('newOrder', (order) => {
+          console.log('📦 New order received via WebSocket:', order);
+          setOrders(prev => {
+            const exists = prev.some(o => 
+              o._id === order._id || o.orderNumber === order.orderNumber
+            );
+            return exists ? prev : [...prev, order];
+          });
+        });
+        
+        socket.on('orderUpdated', (updatedOrder) => {
+          console.log('🔄 Order updated via WebSocket:', updatedOrder);
+          setOrders(prev => prev.map(order => 
+            (order._id === updatedOrder._id || order.orderNumber === updatedOrder.orderNumber) 
+              ? { ...order, ...updatedOrder }
+              : order
+          ));
+        });
+        
+        socket.on('paymentProcessed', (payment) => {
+          console.log('💵 Payment processed:', payment);
+          // Refresh data
+          loadData();
+        });
+      } catch (error) {
+        console.error('WebSocket initialization error:', error);
       }
-    } else {
-      setIsMenuRoute(false);
+    };
+
+    if (apiConnected) {
+      initializeWebSocket();
     }
-  };
+    
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [apiConnected]);
 
-  checkRoute();
-  
-  // Listen for URL changes
-  const handleHashChange = () => {
+  // Polling fallback for data refresh
+  useEffect(() => {
+    const loadData = async () => {
+      if (!apiConnected) return;
+      
+      try {
+        const [ordersData, tablesData] = await Promise.all([
+          fetchOrders().catch(() => []),
+          fetchTables().catch(() => [])
+        ]);
+        
+        if (ordersData) setOrders(ordersData);
+        if (tablesData) setTables(tablesData);
+      } catch (error) {
+        console.error('Error polling data:', error);
+      }
+    };
+
+    if (apiConnected) {
+      loadData();
+      const interval = setInterval(loadData, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [apiConnected]);
+
+  // Check URL for menu route
+  useEffect(() => {
+    const checkRoute = () => {
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+      
+      if (hash.includes('#menu') || path.includes('/menu')) {
+        setIsMenuRoute(true);
+        setIsCustomerView(true);
+        setCurrentPage('menu');
+        
+        // Extract table number from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const tableParam = urlParams.get('table');
+        if (tableParam) {
+          setCurrentTable(tableParam);
+        }
+      } else {
+        setIsMenuRoute(false);
+        setIsCustomerView(false);
+      }
+    };
+
     checkRoute();
-  };
-  
-  window.addEventListener('hashchange', handleHashChange);
-  return () => window.removeEventListener('hashchange', handleHashChange);
-}, []);
+    
+    const handleHashChange = () => {
+      checkRoute();
+    };
+    
+    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', checkRoute);
+    
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', checkRoute);
+    };
+  }, []);
 
-  // Check if mobile on mount and resize
+  // Check if mobile
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -69,7 +163,7 @@ useEffect(() => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Close sidebar when clicking on overlay or navigating
+  // Sidebar management
   useEffect(() => {
     if (sidebarOpen && isMobile) {
       document.body.classList.add('sidebar-open');
@@ -91,7 +185,7 @@ useEffect(() => {
       try {
         setLoading(true);
         
-        // Check API health with timeout
+        // Check API health
         const healthCheck = async () => {
           try {
             const controller = new AbortController();
@@ -119,14 +213,18 @@ useEffect(() => {
           setApiConnected(true);
           
           // Initialize sample data
-          await fetch(API_ENDPOINTS.INIT, { method: 'POST' });
+          try {
+            await fetch(API_ENDPOINTS.INIT, { method: 'POST' });
+          } catch (error) {
+            console.log('Init endpoint not available, continuing...');
+          }
           
           // Fetch all data
           const [tablesData, ordersData, menuData, paymentsData] = await Promise.all([
-            apiFetch(API_ENDPOINTS.TABLES),
-            apiFetch(API_ENDPOINTS.ORDERS),
-            apiFetch(API_ENDPOINTS.MENU),
-            apiFetch(API_ENDPOINTS.PAYMENTS)
+            fetchTables().catch(() => []),
+            fetchOrders().catch(() => []),
+            fetchMenu().catch(() => []),
+            fetchPayments().catch(() => [])
           ]);
           
           setTables(tablesData || []);
@@ -197,12 +295,12 @@ useEffect(() => {
       ];
 
       const sampleMenu = [
-        { _id: '1', name: 'Nasi Lemak', price: 12.90, category: 'main', preparationTime: 15 },
-        { _id: '2', name: 'Teh Tarik', price: 4.50, category: 'drinks', preparationTime: 5 },
-        { _id: '3', name: 'Char Kuey Teow', price: 14.50, category: 'main', preparationTime: 12 },
-        { _id: '4', name: 'Roti Canai', price: 3.50, category: 'main', preparationTime: 8 },
-        { _id: '5', name: 'Satay Set', price: 18.90, category: 'main', preparationTime: 20 },
-        { _id: '6', name: 'Cendol', price: 6.90, category: 'desserts', preparationTime: 7 }
+        { _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature', preparationTime: 15 },
+        { _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks', preparationTime: 5 },
+        { _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature', preparationTime: 25 },
+        { _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts', preparationTime: 10 },
+        { _id: '5', name: 'Satay Set', price: 18.90, category: 'signature', preparationTime: 20 },
+        { _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks', preparationTime: 3 }
       ];
 
       setOrders(sampleOrders);
@@ -213,6 +311,28 @@ useEffect(() => {
 
     initializeData();
   }, []);
+
+  // Ensure menu data is loaded
+  useEffect(() => {
+    if (menu.length === 0 && apiConnected) {
+      fetchMenu().then(menuData => {
+        if (menuData && menuData.length > 0) {
+          setMenu(menuData);
+        }
+      }).catch(() => {
+        // Fallback menu data
+        const defaultMenu = [
+          { id: '1', _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature' },
+          { id: '2', _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks' },
+          { id: '3', _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature' },
+          { id: '4', _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts' },
+          { id: '5', _id: '5', name: 'Satay Set', price: 18.90, category: 'signature' },
+          { id: '6', _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks' }
+        ];
+        setMenu(defaultMenu);
+      });
+    }
+  }, [menu.length, apiConnected]);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -228,13 +348,15 @@ useEffect(() => {
       closeSidebar();
     }
     
-    // Update URL for menu route
+    // Update URL for navigation
     if (page === 'menu') {
       window.history.pushState({}, '', '/menu');
       setIsMenuRoute(true);
+      setIsCustomerView(true);
     } else {
       window.history.pushState({}, '', '/');
       setIsMenuRoute(false);
+      setIsCustomerView(false);
     }
   };
 
@@ -244,184 +366,138 @@ useEffect(() => {
     ));
   };
 
-const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-  try {
-    // SIMPLE: Generate order data
-    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-    
-    const orderData = {
-      id: orderNumber,
-      orderNumber: orderNumber,
-      table: tableNumber,
-      tableId: tableNumber,
-      items: orderItems,
-      orderType: orderType,
-      status: 'pending',
-      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      createdAt: new Date(),
-      time: 'Just now'
-    };
-
-    console.log('Creating order:', orderData);
-
-    // SIMPLE: Add to orders
-    setOrders(prev => [orderData, ...prev]);
-    
-    // SIMPLE: Update table status
-    setTables(prev => prev.map(table => 
-      table.number === tableNumber 
-        ? { ...table, status: 'occupied', orderId: orderNumber }
-        : table
-    ));
-
-    return orderData; // RETURN THE ORDER DATA
-
-  } catch (error) {
-    console.error('Error creating order:', error);
-    
-    // SIMPLE fallback
-    return {
-      id: `ORD-${Date.now()}`,
-      orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
-      table: tableNumber,
-      status: 'pending'
-    };
-  }
-};
-
-// Enhanced handleCustomerOrder for QR code orders
-const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-  console.log('🔵 handleCustomerOrder called:', { tableNumber, orderItems, orderType });
-  
-  // Process the order same as staff orders
-  const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
-  
-  console.log('🔵 New customer order created:', newOrder);
-  
-  // Additional notification for customer orders
-  setNotifications(prev => [{
-    id: Date.now(),
-    message: `New customer QR order from Table ${tableNumber}`,
-    type: 'order',
-    time: 'Just now',
-    read: false
-  }, ...prev]);
-  
-  return newOrder;
-};
-
-// Add this useEffect hook in your App.jsx:
-useEffect(() => {
-  // Initialize Socket.io connection
-  const socket = io('https://restaurant-saas-backend-hbdz.onrender.com');
-  
-  socket.on('connect', () => {
-    console.log('🔌 Connected to backend via WebSocket');
-  });
-  
-  socket.on('newOrder', (order) => {
-    console.log('📦 New order received:', order);
-    setOrders(prev => [...prev, order]);
-  });
-  
-  socket.on('orderUpdated', (updatedOrder) => {
-    console.log('🔄 Order updated:', updatedOrder);
-    setOrders(prev => prev.map(order => 
-      (order._id === updatedOrder._id || order.id === updatedOrder.id) 
-        ? updatedOrder 
-        : order
-    ));
-  });
-  
-  socket.on('paymentProcessed', (payment) => {
-    console.log('💵 Payment processed:', payment);
-    // Refresh orders to update payment status
-    fetchOrders();
-  });
-  
-  return () => {
-    socket.disconnect();
-  };
-}, []);
-
-// Also add this useEffect to ensure menu data is loaded
-useEffect(() => {
-  if (menu.length === 0) {
-    console.log('Menu is empty, loading default menu data...');
-    // Load default menu data
-    const defaultMenu = [
-      { id: '1', _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature' },
-      { id: '2', _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks' },
-      { id: '3', _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature' },
-      { id: '4', _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts' },
-      { id: '5', _id: '5', name: 'Satay Set', price: 18.90, category: 'signature' },
-      { id: '6', _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks' },
-      { id: '7', _id: '7', name: 'Chicken Curry', price: 14.90, category: 'main' },
-      { id: '8', _id: '8', name: 'Fried Rice Special', price: 12.90, category: 'main' },
-      { id: '9', _id: '9', name: 'Fresh Coconut', price: 8.90, category: 'drinks' },
-      { id: '10', _id: '10', name: 'Cendol Delight', price: 7.90, category: 'desserts' },
-      { id: '11', _id: '11', name: 'Char Kway Teow', price: 14.90, category: 'signature' },
-      { id: '12', _id: '12', name: 'Beef Rendang', price: 19.90, category: 'main' },
-      { id: '13', _id: '13', name: 'Iced Coffee', price: 7.50, category: 'drinks' },
-      { id: '14', _id: '14', name: 'Pisang Goreng', price: 8.90, category: 'desserts' },
-      { id: '15', _id: '15', name: 'Spring Rolls', price: 9.90, category: 'appetizers' },
-      { id: '16', _id: '16', name: 'Prawn Crackers', price: 6.90, category: 'appetizers' }
-    ];
-    setMenu(defaultMenu);
-  }
-}, [menu.length]);
-
-  const updateOrderStatus = async (orderId, newStatus) => {
+  const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
     try {
+      let newOrder;
+      
       if (apiConnected) {
-        const response = await fetch(`${API_ENDPOINTS.ORDERS}/${orderId}/status`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ status: newStatus }),
-        });
-
-        const updatedOrder = await response.json();
-        setOrders(prev => prev.map(order => 
-          order._id === orderId ? updatedOrder : order
-        ));
+        // Use API to create order
+        const orderData = {
+          tableId: tableNumber,
+          items: orderItems.map(item => ({
+            menuItemId: item._id || item.id,
+            quantity: item.quantity,
+            price: item.price,
+            specialInstructions: ''
+          })),
+          orderType: orderType
+        };
+        
+        newOrder = await apiCreateOrder(orderData);
       } else {
-        // Fallback to local state
-        setOrders(prev => prev.map(order => 
-          order.id === orderId ? { ...order, status: newStatus } : order
+        // Fallback: Generate order locally
+        const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+        newOrder = {
+          id: orderNumber,
+          _id: orderNumber,
+          orderNumber: orderNumber,
+          table: tableNumber,
+          tableId: tableNumber,
+          items: orderItems,
+          orderType: orderType,
+          status: 'pending',
+          total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+          createdAt: new Date(),
+          time: 'Just now'
+        };
+
+        setOrders(prev => [newOrder, ...prev]);
+        
+        // Update table status
+        setTables(prev => prev.map(table => 
+          table.number === tableNumber 
+            ? { ...table, status: 'occupied', orderId: orderNumber }
+            : table
         ));
       }
+
+      console.log('Order created:', newOrder);
+      return newOrder;
+
     } catch (error) {
-      console.error('Error updating order status:', error);
+      console.error('Error creating order:', error);
+      
+      // Ultimate fallback
+      return {
+        id: `ORD-${Date.now()}`,
+        _id: `ORD-${Date.now()}`,
+        orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
+        table: tableNumber,
+        status: 'pending'
+      };
     }
   };
 
-const completeOrder = async (orderId, tableNumber) => {
-  await updateOrderStatus(orderId, 'completed');
-  
-  if (apiConnected) {
-    // Tables will be updated via socket or we can refresh
-    const tablesResponse = await fetch(API_ENDPOINTS.TABLES);
-    const updatedTables = await tablesResponse.json();
-    setTables(updatedTables);
-  } else {
-    // Fallback to local state - update only the specific table
-    setTables(prev => prev.map(table => 
-      table.number === tableNumber 
-        ? { ...table, status: 'needs_cleaning', orderId: null }
-        : table
-    ));
-  }
+  const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
+    console.log('🔵 handleCustomerOrder called:', { tableNumber, orderItems, orderType });
+    
+    const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
+    
+    console.log('🔵 New customer order created:', newOrder);
+    
+    setNotifications(prev => [{
+      id: Date.now(),
+      message: `New customer QR order from Table ${tableNumber}`,
+      type: 'order',
+      time: 'Just now',
+      read: false
+    }, ...prev]);
+    
+    return newOrder;
+  };
 
-  setNotifications(prev => [{
-    id: Date.now(),
-    message: `Order ${orderId} completed. Table ${tableNumber} needs cleaning`,
-    type: 'table',
-    time: 'Just now',
-    read: false
-  }, ...prev]);
-};
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      let updatedOrder;
+      
+      if (apiConnected) {
+        updatedOrder = await apiUpdateOrderStatus(orderId, newStatus);
+      } else {
+        // Fallback to local state
+        setOrders(prev => prev.map(order => 
+          (order.id === orderId || order._id === orderId || order.orderNumber === orderId) 
+            ? { ...order, status: newStatus }
+            : order
+        ));
+        updatedOrder = { id: orderId, status: newStatus };
+      }
+
+      console.log(`Order ${orderId} status updated to: ${newStatus}`);
+      return updatedOrder;
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      throw error;
+    }
+  };
+
+  const completeOrder = async (orderId, tableNumber) => {
+    try {
+      await updateOrderStatus(orderId, 'completed');
+      
+      if (apiConnected) {
+        // Refresh tables data
+        const tablesData = await fetchTables();
+        setTables(tablesData);
+      } else {
+        // Fallback to local state
+        setTables(prev => prev.map(table => 
+          table.number === tableNumber 
+            ? { ...table, status: 'needs_cleaning', orderId: null }
+            : table
+        ));
+      }
+
+      setNotifications(prev => [{
+        id: Date.now(),
+        message: `Order ${orderId} completed. Table ${tableNumber} needs cleaning`,
+        type: 'table',
+        time: 'Just now',
+        read: false
+      }, ...prev]);
+    } catch (error) {
+      console.error('Error completing order:', error);
+    }
+  };
 
   const getTimeAgo = (date) => {
     const now = new Date();
@@ -463,7 +539,7 @@ const completeOrder = async (orderId, tableNumber) => {
     );
   }
 
-  // For menu route, don't show sidebar and header (customer-facing view)
+  // For menu route (customer-facing view)
   if (isMenuRoute) {
     return (
       <div className="app-container">
@@ -471,7 +547,7 @@ const completeOrder = async (orderId, tableNumber) => {
           <DigitalMenu 
             cart={cart} 
             setCart={setCart}
-            onCreateOrder={createNewOrder}
+            onCreateOrder={handleCustomerOrder}
             isMobile={isMobile}
             menu={menu}
             apiConnected={apiConnected}
@@ -483,6 +559,7 @@ const completeOrder = async (orderId, tableNumber) => {
     );
   }
 
+  // Staff/admin view
   return (
     <div className="app-container">
       <Header 
@@ -537,24 +614,25 @@ const completeOrder = async (orderId, tableNumber) => {
               onCompleteOrder={completeOrder}
               getTimeAgo={getTimeAgo}
               isMobile={isMobile}
+              menu={menu}
               apiConnected={apiConnected}
             />
           )}
           {currentPage === 'qr-generator' && (
             <QRGenerator tables={tables} isMobile={isMobile} />
           )}
-   {currentPage === 'menu' && (
-  <DigitalMenu 
-    cart={cart} 
-    setCart={setCart}
-    onCreateOrder={isCustomerView ? handleCustomerOrder : createNewOrder}
-    isMobile={isMobile}
-    menu={menu}
-    apiConnected={apiConnected}
-    currentTable={currentTable}
-    isCustomerView={isCustomerView}
-  />
-)}
+          {currentPage === 'menu' && (
+            <DigitalMenu 
+              cart={cart} 
+              setCart={setCart}
+              onCreateOrder={createNewOrder}
+              isMobile={isMobile}
+              menu={menu}
+              apiConnected={apiConnected}
+              currentTable={null}
+              isCustomerView={false}
+            />
+          )}
           {currentPage === 'kitchen' && (
             <KitchenDisplay 
               orders={orders} 
