@@ -230,18 +230,27 @@ app.put('/api/tables/:id', (req, res) => {
   }
 });
 
+// UPDATE the orders endpoint to return ALL orders (not just active)
 app.get('/api/orders', (req, res) => {
   try {
-    const activeOrders = orders.filter(order => order.status !== 'completed');
-    res.json(activeOrders);
+    // RETURN ALL ORDERS, not just active ones
+    res.json(orders);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+// UPDATE order creation to ensure tableId is properly set
 app.post('/api/orders', (req, res) => {
   try {
     const { tableId, items, customerName, customerPhone, orderType } = req.body;
+    
+    console.log('📦 Creating order for table:', tableId);
+    
+    // Validate tableId
+    if (!tableId || tableId === 'undefined') {
+      return res.status(400).json({ error: 'Valid table ID is required' });
+    }
     
     // Calculate total
     const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -249,19 +258,23 @@ app.post('/api/orders', (req, res) => {
     const order = {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
-      tableId,
+      tableId: tableId, // ENSURE this is properly set
       items: items.map(item => ({
-        menuItem: menuItems.find(m => m._id === item.menuItemId) || { name: 'Unknown Item', price: 0 },
+        menuItem: menuItems.find(m => m._id === item.menuItemId) || { 
+          _id: item.menuItemId,
+          name: item.name || 'Unknown Item', 
+          price: item.price || 0 
+        },
         quantity: item.quantity,
         specialInstructions: item.specialInstructions,
         price: item.price
       })),
       total,
       status: 'pending',
+      paymentStatus: 'pending', // CRITICAL: Initialize payment status
       customerName: customerName || '',
       customerPhone: customerPhone || '',
       orderType: orderType || 'dine-in',
-      paymentStatus: 'pending',
       orderedAt: new Date(),
       completedAt: null
     };
@@ -284,13 +297,13 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// UPDATE the order status endpoint to ensure payment flow:
+// UPDATE status endpoint to handle paymentStatus
 app.put('/api/orders/:id/status', (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, paymentStatus } = req.body;
     const orderId = req.params.id;
     
-    console.log(`🔄 Updating order ${orderId} to status: ${status}`);
+    console.log(`🔄 Updating order ${orderId} to status: ${status}, payment: ${paymentStatus}`);
     
     const orderIndex = orders.findIndex(o => 
       o._id === orderId || o.orderNumber === orderId
@@ -301,13 +314,24 @@ app.put('/api/orders/:id/status', (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
     
-    orders[orderIndex].status = status;
+    // Update status
+    if (status) {
+      orders[orderIndex].status = status;
+    }
     
-    // CRITICAL: When order is completed, ensure it's ready for payments
+    // Update payment status if provided
+    if (paymentStatus) {
+      orders[orderIndex].paymentStatus = paymentStatus;
+    }
+    
+    // CRITICAL: When order is completed/ready, ensure paymentStatus is set
+    if (status === 'completed' || status === 'ready') {
+      orders[orderIndex].paymentStatus = orders[orderIndex].paymentStatus || 'pending';
+      console.log(`💰 Order ${orderId} marked as ${status} - paymentStatus: ${orders[orderIndex].paymentStatus}`);
+    }
+    
     if (status === 'completed') {
       orders[orderIndex].completedAt = new Date();
-      orders[orderIndex].paymentStatus = 'pending'; // ADD THIS LINE
-      console.log(`✅ Order ${orderId} marked as completed - READY FOR PAYMENT`);
       
       // Free the table
       const tableIndex = tables.findIndex(t => t.orderId === orders[orderIndex]._id);
@@ -316,12 +340,6 @@ app.put('/api/orders/:id/status', (req, res) => {
         tables[tableIndex].orderId = null;
         console.log(`🔄 Table ${tables[tableIndex].number} marked for cleaning`);
       }
-    }
-    
-    // When order is ready, it should also appear in payments
-    if (status === 'ready') {
-      orders[orderIndex].paymentStatus = 'pending'; // ADD THIS LINE
-      console.log(`💰 Order ${orderId} is ready for payment`);
     }
     
     io.emit('orderUpdated', orders[orderIndex]);

@@ -87,8 +87,8 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     setShowOrderDetails(false);
   };
 
+// In handleCreateOrder function, ensure tableId is properly passed:
 const handleCreateOrder = async () => {
-  // SAFELY get selected items
   const selectedItems = orderItems 
     ? orderItems.filter(item => item && item.quantity > 0)
     : [];
@@ -98,10 +98,10 @@ const handleCreateOrder = async () => {
     return;
   }
 
-  console.log('📦 Creating order with items:', selectedItems);
+  console.log('📦 Creating order for table:', selectedTable?.number);
 
   const orderData = {
-    tableId: selectedTable?.number,
+    tableId: selectedTable?.number, // ENSURE this is not undefined
     items: selectedItems.map(item => ({
       menuItemId: item._id || item.id,
       quantity: item.quantity,
@@ -117,7 +117,6 @@ const handleCreateOrder = async () => {
     const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in');
     
     if (newOrder) {
-      // Update ONLY this specific table with the new order ID
       setTables(prevTables => prevTables.map(table => 
         table.number === selectedTable?.number
           ? { ...table, status: 'occupied', orderId: newOrder._id || newOrder.id }

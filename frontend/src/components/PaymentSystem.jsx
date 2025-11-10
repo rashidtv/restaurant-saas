@@ -7,37 +7,38 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [activeTab, setActiveTab] = useState('pending');
 
-  // UPDATE the getPendingPayments function in PaymentSystem.jsx:
-// UPDATE the getPendingPayments function in PaymentSystem.jsx:
-const getPendingPayments = () => {
-  const pending = orders.filter(order => {
-    // Orders are ready for payment when they are completed OR ready
-    const isCompletedOrReady = order.status === 'completed' || order.status === 'ready';
-    const isNotPaid = order.paymentStatus !== 'paid';
+  // **FIXED: Get ALL orders regardless of status for payment**
+  const getPendingPayments = () => {
+    console.log('🔍 PaymentSystem - All orders:', orders);
     
-    console.log(`💰 Payment Check - ${order.orderNumber}:`, {
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-      isCompletedOrReady,
-      isNotPaid,
-      shouldShow: isCompletedOrReady && isNotPaid
+    const pending = orders.filter(order => {
+      // Show ANY order that is not paid, regardless of status
+      const isNotPaid = order.paymentStatus !== 'paid' && order.paymentStatus !== 'completed';
+      const hasItems = order.items && order.items.length > 0;
+      
+      console.log(`💰 Order ${order.orderNumber}:`, {
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        isNotPaid,
+        hasItems
+      });
+      
+      return isNotPaid && hasItems;
     });
+
+    console.log(`💵 Found ${pending.length} unpaid orders:`, 
+      pending.map(p => `${p.orderNumber} (status: ${p.status}, payment: ${p.paymentStatus})`));
     
-    return isCompletedOrReady && isNotPaid;
-  });
+    return pending;
+  };
 
-  console.log(`💵 Found ${pending.length} orders ready for payment:`, 
-    pending.map(p => `${p.orderNumber} (${p.status})`));
-  
-  return pending;
-};
-
-  // UPDATE the getCompletedPayments function:
-const getCompletedPayments = () => {
-  const completed = orders.filter(order => order.paymentStatus === 'paid');
-  console.log(`📊 Found ${completed.length} completed payments`);
-  return completed;
-};
+  const getCompletedPayments = () => {
+    const completed = orders.filter(order => 
+      order.paymentStatus === 'paid' || order.paymentStatus === 'completed'
+    );
+    console.log(`📊 Found ${completed.length} completed payments`);
+    return completed;
+  };
 
   const processPayment = async (order, method) => {
     try {
@@ -46,7 +47,8 @@ const getCompletedPayments = () => {
       const paymentData = {
         orderId: order.orderNumber,
         amount: order.total,
-        method: method
+        method: method,
+        tableId: order.tableId || order.table
       };
 
       let paymentResult;
@@ -124,20 +126,20 @@ const getCompletedPayments = () => {
           className={`tab-button ${activeTab === 'pending' ? 'active' : ''}`}
           onClick={() => setActiveTab('pending')}
         >
-          Pending Payments
+          All Unpaid Orders
           {pendingPayments.length > 0 && (
             <span className="tab-badge">{pendingPayments.length}</span>
           )}
         </button>
         <button 
-  className={`tab-button ${activeTab === 'completed' ? 'active' : ''}`}
-  onClick={() => setActiveTab('completed')}
->
-  Payment History
-  {completedPayments.length > 0 && (
-    <span className="tab-badge">{completedPayments.length}</span>
-  )}
-</button>
+          className={`tab-button ${activeTab === 'completed' ? 'active' : ''}`}
+          onClick={() => setActiveTab('completed')}
+        >
+          Payment History
+          {completedPayments.length > 0 && (
+            <span className="tab-badge">{completedPayments.length}</span>
+          )}
+        </button>
       </div>
 
       <div className="payment-content">
@@ -146,8 +148,8 @@ const getCompletedPayments = () => {
             {pendingPayments.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">💵</div>
-                <h3>No Pending Payments</h3>
-                <p>Completed orders will appear here for payment processing</p>
+                <h3>No Unpaid Orders</h3>
+                <p>All orders have been paid or no orders exist</p>
               </div>
             ) : (
               <div className="orders-grid">
@@ -157,8 +159,15 @@ const getCompletedPayments = () => {
                       <div className="order-info">
                         <h3 className="order-number">{order.orderNumber}</h3>
                         <div className="order-meta">
-                          <span className="table-badge">Table {order.tableId || order.table || 'Takeaway'}</span>
-                          <span className="type-badge">{order.orderType || 'dine-in'}</span>
+                          <span className="status-badge status-{order.status}">
+                            {order.status}
+                          </span>
+                          <span className="table-badge">
+                            Table {order.tableId || order.table || 'Takeaway'}
+                          </span>
+                          <span className="payment-status">
+                            Payment: {order.paymentStatus || 'pending'}
+                          </span>
                         </div>
                       </div>
                       <div className="order-amount">
@@ -167,17 +176,23 @@ const getCompletedPayments = () => {
                     </div>
 
                     <div className="order-items">
-                      {order.items?.slice(0, 3).map((item, index) => (
-                        <div key={index} className="order-item">
-                          <span className="item-quantity">{item.quantity}x</span>
-                          <span className="item-name">
-                            {item.menuItem?.name || item.name || 'Menu Item'}
-                          </span>
-                          <span className="item-price">
-                            RM {((item.price || 0) * item.quantity).toFixed(2)}
-                          </span>
-                        </div>
-                      ))}
+                      {order.items?.slice(0, 3).map((item, index) => {
+                        const itemName = item.menuItem?.name || item.name || 'Menu Item';
+                        const itemPrice = item.price || (item.menuItem?.price) || 0;
+                        const itemQuantity = item.quantity || 1;
+                        
+                        return (
+                          <div key={index} className="order-item">
+                            <span className="item-quantity">{itemQuantity}x</span>
+                            <span className="item-name">
+                              {itemName}
+                            </span>
+                            <span className="item-price">
+                              RM {(itemPrice * itemQuantity).toFixed(2)}
+                            </span>
+                          </div>
+                        );
+                      })}
                       {order.items?.length > 3 && (
                         <div className="more-items">
                           +{order.items.length - 3} more items
@@ -195,6 +210,9 @@ const getCompletedPayments = () => {
                       >
                         Process Payment
                       </button>
+                      <div className="order-status">
+                        Status: <strong>{order.status}</strong>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -203,6 +221,7 @@ const getCompletedPayments = () => {
           </div>
         )}
 
+        {/* Rest of the component remains the same */}
         {activeTab === 'completed' && (
           <div className="completed-payments">
             {completedPayments.length === 0 ? (
@@ -244,7 +263,7 @@ const getCompletedPayments = () => {
         )}
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal - Keep existing */}
       {showPaymentModal && selectedOrder && (
         <div className="modal-overlay">
           <div className="payment-modal">
@@ -267,6 +286,12 @@ const getCompletedPayments = () => {
                 <div className="summary-row">
                   <span>Table:</span>
                   <span>{selectedOrder.tableId || selectedOrder.table || 'Takeaway'}</span>
+                </div>
+                <div className="summary-row">
+                  <span>Order Status:</span>
+                  <span className={`status-${selectedOrder.status}`}>
+                    {selectedOrder.status}
+                  </span>
                 </div>
                 <div className="summary-row">
                   <span>Total Amount:</span>
