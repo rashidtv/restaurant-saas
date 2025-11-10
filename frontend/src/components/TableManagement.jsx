@@ -14,16 +14,25 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     console.log('TableManagement - Menu items count:', menu?.length);
   }, [menu]);
 
-  // Use the menu from DigitalMenu - FIXED with fallback
-  const menuItems = menu && menu.length > 0 ? menu : [
-    // Fallback sample data for debugging
-    { _id: '1', name: 'Nasi Lemak', price: 12.90, category: 'main' },
-    { _id: '2', name: 'Teh Tarik', price: 4.50, category: 'drinks' },
-    { _id: '3', name: 'Char Kuey Teow', price: 14.50, category: 'main' },
-    { _id: '4', name: 'Roti Canai', price: 3.50, category: 'main' },
-    { _id: '5', name: 'Satay Set', price: 18.90, category: 'main' },
-    { _id: '6', name: 'Cendol', price: 6.90, category: 'desserts' }
-  ];
+  // In TableManagement.jsx, replace the menuItems declaration:
+const menuItems = menu && menu.length > 0 ? menu : [
+  { id: '1', _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature' },
+  { id: '2', _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks' },
+  { id: '3', _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature' },
+  { id: '4', _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts' },
+  { id: '5', _id: '5', name: 'Satay Set', price: 18.90, category: 'signature' },
+  { id: '6', _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks' },
+  { id: '7', _id: '7', name: 'Chicken Curry', price: 14.90, category: 'main' },
+  { id: '8', _id: '8', name: 'Fried Rice Special', price: 12.90, category: 'main' },
+  { id: '9', _id: '9', name: 'Fresh Coconut', price: 8.90, category: 'drinks' },
+  { id: '10', _id: '10', name: 'Cendol Delight', price: 7.90, category: 'desserts' },
+  { id: '11', _id: '11', name: 'Char Kway Teow', price: 14.90, category: 'signature' },
+  { id: '12', _id: '12', name: 'Beef Rendang', price: 19.90, category: 'main' },
+  { id: '13', _id: '13', name: 'Iced Coffee', price: 7.50, category: 'drinks' },
+  { id: '14', _id: '14', name: 'Pisang Goreng', price: 8.90, category: 'desserts' },
+  { id: '15', _id: '15', name: 'Spring Rolls', price: 9.90, category: 'appetizers' },
+  { id: '16', _id: '16', name: 'Prawn Crackers', price: 6.90, category: 'appetizers' }
+];
 
   const updateTableStatus = (tableId, newStatus) => {
     setTables(tables.map(table =>

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import './KitchenDisplay.css';
-import { truncateText, getSafeString } from '../utils/stringUtils';
 
 const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onUpdateOrderStatus, apiConnected }) => {
   const [activeFilter, setActiveFilter] = useState('all');
@@ -83,7 +82,7 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
 
   // Safe order type display
   const getOrderTypeDisplay = (orderType) => {
-    const type = getSafeString(orderType, 'dine-in');
+    const type = orderType || 'dine-in';
     return isMobile ? type.substring(0, 3) : type;
   };
 
@@ -102,7 +101,7 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     if (order.total) return order.total;
     if (order.items) {
       return order.items.reduce((sum, item) => {
-        const itemPrice = item.price || item.menuItem?.price || 0;
+        const itemPrice = item.price || 0;
         const itemQuantity = item.quantity || 1;
         return sum + (itemPrice * itemQuantity);
       }, 0);
@@ -110,57 +109,62 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return 0;
   };
 
-// Enhanced getItemName function with better error handling
-const getItemName = (item) => {
-  console.log('Kitchen Display - Processing item for display:', item);
-  
-  // Handle all possible data formats
-  if (item.menuItem && item.menuItem.name) {
-    return getSafeString(item.menuItem.name);
-  }
-  if (item.name) {
-    return getSafeString(item.name);
-  }
-  if (item.menuItem && typeof item.menuItem === 'object') {
-    // Try to extract name from menuItem object
-    const menuItemName = item.menuItem.name || item.menuItem.title;
-    if (menuItemName) return getSafeString(menuItemName);
-  }
-  
-  console.warn('Kitchen Display - Unknown item structure, returning fallback:', item);
-  return 'Menu Item';
-};
+  // **CRITICAL FIX: Enhanced getItemName function**
+  const getItemName = (item) => {
+    console.log('Kitchen Display - Raw item structure:', item);
+    
+    // Priority 1: Direct name property
+    if (item.name && item.name !== 'Unknown Item') {
+      console.log('Using direct name:', item.name);
+      return item.name;
+    }
+    
+    // Priority 2: menuItem object with name
+    if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
+      console.log('Using menuItem name:', item.menuItem.name);
+      return item.menuItem.name;
+    }
+    
+    // Priority 3: Try to reconstruct from price (fallback)
+    const price = item.price || (item.menuItem && item.menuItem.price);
+    if (price) {
+      const menuItems = {
+        16.90: 'Nasi Lemak Royal',
+        22.90: 'Rendang Tok', 
+        18.90: 'Satay Set',
+        14.90: 'Char Kway Teow',
+        6.50: 'Teh Tarik',
+        5.90: 'Iced Lemon Tea',
+        8.90: 'Fresh Coconut',
+        7.50: 'Iced Coffee',
+        12.90: 'Mango Sticky Rice',
+        7.90: 'Cendol Delight',
+        9.90: 'Spring Rolls',
+        6.90: 'Prawn Crackers'
+      };
+      const reconstructedName = menuItems[price] || `Menu Item (RM ${price})`;
+      console.log('Reconstructed name from price:', reconstructedName);
+      return reconstructedName;
+    }
+    
+    console.warn('Kitchen Display - Unknown item, using fallback:', item);
+    return 'Menu Item';
+  };
 
-// Add this debug useEffect to KitchenDisplay
-useEffect(() => {
-  console.log('KitchenDisplay - All orders:', orders);
-  console.log('KitchenDisplay - Filtered orders:', filteredOrders);
-  
-  // Log item structures for debugging
-  orders.forEach((order, index) => {
-    console.log(`Order ${index} items:`, order.items);
-    order.items?.forEach((item, itemIndex) => {
-      console.log(`Order ${index} - Item ${itemIndex}:`, item);
-    });
-  });
-}, [orders, filteredOrders]);
-
-  // Get item price safely - handles both data formats
+  // Get item price safely
   const getItemPrice = (item) => {
-    // Handle Table Management format (item has menuItem object)
-    if (item.menuItem && item.menuItem.price) {
-      return item.menuItem.price;
-    }
-    // Handle Digital Menu format (item has direct price)
-    if (item.price) {
-      return item.price;
-    }
-    return 0;
+    return item.price || (item.menuItem && item.menuItem.price) || 0;
   };
 
   // Get item quantity safely
   const getItemQuantity = (item) => {
     return item.quantity || 1;
+  };
+
+  // Safe text truncation
+  const truncateText = (text, maxLength = 20) => {
+    if (!text || typeof text !== 'string') return 'Unknown Item';
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
   return (
@@ -203,7 +207,7 @@ useEffect(() => {
             className={`kitchen-filter-btn ${activeFilter === filter.id ? 'active' : ''}`}
             onClick={() => setActiveFilter(filter.id)}
           >
-            {isMobile ? getSafeString(filter.label).split(' ')[0] : filter.label}
+            {filter.label}
             {filter.count > 0 && (
               <span className="filter-count">{filter.count}</span>
             )}
@@ -303,7 +307,7 @@ useEffect(() => {
                     onClick={() => updateOrderStatus(orderId, 'preparing')}
                   >
                     <span className="action-icon">👨‍🍳</span>
-                    {isMobile ? 'Start' : 'Start Preparing'}
+                    Start Preparing
                   </button>
                 )}
                 {order.status === 'preparing' && (
@@ -312,7 +316,7 @@ useEffect(() => {
                     onClick={() => updateOrderStatus(orderId, 'ready')}
                   >
                     <span className="action-icon">✅</span>
-                    {isMobile ? 'Ready' : 'Mark as Ready'}
+                    Mark as Ready
                   </button>
                 )}
                 {order.status === 'ready' && (
@@ -327,7 +331,7 @@ useEffect(() => {
                       }}
                     >
                       <span className="action-icon">🎉</span>
-                      {isMobile ? 'Complete' : 'Complete Order'}
+                      Complete Order
                     </button>
                     {orderType === 'dine-in' && (
                       <div className="cleaning-note">

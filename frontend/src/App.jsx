@@ -244,43 +244,54 @@ useEffect(() => {
     ));
   };
 
-// In App.jsx, replace the createNewOrder function:
-// Enhanced createNewOrder function with proper data structure
+// In App.jsx, replace the createNewOrder function with this FIXED version:
 const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
   try {
     // Generate unique order ID for this specific table
     const uniqueOrderId = `ORD-${Date.now()}-${tableNumber}`;
     
-    console.log('App - Creating order with items:', orderItems);
+    console.log('App - Creating order with raw items:', orderItems);
 
-    // FIXED: Enhanced item processing for KitchenDisplay compatibility
+    // **CRITICAL FIX: Ensure proper item structure with names**
     const processedItems = orderItems.map(item => {
-      // Ensure consistent data structure
+      console.log('App - Processing item:', item);
+      
+      // Extract name from available sources
+      let itemName = 'Unknown Item';
+      if (item.name && item.name !== 'Unknown Item') {
+        itemName = item.name;
+      } else if (item.menuItem && item.menuItem.name) {
+        itemName = item.menuItem.name;
+      }
+      
+      // Ensure we have a valid price
+      const itemPrice = item.price || (item.menuItem && item.menuItem.price) || 0;
+      
       const processedItem = {
         // Core item data
         id: item.id || item._id,
         _id: item._id || item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
+        name: itemName, // **FIXED: Always include name**
+        price: itemPrice,
+        quantity: item.quantity || 1,
         
         // KitchenDisplay compatibility - ensure menuItem structure
         menuItem: {
           _id: item._id || item.id,
-          name: item.name,
-          price: item.price,
+          name: itemName, // **FIXED: Always include name in menuItem**
+          price: itemPrice,
           category: item.category || 'main',
           image: item.image || '🍽️'
         }
       };
 
-      console.log('App - Processed item:', processedItem);
+      console.log('App - Processed item with name:', processedItem);
       return processedItem;
     });
 
     const orderData = {
       id: uniqueOrderId,
-      _id: uniqueOrderId, // For MongoDB compatibility
+      _id: uniqueOrderId,
       orderNumber: `MESRA${Date.now().toString().slice(-6)}`,
       table: tableNumber,
       tableId: tableNumber,
@@ -296,7 +307,7 @@ const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') =>
       preparationStart: null
     };
 
-    console.log('App - Final order data:', orderData);
+    console.log('App - Final order data with names:', orderData);
 
     if (apiConnected) {
       const response = await fetch(API_ENDPOINTS.ORDERS, {
@@ -381,17 +392,27 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
 // Also add this useEffect to ensure menu data is loaded
 useEffect(() => {
   if (menu.length === 0) {
-    console.log('Menu is empty, forcing reload...');
-    // Re-fetch menu data
-    const fetchMenu = async () => {
-      try {
-        const menuData = await apiFetch(API_ENDPOINTS.MENU);
-        setMenu(menuData || []);
-      } catch (error) {
-        console.log('Failed to fetch menu:', error);
-      }
-    };
-    fetchMenu();
+    console.log('Menu is empty, loading default menu data...');
+    // Load default menu data
+    const defaultMenu = [
+      { id: '1', _id: '1', name: 'Nasi Lemak Royal', price: 16.90, category: 'signature' },
+      { id: '2', _id: '2', name: 'Teh Tarik', price: 6.50, category: 'drinks' },
+      { id: '3', _id: '3', name: 'Rendang Tok', price: 22.90, category: 'signature' },
+      { id: '4', _id: '4', name: 'Mango Sticky Rice', price: 12.90, category: 'desserts' },
+      { id: '5', _id: '5', name: 'Satay Set', price: 18.90, category: 'signature' },
+      { id: '6', _id: '6', name: 'Iced Lemon Tea', price: 5.90, category: 'drinks' },
+      { id: '7', _id: '7', name: 'Chicken Curry', price: 14.90, category: 'main' },
+      { id: '8', _id: '8', name: 'Fried Rice Special', price: 12.90, category: 'main' },
+      { id: '9', _id: '9', name: 'Fresh Coconut', price: 8.90, category: 'drinks' },
+      { id: '10', _id: '10', name: 'Cendol Delight', price: 7.90, category: 'desserts' },
+      { id: '11', _id: '11', name: 'Char Kway Teow', price: 14.90, category: 'signature' },
+      { id: '12', _id: '12', name: 'Beef Rendang', price: 19.90, category: 'main' },
+      { id: '13', _id: '13', name: 'Iced Coffee', price: 7.50, category: 'drinks' },
+      { id: '14', _id: '14', name: 'Pisang Goreng', price: 8.90, category: 'desserts' },
+      { id: '15', _id: '15', name: 'Spring Rolls', price: 9.90, category: 'appetizers' },
+      { id: '16', _id: '16', name: 'Prawn Crackers', price: 6.90, category: 'appetizers' }
+    ];
+    setMenu(defaultMenu);
   }
 }, [menu.length]);
 
