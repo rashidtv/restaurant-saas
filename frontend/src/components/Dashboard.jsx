@@ -2,23 +2,72 @@ import React from 'react';
 import './Dashboard.css';
 
 const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead, getPrepTimeRemaining, isMobile, apiConnected }) => {
-  // FIXED: Revenue calculations with proper error handling
-  const totalRevenue = payments && Array.isArray(payments) 
-    ? payments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
-    : 0;
+  // FIXED: Calculate revenue from BOTH payments AND paid orders
+  const calculateRevenue = () => {
+    console.log('💰 Revenue Debug:', {
+      paymentsCount: payments?.length,
+      paidOrdersCount: orders?.filter(o => o.paymentStatus === 'paid').length,
+      allOrders: orders?.length
+    });
 
-  const todayRevenue = payments && Array.isArray(payments) 
-    ? payments.filter(p => {
-        if (!p.paidAt) return false;
-        try {
-          const paymentDate = new Date(p.paidAt);
-          const today = new Date();
-          return paymentDate.toDateString() === today.toDateString();
-        } catch {
-          return false;
-        }
-      }).reduce((sum, payment) => sum + (payment.amount || 0), 0)
-    : 0;
+    // Method 1: From payments collection (primary source)
+    const fromPayments = payments && Array.isArray(payments) 
+      ? payments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
+      : 0;
+
+    // Method 2: From paid orders (fallback when payments array is empty)
+    const fromPaidOrders = orders && Array.isArray(orders)
+      ? orders
+          .filter(order => order.paymentStatus === 'paid')
+          .reduce((sum, order) => sum + (order.total || 0), 0)
+      : 0;
+
+    // Use payments if available, otherwise use paid orders
+    const totalRevenue = fromPayments > 0 ? fromPayments : fromPaidOrders;
+
+    console.log('💰 Revenue Calculation:', {
+      fromPayments,
+      fromPaidOrders,
+      finalRevenue: totalRevenue
+    });
+
+    return totalRevenue;
+  };
+
+  const totalRevenue = calculateRevenue();
+
+  // Today's revenue - calculate from both sources
+  const todayRevenue = () => {
+    const today = new Date().toDateString();
+    
+    // From payments
+    const fromPayments = payments && Array.isArray(payments) 
+      ? payments.filter(p => {
+          if (!p.paidAt) return false;
+          try {
+            const paymentDate = new Date(p.paidAt);
+            return paymentDate.toDateString() === today;
+          } catch {
+            return false;
+          }
+        }).reduce((sum, payment) => sum + (payment.amount || 0), 0)
+      : 0;
+
+    // From paid orders (fallback)
+    const fromPaidOrders = orders && Array.isArray(orders)
+      ? orders.filter(order => {
+          if (!order.orderedAt || order.paymentStatus !== 'paid') return false;
+          try {
+            const orderDate = new Date(order.orderedAt);
+            return orderDate.toDateString() === today;
+          } catch {
+            return false;
+          }
+        }).reduce((sum, order) => sum + (order.total || 0), 0)
+      : 0;
+
+    return fromPayments > 0 ? fromPayments : fromPaidOrders;
+  };
 
   // FIXED: Add proper array checks for all data
   const activeOrders = orders && Array.isArray(orders) 
@@ -35,6 +84,10 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
 
   const readyOrders = orders && Array.isArray(orders)
     ? orders.filter(order => order.status === 'ready')
+    : [];
+
+  const paidOrders = orders && Array.isArray(orders)
+    ? orders.filter(order => order.paymentStatus === 'paid')
     : [];
 
   // FIXED: Table status filtering
@@ -94,7 +147,9 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
             <div className="stat-value">RM {totalRevenue.toFixed(2)}</div>
             <div className="stat-label">Total Revenue</div>
             <div className="stat-subtext">
-              Today: RM {todayRevenue.toFixed(2)}
+              Today: RM {todayRevenue().toFixed(2)}
+              <br />
+              Paid Orders: {paidOrders.length}
             </div>
           </div>
         </div>
@@ -106,6 +161,8 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
             <div className="stat-label">Total Orders</div>
             <div className="stat-subtext">
               Today: {todayOrders.length}
+              <br />
+              Active: {activeOrders.length}
             </div>
           </div>
         </div>
@@ -117,6 +174,8 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
             <div className="stat-label">Tables Occupied</div>
             <div className="stat-subtext">
               {availableTables.length} available
+              <br />
+              {tablesNeedingCleaning.length} need cleaning
             </div>
           </div>
         </div>
@@ -128,6 +187,8 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
             <div className="stat-label">Notifications</div>
             <div className="stat-subtext">
               {activeOrders.length} active orders
+              <br />
+              {paidOrders.length} paid orders
             </div>
           </div>
         </div>
@@ -155,6 +216,14 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
                 {orders?.filter(o => o.status === 'completed').length || 0}
               </div>
               <div className="status-label">Completed</div>
+            </div>
+          </div>
+          <div className="payment-status">
+            <div className="payment-status-item paid">
+              <strong>Paid Orders:</strong> {paidOrders.length}
+            </div>
+            <div className="payment-status-item unpaid">
+              <strong>Unpaid Orders:</strong> {orders?.filter(o => o.paymentStatus !== 'paid').length || 0}
             </div>
           </div>
         </div>
@@ -188,6 +257,9 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
                 <div className="order-info">
                   <div className="order-number">{order.orderNumber || `ORD-${order._id?.slice(-6)}`}</div>
                   <div className="order-table">Table {order.tableId || order.table}</div>
+                  <div className={`payment-status ${order.paymentStatus === 'paid' ? 'paid' : 'unpaid'}`}>
+                    {order.paymentStatus === 'paid' ? '✅ Paid' : '⏳ Unpaid'}
+                  </div>
                 </div>
                 <div className="order-status">
                   <span className={`status-badge ${order.status}`}>
