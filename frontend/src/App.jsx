@@ -8,7 +8,6 @@ import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
-//testing
 import { 
   API_ENDPOINTS, 
   fetchOrders, 
@@ -35,9 +34,59 @@ function App() {
   const [isMenuRoute, setIsMenuRoute] = useState(false);
   const [currentTable, setCurrentTable] = useState(null);
   const [isCustomerView, setIsCustomerView] = useState(false);
+  const [socket, setSocket] = useState(null);
 
-const [socket, setSocket] = useState(null);
+  // Health check function
+  const healthCheck = async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/health', {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Health check passed:', data);
+        setApiConnected(true);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.log('⚠️ Health check failed, but continuing:', error.message);
+      return false;
+    }
+  };
 
+  // Warm-up function for backend
+  const warmUpBackend = async () => {
+    try {
+      console.log('🔥 Warming up backend...');
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/menu', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        console.log('✅ Backend warmed up successfully');
+        setApiConnected(true);
+        return true;
+      }
+    } catch (error) {
+      console.log('⚠️ Backend warm-up failed, will retry:', error.message);
+      return false;
+    }
+  };
+
+  // WebSocket initialization
   useEffect(() => {
     let socketInstance;
 
@@ -66,7 +115,7 @@ const [socket, setSocket] = useState(null);
           setApiConnected(false);
         });
 
-        // ALL socket event listeners in one place
+        // Socket event listeners
         socketInstance.on('newOrder', (order) => {
           console.log('📦 New order received via WebSocket:', order);
           setOrders(prev => {
@@ -86,27 +135,25 @@ const [socket, setSocket] = useState(null);
           ));
         });
 
-       // In App.jsx - REPLACE the tableUpdated handler
-socketInstance.on('tableUpdated', (updatedTable) => {
-  console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
-  
-  setTables(prev => prev.map(t => {
-    // Find the current table in state
-    const currentTable = prev.find(table => table._id === updatedTable._id);
-    
-    if (currentTable) {
-      // Only update if status actually changed to prevent loops
-      if (currentTable.status !== updatedTable.status) {
-        console.log('✅ Updating table status from', currentTable.status, 'to', updatedTable.status);
-        return updatedTable;
-      } else {
-        console.log('⚠️ Table status unchanged, skipping update');
-        return t;
-      }
-    }
-    return t;
-  }));
-});
+        // FIXED: Table update handler with status change check
+        socketInstance.on('tableUpdated', (updatedTable) => {
+          console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
+          
+          setTables(prev => prev.map(t => {
+            const currentTable = prev.find(table => table._id === updatedTable._id);
+            
+            if (currentTable) {
+              if (currentTable.status !== updatedTable.status) {
+                console.log('✅ Updating table status from', currentTable.status, 'to', updatedTable.status);
+                return updatedTable;
+              } else {
+                console.log('⚠️ Table status unchanged, skipping update');
+                return t;
+              }
+            }
+            return t;
+          }));
+        });
 
         socketInstance.on('paymentProcessed', (payment) => {
           console.log('💰 Payment processed via WebSocket:', payment);
@@ -128,6 +175,34 @@ socketInstance.on('tableUpdated', (updatedTable) => {
         socketInstance.disconnect();
       }
     };
+  }, [apiConnected]);
+
+  // Continuous health monitoring
+  useEffect(() => {
+    if (!apiConnected) {
+      const interval = setInterval(async () => {
+        console.log('🔄 Checking backend connection...');
+        const isHealthy = await healthCheck();
+        if (isHealthy) {
+          console.log('✅ Backend connection restored');
+          setApiConnected(true);
+          clearInterval(interval);
+          
+          // Reload data now that backend is available
+          const [menuData, tablesData, ordersData] = await Promise.all([
+            fetchMenu().catch(() => []),
+            fetchTables().catch(() => []),
+            fetchOrders().catch(() => [])
+          ]);
+          
+          setMenu(menuData || []);
+          setTables(tablesData || []);
+          setOrders(ordersData || []);
+        }
+      }, 15000);
+
+      return () => clearInterval(interval);
+    }
   }, [apiConnected]);
 
   // Polling fallback for data refresh
@@ -156,53 +231,52 @@ socketInstance.on('tableUpdated', (updatedTable) => {
   }, [apiConnected]);
 
   // Check URL for menu route
-  // In App.jsx, update the route detection to handle QR URLs properly
-useEffect(() => {
-  const checkRoute = () => {
-    const hash = window.location.hash;
-    const path = window.location.pathname;
-    
-    console.log('🔍 Route check - Hash:', hash, 'Path:', path);
-    
-    // Handle both /#/menu and /menu routes
-    if (hash.includes('#/menu') || path.includes('/menu')) {
-      console.log('✅ Menu route detected');
-      setIsMenuRoute(true);
-      setIsCustomerView(true);
-      setCurrentPage('menu');
+  useEffect(() => {
+    const checkRoute = () => {
+      const hash = window.location.hash;
+      const path = window.location.pathname;
       
-      // Extract table parameter from URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const tableParam = urlParams.get('table');
+      console.log('🔍 Route check - Hash:', hash, 'Path:', path);
       
-      if (tableParam) {
-        console.log('🎯 Table parameter found:', tableParam);
-        setCurrentTable(tableParam);
+      // Handle both /#/menu and /menu routes
+      if (hash.includes('#/menu') || path.includes('/menu')) {
+        console.log('✅ Menu route detected');
+        setIsMenuRoute(true);
+        setIsCustomerView(true);
+        setCurrentPage('menu');
+        
+        // Extract table parameter from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const tableParam = urlParams.get('table');
+        
+        if (tableParam) {
+          console.log('🎯 Table parameter found:', tableParam);
+          setCurrentTable(tableParam);
+        } else {
+          console.log('❌ No table parameter in URL');
+        }
       } else {
-        console.log('❌ No table parameter in URL');
+        console.log('📊 Staff view detected');
+        setIsMenuRoute(false);
+        setIsCustomerView(false);
       }
-    } else {
-      console.log('📊 Staff view detected');
-      setIsMenuRoute(false);
-      setIsCustomerView(false);
-    }
-  };
+    };
 
-  checkRoute();
-  
-  const handleHashChange = () => {
-    console.log('🔄 Hash changed');
     checkRoute();
-  };
-  
-  window.addEventListener('hashchange', handleHashChange);
-  window.addEventListener('popstate', checkRoute);
-  
-  return () => {
-    window.removeEventListener('hashchange', handleHashChange);
-    window.removeEventListener('popstate', checkRoute);
-  };
-}, []);
+    
+    const handleHashChange = () => {
+      console.log('🔄 Hash changed');
+      checkRoute();
+    };
+    
+    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', checkRoute);
+    
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', checkRoute);
+    };
+  }, []);
 
   // Check if mobile
   useEffect(() => {
@@ -232,35 +306,21 @@ useEffect(() => {
     };
   }, [sidebarOpen, isMobile]);
 
-  // Load initial data - FIXED VERSION
+  // Load initial data - RESILIENT VERSION
   useEffect(() => {
     const initializeData = async () => {
       try {
         setLoading(true);
         
-        const healthCheck = async () => {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            
-            const response = await fetch(API_ENDPOINTS.HEALTH, {
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            
-            if (response.ok) {
-              setApiConnected(true);
-              return true;
-            }
-            return false;
-          } catch (error) {
-            console.log('Health check failed:', error.message);
-            return false;
-          }
-        };
-
-        const isHealthy = await healthCheck();
+        // First attempt: Quick health check
+        let isHealthy = await healthCheck();
         
+        // Second attempt: If health check fails, try warm-up
+        if (!isHealthy) {
+          console.log('🔄 Health check failed, attempting warm-up...');
+          isHealthy = await warmUpBackend();
+        }
+
         if (isHealthy) {
           setApiConnected(true);
           
@@ -271,59 +331,69 @@ useEffect(() => {
             console.log('Init endpoint not available, continuing...');
           }
           
-          // CRITICAL: Fetch menu FIRST and use it everywhere
-          const menuData = await fetchMenu().catch(() => []);
-          console.log('📋 Menu data loaded:', menuData);
+          // Load data with retry logic
+          const loadDataWithRetry = async (retries = 3) => {
+            try {
+              const [menuData, tablesData, ordersData] = await Promise.all([
+                fetchMenu().catch(() => []),
+                fetchTables().catch(() => []),
+                fetchOrders().catch(() => [])
+              ]);
+              
+              setMenu(menuData || []);
+              setTables(tablesData || []);
+              setOrders(ordersData || []);
+              setPayments([]);
+              
+              console.log('✅ Data loaded successfully');
+              return true;
+            } catch (error) {
+              console.log(`❌ Data load failed, ${retries} retries left:`, error);
+              if (retries > 0) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return loadDataWithRetry(retries - 1);
+              }
+              return false;
+            }
+          };
+
+          await loadDataWithRetry();
           
-          // Only then fetch other data
-          const [tablesData, ordersData] = await Promise.all([
-            fetchTables().catch(() => []),
-            fetchOrders().catch(() => [])
-          ]);
-          
-          // SET MENU FIRST - This becomes the single source of truth
-          setMenu(menuData || []);
-          setTables(tablesData || []);
-          setOrders(ordersData || []);
-          setPayments([]);
-          
-          setNotifications([
-            { id: 1, message: 'System connected successfully', type: 'success', time: 'Just now', read: false }
-          ]);
         } else {
-          throw new Error('Backend API is not accessible');
+          // Use fallback data but don't throw error
+          console.log('🔄 Using fallback data while backend warms up');
+          const backendMenu = [
+            { _id: '1', name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5 },
+            { _id: '2', name: "Kopi O", price: 3.80, category: "drinks", preparationTime: 3 },
+            { _id: '3', name: "Milo Dinosaur", price: 6.50, category: "drinks", preparationTime: 4 },
+            { _id: '4', name: "Nasi Lemak", price: 12.90, category: "main", preparationTime: 15 },
+            { _id: '5', name: "Char Kuey Teow", price: 14.50, category: "main", preparationTime: 12 },
+            { _id: '6', name: "Roti Canai", price: 3.50, category: "main", preparationTime: 8 },
+            { _id: '7', name: "Satay Set", price: 18.90, category: "main", preparationTime: 20 },
+            { _id: '8', name: "Cendol", price: 6.90, category: "desserts", preparationTime: 7 },
+            { _id: '9', name: "Apam Balik", price: 5.50, category: "desserts", preparationTime: 10 }
+          ];
+          
+          setMenu(backendMenu);
+          setTables([]);
+          setOrders([]);
+          setPayments([]);
         }
-      } catch (error) {
-        console.error('Error initializing data:', error);
-        setApiConnected(false);
-        
-        // Use backend menu data even in offline mode
-        const backendMenu = [
-          { _id: '1', name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5 },
-          { _id: '2', name: "Kopi O", price: 3.80, category: "drinks", preparationTime: 3 },
-          { _id: '3', name: "Milo Dinosaur", price: 6.50, category: "drinks", preparationTime: 4 },
-          { _id: '4', name: "Nasi Lemak", price: 12.90, category: "main", preparationTime: 15 },
-          { _id: '5', name: "Char Kuey Teow", price: 14.50, category: "main", preparationTime: 12 },
-          { _id: '6', name: "Roti Canai", price: 3.50, category: "main", preparationTime: 8 },
-          { _id: '7', name: "Satay Set", price: 18.90, category: "main", preparationTime: 20 },
-          { _id: '8', name: "Cendol", price: 6.90, category: "desserts", preparationTime: 7 },
-          { _id: '9', name: "Apam Balik", price: 5.50, category: "desserts", preparationTime: 10 }
-        ];
-        
-        setMenu(backendMenu); // SINGLE SOURCE OF TRUTH
-        setTables([]);
-        setOrders([]);
-        setPayments([]);
-        
+
         setNotifications([
           { 
             id: 1, 
-            message: `Running in offline mode with backend menu`, 
-            type: 'warning', 
+            message: `System ${isHealthy ? 'connected' : 'connecting'} to backend`, 
+            type: isHealthy ? 'success' : 'warning', 
             time: 'Just now', 
             read: false 
           }
         ]);
+
+      } catch (error) {
+        console.error('Error initializing data:', error);
+        // Don't block the UI - continue with fallback data
+        setApiConnected(false);
       } finally {
         setLoading(false);
       }

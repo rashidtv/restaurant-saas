@@ -171,6 +171,16 @@ function generateOrderNumber() {
   return `MESRA${Date.now().toString().slice(-6)}`;
 }
 
+// Simple health endpoint for quick response
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    orders: orders.length,
+    tables: tables.length
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -226,7 +236,7 @@ app.put('/api/tables/:id', (req, res) => {
   }
 });
 
-// FIXED: Return ALL orders, not just active ones
+// Return ALL orders, not just active ones
 app.get('/api/orders', (req, res) => {
   try {
     res.json(orders);
@@ -235,7 +245,7 @@ app.get('/api/orders', (req, res) => {
   }
 });
 
-// FIXED: Ensure paymentStatus is initialized
+// Ensure paymentStatus is initialized
 app.post('/api/orders', (req, res) => {
   try {
     const { tableId, items, customerName, customerPhone, orderType } = req.body;
@@ -295,7 +305,7 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// In server.js - UPDATE order status endpoint (remove table cleaning)
+// Order status endpoint (remove table cleaning)
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
@@ -313,7 +323,7 @@ app.put('/api/orders/:id/status', (req, res) => {
     
     orders[orderIndex].status = status;
     
-    // 🎯 REMOVED: Table cleaning logic - now only happens after payment
+    // REMOVED: Table cleaning logic - now only happens after payment
     if (status === 'completed') {
       orders[orderIndex].completedAt = new Date();
       orders[orderIndex].paymentStatus = 'pending';
@@ -343,7 +353,7 @@ app.get('/api/payments', (req, res) => {
   }
 });
 
-// In server.js - UPDATE the payments endpoint
+// Fixed payments endpoint to prevent infinite loops
 app.post('/api/payments', (req, res) => {
   try {
     const { orderId, amount, method } = req.body;
@@ -377,7 +387,7 @@ app.post('/api/payments', (req, res) => {
     
     console.log('✅ Payment processed for order:', order.orderNumber);
     
-    // 🎯 CRITICAL FIX: Only update table if status will actually change
+    // CRITICAL FIX: Only update table if status will actually change
     const tableId = order.tableId || order.table;
     
     if (tableId && tableId !== 'undefined' && tableId !== 'null') {
@@ -409,7 +419,7 @@ app.post('/api/payments', (req, res) => {
   }
 });
 
-// In server.js - UPDATE the customer orders endpoint
+// Customer orders endpoint for QR codes
 app.post('/api/customer/orders', (req, res) => {
   try {
     const { items, customerName, customerPhone, orderType = 'dine-in', tableNumber } = req.body;
@@ -424,7 +434,7 @@ app.post('/api/customer/orders', (req, res) => {
       return res.status(400).json({ error: 'No items in order' });
     }
 
-    // FIX: Validate table number properly
+    // Validate table number properly
     if (!tableNumber || tableNumber === 'undefined' || tableNumber === 'null') {
       return res.status(400).json({ error: 'Valid table number is required' });
     }
@@ -484,7 +494,7 @@ app.post('/api/customer/orders', (req, res) => {
     
     console.log(`📱 QR Order created: ${order.orderNumber} for Table ${tableNumber}`);
     
-    // FIX: Only update table if it exists and is available
+    // Only update table if it exists and is available
     const tableIndex = tables.findIndex(t => t.number === tableNumber);
     if (tableIndex !== -1 && tables[tableIndex].status === 'available') {
       tables[tableIndex].status = 'occupied';
@@ -527,7 +537,7 @@ const PORT = process.env.PORT || 10000;
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Mesra POS Server running on port ${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`📍 Health check: http://localhost:${PORT}/health`);
   console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
   console.log(`🍛 Serving authentic Malaysian cuisine!`);
   console.log(`💵 Currency: Malaysian Ringgit (MYR)`);
