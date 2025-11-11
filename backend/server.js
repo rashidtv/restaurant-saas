@@ -152,6 +152,7 @@ app.get('/api/tables', (req, res) => {
 });
 
 // FIXED: Table update endpoint
+// In server.js - UPDATE the table update endpoint
 app.put('/api/tables/:id', (req, res) => {
   try {
     const tableId = req.params.id;
@@ -161,8 +162,19 @@ app.put('/api/tables/:id', (req, res) => {
       return res.status(404).json({ error: 'Table not found' });
     }
     
+    const currentTable = tables[tableIndex];
+    const newStatus = req.body.status;
+    
+    // 🎯 CRITICAL: Only update if status actually changed
+    if (currentTable.status === newStatus) {
+      console.log(`⚠️ Table ${currentTable.number} status unchanged (${newStatus}), skipping update`);
+      return res.json(currentTable);
+    }
+    
     // Update table
-    tables[tableIndex] = { ...tables[tableIndex], ...req.body };
+    tables[tableIndex] = { ...currentTable, ...req.body };
+    
+    console.log(`🔄 Table ${tables[tableIndex].number} status changed from ${currentTable.status} to ${newStatus}`);
     
     // Emit update for ONLY this table
     io.emit('tableUpdated', tables[tableIndex]);
@@ -282,7 +294,7 @@ app.get('/api/payments', (req, res) => {
   }
 });
 
-// FIXED: Payments endpoint - prevent multiple emits
+// In server.js - UPDATE the payments endpoint
 app.post('/api/payments', (req, res) => {
   try {
     const { orderId, amount, method } = req.body;
@@ -316,19 +328,26 @@ app.post('/api/payments', (req, res) => {
     
     console.log('✅ Payment processed for order:', order.orderNumber);
     
-    // FIXED: Only update table if it exists and status will change
+    // 🎯 CRITICAL: Only update table if it exists and status will actually change
     const tableId = order.tableId;
     
     if (tableId && tableId !== 'undefined' && tableId !== 'null') {
       const tableIndex = tables.findIndex(t => t.number === tableId);
       
-      if (tableIndex !== -1 && tables[tableIndex].status !== 'needs_cleaning') {
-        tables[tableIndex].status = 'needs_cleaning';
-        tables[tableIndex].orderId = null;
+      if (tableIndex !== -1) {
+        const currentTable = tables[tableIndex];
         
-        console.log('🎯 Table marked for cleaning:', tables[tableIndex].number);
-        // Emit ONLY this table update
-        io.emit('tableUpdated', tables[tableIndex]);
+        // Only update if table is not already needs_cleaning
+        if (currentTable.status !== 'needs_cleaning') {
+          tables[tableIndex].status = 'needs_cleaning';
+          tables[tableIndex].orderId = null;
+          
+          console.log('🎯 Table marked for cleaning:', tables[tableIndex].number);
+          // Emit ONLY this table update
+          io.emit('tableUpdated', tables[tableIndex]);
+        } else {
+          console.log('⚠️ Table already needs cleaning, skipping update:', currentTable.number);
+        }
       }
     }
     

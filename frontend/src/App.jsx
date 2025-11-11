@@ -106,24 +106,25 @@ function App() {
           ));
         });
 
-        // FIXED: Table update handler - prevent infinite loops
-        socketInstance.on('tableUpdated', (updatedTable) => {
-          console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
-          
-          setTables(prev => prev.map(table => {
-            // Only update if it's the exact same table AND status changed
-            if (table._id === updatedTable._id) {
-              if (table.status !== updatedTable.status) {
-                console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
-                return updatedTable;
-              } else {
-                console.log('⚠️ Table status unchanged, skipping:', table.number);
-                return table;
-              }
-            }
-            return table;
-          }));
-        });
+      // In App.jsx - UPDATE the tableUpdated WebSocket handler
+socketInstance.on('tableUpdated', (updatedTable) => {
+  console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
+  
+  setTables(prev => prev.map(table => {
+    // Only update if it's the exact same table
+    if (table._id === updatedTable._id) {
+      // Only update if status actually changed
+      if (table.status !== updatedTable.status) {
+        console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
+        return updatedTable;
+      } else {
+        console.log('⚠️ Table status unchanged, skipping:', table.number);
+        return table;
+      }
+    }
+    return table;
+  }));
+});
 
         socketInstance.on('paymentProcessed', (payment) => {
           console.log('💰 Payment processed via WebSocket:', payment.orderId);

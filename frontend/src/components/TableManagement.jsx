@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './TableManagement.css';
 
-const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, onCompleteOrder, getTimeAgo, isMobile, menu }) => {
+const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, onCompleteOrder, getTimeAgo, isMobile, menu, apiConnected }) => {
   const [selectedTable, setSelectedTable] = useState(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
@@ -41,7 +41,7 @@ const updateTableStatus = async (tableId, newStatus) => {
           status: newStatus
         };
         
-        // 🎯 CRITICAL: Clear order data when marking as available
+        // Clear order data when marking as available
         if (newStatus === 'available') {
           updatedTable.lastCleaned = new Date().toISOString();
           updatedTable.orderId = null;
@@ -54,7 +54,7 @@ const updateTableStatus = async (tableId, newStatus) => {
       return table;
     }));
 
-    // Update backend if connected
+    // Update backend if connected - FIXED: Use the apiConnected prop
     if (apiConnected) {
       await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/tables/${tableId}`, {
         method: 'PUT',
