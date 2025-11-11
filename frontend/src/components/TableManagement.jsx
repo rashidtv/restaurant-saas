@@ -28,21 +28,51 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     }
   }, [showOrderModal, selectedTable, menuItems]);
 
-const updateTableStatus = (tableId, newStatus) => {
-  setTables(prevTables => prevTables.map(table =>
-    table._id === tableId || table.id === tableId
-      ? { 
+// In TableManagement.jsx - UPDATE the updateTableStatus function
+const updateTableStatus = async (tableId, newStatus) => {
+  console.log('🔄 Updating table status:', tableId, 'to', newStatus);
+  
+  try {
+    // Update local state first
+    setTables(prevTables => prevTables.map(table => {
+      if (table._id === tableId || table.id === tableId) {
+        const updatedTable = { 
           ...table, 
-          status: newStatus,
-          // 🎯 CLEAR order data when marking as available
-          ...(newStatus === 'available' && { 
-            lastCleaned: new Date(), 
-            orderId: null,  // Clear order reference
-            currentOrder: null // Clear any order data
-          })
+          status: newStatus
+        };
+        
+        // 🎯 CRITICAL: Clear order data when marking as available
+        if (newStatus === 'available') {
+          updatedTable.lastCleaned = new Date().toISOString();
+          updatedTable.orderId = null;
+          updatedTable.currentOrder = null;
+          console.log('✅ Cleared order data for table:', table.number);
         }
-      : table
-  ));
+        
+        return updatedTable;
+      }
+      return table;
+    }));
+
+    // Update backend if connected
+    if (apiConnected) {
+      await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/tables/${tableId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          ...(newStatus === 'available' && { 
+            orderId: null,
+            lastCleaned: new Date().toISOString()
+          })
+        })
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error updating table status:', error);
+  }
 };
 
   const getCleaningStatus = (lastCleaned) => {
@@ -148,18 +178,21 @@ const handleCreateOrder = async () => {
     ));
   };
 
- // FIX: Better order detection for table management orders
+// In TableManagement.jsx - UPDATE order display logic
 const getOrderForTable = (table) => {
+  // If table is available or needs_cleaning, no order to show
+  if (table.status === 'available' || table.status === 'needs_cleaning') {
+    return null;
+  }
+  
+  // Find order by table number (most reliable)
   return orders.find(order => {
-    // Check by table orderId first
-    if (table.orderId && (order._id === table.orderId || order.id === table.orderId)) {
-      return true;
-    }
-    // Check by table number
-    if (order.table === table.number || order.tableId === table.number) {
-      return true;
-    }
-    return false;
+    const orderTableId = order.tableId || order.table;
+    const tableId = table.number || table._id;
+    
+    return orderTableId === tableId && 
+           order.status !== 'completed' && 
+           order.status !== 'cancelled';
   });
 };
 

@@ -86,12 +86,27 @@ const [socket, setSocket] = useState(null);
           ));
         });
 
-        socketInstance.on('tableUpdated', (table) => {
-          console.log('🔄 Table updated via WebSocket:', table);
-          setTables(prev => prev.map(t => 
-            t._id === table._id ? table : t
-          ));
-        });
+       // In App.jsx - REPLACE the tableUpdated handler
+socketInstance.on('tableUpdated', (updatedTable) => {
+  console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
+  
+  setTables(prev => prev.map(t => {
+    // Find the current table in state
+    const currentTable = prev.find(table => table._id === updatedTable._id);
+    
+    if (currentTable) {
+      // Only update if status actually changed to prevent loops
+      if (currentTable.status !== updatedTable.status) {
+        console.log('✅ Updating table status from', currentTable.status, 'to', updatedTable.status);
+        return updatedTable;
+      } else {
+        console.log('⚠️ Table status unchanged, skipping update');
+        return t;
+      }
+    }
+    return t;
+  }));
+});
 
         socketInstance.on('paymentProcessed', (payment) => {
           console.log('💰 Payment processed via WebSocket:', payment);

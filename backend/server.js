@@ -343,14 +343,13 @@ app.get('/api/payments', (req, res) => {
   }
 });
 
-// FIX: Update payments endpoint to properly trigger table cleaning
+// In server.js - UPDATE the payments endpoint
 app.post('/api/payments', (req, res) => {
   try {
     const { orderId, amount, method } = req.body;
     
     console.log('💰 Processing payment for order:', orderId);
     
-    // Find order by orderNumber or ID
     const orderIndex = orders.findIndex(o => 
       o.orderNumber === orderId || o._id === orderId
     );
@@ -360,7 +359,6 @@ app.post('/api/payments', (req, res) => {
     }
     
     const order = orders[orderIndex];
-    
     const payment = {
       _id: Date.now().toString(),
       orderId: order.orderNumber,
@@ -376,13 +374,11 @@ app.post('/api/payments', (req, res) => {
     // UPDATE ORDER STATUS
     orders[orderIndex].paymentStatus = 'paid';
     orders[orderIndex].paymentMethod = method;
-    orders[orderIndex].status = 'completed';
     
     console.log('✅ Payment processed for order:', order.orderNumber);
     
-    // 🎯 CRITICAL FIX: Trigger table cleaning after payment
+    // 🎯 CRITICAL FIX: Only update table if status will actually change
     const tableId = order.tableId || order.table;
-    console.log('🔍 Looking for table:', tableId);
     
     if (tableId && tableId !== 'undefined' && tableId !== 'null') {
       const tableIndex = tables.findIndex(t => 
@@ -390,18 +386,17 @@ app.post('/api/payments', (req, res) => {
       );
       
       if (tableIndex !== -1) {
-        console.log('🎯 Found table, marking for cleaning:', tables[tableIndex].number);
-        tables[tableIndex].status = 'needs_cleaning';
-        tables[tableIndex].orderId = null;
-        
-        // Emit table update
-        io.emit('tableUpdated', tables[tableIndex]);
-        console.log('🔔 Table cleaning notification sent for:', tables[tableIndex].number);
-      } else {
-        console.log('❌ Table not found for cleaning:', tableId);
+        // ONLY update if table is not already needs_cleaning
+        if (tables[tableIndex].status !== 'needs_cleaning') {
+          tables[tableIndex].status = 'needs_cleaning';
+          tables[tableIndex].orderId = null;
+          
+          console.log('🎯 Table marked for cleaning:', tables[tableIndex].number);
+          io.emit('tableUpdated', tables[tableIndex]);
+        } else {
+          console.log('⚠️ Table already needs cleaning, skipping update:', tables[tableIndex].number);
+        }
       }
-    } else {
-      console.log('❌ Invalid tableId for cleaning:', tableId);
     }
     
     io.emit('paymentProcessed', payment);
