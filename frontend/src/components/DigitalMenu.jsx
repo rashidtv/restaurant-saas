@@ -10,56 +10,56 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [tableNumber, setTableNumber] = useState(currentTable || '');
   const [orderSuccess, setOrderSuccess] = useState(false);
   
-// ADD this useEffect to DigitalMenu.jsx for better table detection:
-useEffect(() => {
-  const detectTableFromURL = () => {
-    console.log('🔍 Scanning URL for table number...');
-    
-    const url = new URL(window.location.href);
-    const hash = window.location.hash;
-    const searchParams = url.searchParams;
-    
-    let detectedTable = null;
+  // ADD this useEffect to DigitalMenu.jsx for better table detection:
+  useEffect(() => {
+    const detectTableFromURL = () => {
+      console.log('🔍 Scanning URL for table number...');
+      
+      const url = new URL(window.location.href);
+      const hash = window.location.hash;
+      const searchParams = url.searchParams;
+      
+      let detectedTable = null;
 
-    // Check URL search params (/?table=T01)
-    if (searchParams.has('table')) {
-      detectedTable = searchParams.get('table');
-      console.log('✅ Table detected from search params:', detectedTable);
-    }
-    
-    // Check hash parameters (/#menu?table=T01)
-    if (hash.includes('?')) {
-      const hashParams = new URLSearchParams(hash.split('?')[1]);
-      if (hashParams.has('table')) {
-        detectedTable = hashParams.get('table');
-        console.log('✅ Table detected from hash params:', detectedTable);
+      // Check URL search params (/?table=T01)
+      if (searchParams.has('table')) {
+        detectedTable = searchParams.get('table');
+        console.log('✅ Table detected from search params:', detectedTable);
       }
-    }
+      
+      // Check hash parameters (/#menu?table=T01)
+      if (hash.includes('?')) {
+        const hashParams = new URLSearchParams(hash.split('?')[1]);
+        if (hashParams.has('table')) {
+          detectedTable = hashParams.get('table');
+          console.log('✅ Table detected from hash params:', detectedTable);
+        }
+      }
 
-    if (detectedTable) {
-      setTableNumber(detectedTable);
-      console.log('🎯 Table number set to:', detectedTable);
-    } else {
-      console.log('❌ No table number found in URL');
-    }
-  };
-
-  if (isCustomerView) {
-    detectTableFromURL();
-    
-    // Also detect on load in case of slow rendering
-    setTimeout(detectTableFromURL, 1000);
-    
-    // Listen for URL changes
-    window.addEventListener('hashchange', detectTableFromURL);
-    window.addEventListener('popstate', detectTableFromURL);
-    
-    return () => {
-      window.removeEventListener('hashchange', detectTableFromURL);
-      window.removeEventListener('popstate', detectTableFromURL);
+      if (detectedTable) {
+        setTableNumber(detectedTable);
+        console.log('🎯 Table number set to:', detectedTable);
+      } else {
+        console.log('❌ No table number found in URL');
+      }
     };
-  }
-}, [isCustomerView]);
+
+    if (isCustomerView) {
+      detectTableFromURL();
+      
+      // Also detect on load in case of slow rendering
+      setTimeout(detectTableFromURL, 1000);
+      
+      // Listen for URL changes
+      window.addEventListener('hashchange', detectTableFromURL);
+      window.addEventListener('popstate', detectTableFromURL);
+      
+      return () => {
+        window.removeEventListener('hashchange', detectTableFromURL);
+        window.removeEventListener('popstate', detectTableFromURL);
+      };
+    }
+  }, [isCustomerView]);
 
   // Get table from URL parameters (for QR code scanning)
   useEffect(() => {
@@ -345,246 +345,47 @@ useEffect(() => {
     );
   };
 
-  // Organized menu structure - ENHANCED with proper IDs and structure
-  const menuSections = [
-    {
-      id: 'signature',
-      name: 'Signature Dishes',
-      items: [
-        {
-          id: '1',
-          _id: '1',
-          name: "Nasi Lemak Royal",
-          description: "Premium coconut rice with traditional sambal, crispy chicken, anchovies, and quail eggs",
-          price: 16.90,
-          category: "signature",
-          prepTime: 15,
-          spicy: "Medium",
-          popular: true,
-          image: "🍛"
-        },
-        {
-          id: '3',
-          _id: '3',
-          name: "Rendang Tok",
-          description: "Traditional dry beef rendang with authentic spices and coconut",
-          price: 22.90,
-          category: "signature",
-          prepTime: 25,
-          spicy: "Hot",
-          popular: true,
-          image: "🍖"
-        },
-        {
-          id: '5',
-          _id: '5',
-          name: "Satay Set (10 sticks)",
-          description: "Grilled chicken and beef satay with peanut sauce and condiments",
-          price: 18.90,
-          category: "signature",
-          prepTime: 12,
-          spicy: "Mild",
-          popular: true,
-          image: "🍢"
-        },
-        {
-          id: '11',
-          _id: '11',
-          name: "Char Kway Teow",
-          description: "Stir-fried rice noodles with prawns, cockles, and Chinese sausage",
-          price: 14.90,
-          category: "signature",
-          prepTime: 12,
-          spicy: "Medium",
-          popular: true,
-          image: "🍜"
-        }
-      ]
-    },
-    {
-      id: 'main',
-      name: 'Main Courses',
-      items: [
-        {
-          id: '7',
-          _id: '7',
-          name: "Chicken Curry",
-          description: "Spicy chicken curry with potatoes and coconut milk",
-          price: 14.90,
-          category: "main",
-          prepTime: 20,
-          spicy: "Medium",
-          popular: false,
-          image: "🍗"
-        },
-        {
-          id: '8',
-          _id: '8',
-          name: "Fried Rice Special",
-          description: "Wok-fried rice with shrimp, chicken, and vegetables",
-          price: 12.90,
-          category: "main",
-          prepTime: 10,
-          spicy: "Mild",
-          popular: true,
-          image: "🍚"
-        },
-        {
-          id: '12',
-          _id: '12',
-          name: "Beef Rendang",
-          description: "Slow-cooked beef in rich coconut and spices",
-          price: 19.90,
-          category: "main",
-          prepTime: 25,
-          spicy: "Hot",
-          popular: true,
-          image: "🥩"
-        }
-      ]
-    },
-    {
-      id: 'drinks',
-      name: 'Beverages',
-      items: [
-        {
-          id: '2',
-          _id: '2',
-          name: "Artisan Teh Tarik",
-          description: "Expertly pulled Malaysian milk tea with rich, creamy foam",
-          price: 6.50,
-          category: "drinks", 
-          prepTime: 5,
-          spicy: "Mild",
-          popular: true,
-          image: "🥤"
-        },
-        {
-          id: '6',
-          _id: '6',
-          name: "Iced Lemon Tea",
-          description: "Refreshing lemon tea with mint leaves and honey",
-          price: 5.90,
-          category: "drinks",
-          prepTime: 3,
-          spicy: "Mild",
-          popular: false,
-          image: "🍋"
-        },
-        {
-          id: '9',
-          _id: '9',
-          name: "Fresh Coconut",
-          description: "Chilled young coconut with natural sweetness",
-          price: 8.90,
-          category: "drinks",
-          prepTime: 2,
-          spicy: "Mild",
-          popular: true,
-          image: "🥥"
-        },
-        {
-          id: '13',
-          _id: '13',
-          name: "Iced Coffee",
-          description: "Rich coffee with condensed milk and ice",
-          price: 7.50,
-          category: "drinks",
-          prepTime: 4,
-          spicy: "Mild",
-          popular: true,
-          image: "☕"
-        }
-      ]
-    },
-    {
-      id: 'desserts',
-      name: 'Desserts',
-      items: [
-        {
-          id: '4',
-          _id: '4',
-          name: "Mango Sticky Rice",
-          description: "Sweet mango with coconut sticky rice and sesame seeds",
-          price: 12.90,
-          category: "desserts",
-          prepTime: 10,
-          spicy: "Mild",
-          popular: false,
-          image: "🥭"
-        },
-        {
-          id: '10',
-          _id: '10',
-          name: "Cendol Delight",
-          description: "Traditional shaved ice with coconut milk and palm sugar",
-          price: 7.90,
-          category: "desserts",
-          prepTime: 5,
-          spicy: "Mild",
-          popular: true,
-          image: "🍧"
-        },
-        {
-          id: '14',
-          _id: '14',
-          name: "Pisang Goreng",
-          description: "Crispy fried bananas with ice cream",
-          price: 8.90,
-          category: "desserts",
-          prepTime: 8,
-          spicy: "Mild",
-          popular: true,
-          image: "🍌"
-        }
-      ]
-    },
-    {
-      id: 'appetizers',
-      name: 'Appetizers',
-      items: [
-        {
-          id: '15',
-          _id: '15',
-          name: "Spring Rolls",
-          description: "Crispy vegetable spring rolls with sweet chili sauce",
-          price: 9.90,
-          category: "appetizers",
-          prepTime: 8,
-          spicy: "Mild",
-          popular: true,
-          image: "🌯"
-        },
-        {
-          id: '16',
-          _id: '16',
-          name: "Prawn Crackers",
-          description: "Light and crispy prawn crackers with dip",
-          price: 6.90,
-          category: "appetizers",
-          prepTime: 3,
-          spicy: "Mild",
-          popular: false,
-          image: "🦐"
-        }
-      ]
+  // **FIXED: Use ONLY the menu from props (API data) - NO HARDCODED MENU**
+  const displayMenu = menu || [];
+
+  // **FIXED: Create categories from actual menu data**
+  const getMenuCategories = () => {
+    if (!displayMenu || displayMenu.length === 0) {
+      return [
+        { id: 'all', name: 'All Items', count: 0 }
+      ];
     }
-  ];
 
-  // Use provided menu or fallback to local menu
-  const displayMenu = menu && menu.length > 0 ? menu : menuSections.flatMap(section => section.items);
+    // Extract unique categories from menu items
+    const categories = [...new Set(displayMenu.map(item => item.category || 'uncategorized'))];
+    
+    const categoryList = categories.map(category => ({
+      id: category,
+      name: category.charAt(0).toUpperCase() + category.slice(1),
+      count: displayMenu.filter(item => item.category === category).length
+    }));
 
-  // Calculate total items count for "All Items"
-  const totalItemsCount = menuSections.reduce((total, section) => total + section.items.length, 0);
+    // Add "All Items" category
+    return [
+      { id: 'all', name: 'All Items', count: displayMenu.length },
+      ...categoryList
+    ];
+  };
 
-  const menuCategories = [
-    { id: 'all', name: 'All Items', count: totalItemsCount },
-    ...menuSections.map(section => ({
-      id: section.id,
-      name: section.name,
-      count: section.items.length
-    }))
-  ];
+  const menuCategories = getMenuCategories();
+
+  // **FIXED: Filter items based on active category**
+  const getFilteredItems = () => {
+    if (!displayMenu || displayMenu.length === 0) return [];
+    
+    if (activeCategory === 'all') {
+      return displayMenu;
+    }
+    
+    return displayMenu.filter(item => item.category === activeCategory);
+  };
+
+  const filteredItems = getFilteredItems();
 
   const addToCart = (item) => {
     console.log('DigitalMenu - Adding to cart:', item);
@@ -618,144 +419,139 @@ useEffect(() => {
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-// REPLACE the entire table detection useEffect in DigitalMenu.jsx:
-useEffect(() => {
-  const detectTableFromURL = () => {
-    console.log('🔍 DigitalMenu - Scanning URL for table number...');
-    
-    // Get current URL
-    const currentUrl = window.location.href;
-    console.log('📋 Current URL:', currentUrl);
-    
-    let detectedTable = null;
-
-    // Method 1: Check hash parameters (/#/menu?table=T01)
-    if (window.location.hash) {
-      const hash = window.location.hash;
-      console.log('🔍 Hash found:', hash);
+  // REPLACE the entire table detection useEffect in DigitalMenu.jsx:
+  useEffect(() => {
+    const detectTableFromURL = () => {
+      console.log('🔍 DigitalMenu - Scanning URL for table number...');
       
-      if (hash.includes('?')) {
-        const hashParams = new URLSearchParams(hash.split('?')[1]);
-        if (hashParams.has('table')) {
-          detectedTable = hashParams.get('table');
-          console.log('✅ Table detected from hash params:', detectedTable);
+      // Get current URL
+      const currentUrl = window.location.href;
+      console.log('📋 Current URL:', currentUrl);
+      
+      let detectedTable = null;
+
+      // Method 1: Check hash parameters (/#/menu?table=T01)
+      if (window.location.hash) {
+        const hash = window.location.hash;
+        console.log('🔍 Hash found:', hash);
+        
+        if (hash.includes('?')) {
+          const hashParams = new URLSearchParams(hash.split('?')[1]);
+          if (hashParams.has('table')) {
+            detectedTable = hashParams.get('table');
+            console.log('✅ Table detected from hash params:', detectedTable);
+          }
+        }
+        
+        // Also check for /#/menu/table/T01 format
+        const hashParts = hash.split('/');
+        const tableIndex = hashParts.findIndex(part => part === 'table');
+        if (tableIndex !== -1 && hashParts[tableIndex + 1]) {
+          detectedTable = hashParts[tableIndex + 1];
+          console.log('✅ Table detected from hash path:', detectedTable);
         }
       }
-      
-      // Also check for /#/menu/table/T01 format
-      const hashParts = hash.split('/');
-      const tableIndex = hashParts.findIndex(part => part === 'table');
-      if (tableIndex !== -1 && hashParts[tableIndex + 1]) {
-        detectedTable = hashParts[tableIndex + 1];
-        console.log('✅ Table detected from hash path:', detectedTable);
+
+      // Method 2: Check URL search params (/?table=T01)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('table')) {
+        detectedTable = urlParams.get('table');
+        console.log('✅ Table detected from search params:', detectedTable);
       }
+
+      if (detectedTable) {
+        console.log('🎯 Setting table number to:', detectedTable);
+        setTableNumber(detectedTable);
+        setSelectedTable(detectedTable);
+      } else {
+        console.log('❌ No table number detected in URL');
+        console.log('📋 URL analysis:', {
+          href: window.location.href,
+          hash: window.location.hash,
+          search: window.location.search,
+          pathname: window.location.pathname
+        });
+      }
+    };
+
+    if (isCustomerView) {
+      console.log('👤 Customer view - starting table detection');
+      
+      // Detect immediately
+      detectTableFromURL();
+      
+      // Also detect after a short delay (for SPA routing)
+      const timeoutId = setTimeout(detectTableFromURL, 500);
+      
+      // Listen for URL changes
+      window.addEventListener('hashchange', detectTableFromURL);
+      window.addEventListener('popstate', detectTableFromURL);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('hashchange', detectTableFromURL);
+        window.removeEventListener('popstate', detectTableFromURL);
+      };
+    }
+  }, [isCustomerView]);
+
+  // UPDATE the handlePlaceOrder function in DigitalMenu.jsx:
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) {
+      alert('Your cart is empty. Please add some items first.');
+      return;
     }
 
-    // Method 2: Check URL search params (/?table=T01)
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('table')) {
-      detectedTable = urlParams.get('table');
-      console.log('✅ Table detected from search params:', detectedTable);
+    // Use detected table number or manual selection
+    const finalTableNumber = tableNumber || selectedTable;
+    
+    if (!finalTableNumber && isCustomerView) {
+      alert('Table number not detected. Please scan the QR code again or contact staff.');
+      console.error('❌ No table number available for QR order');
+      return;
     }
 
-    if (detectedTable) {
-      console.log('🎯 Setting table number to:', detectedTable);
-      setTableNumber(detectedTable);
-      setSelectedTable(detectedTable);
-    } else {
-      console.log('❌ No table number detected in URL');
-      console.log('📋 URL analysis:', {
-        href: window.location.href,
-        hash: window.location.hash,
-        search: window.location.search,
-        pathname: window.location.pathname
+    console.log('🛒 Placing order for table:', finalTableNumber);
+    console.log('📦 Cart items:', cart);
+
+    try {
+      const orderData = cart.map(item => ({
+        menuItemId: item._id || item.id,
+        _id: item._id || item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        category: item.category
+      }));
+
+      console.log('📤 Sending order data:', {
+        tableNumber: finalTableNumber,
+        items: orderData,
+        orderType: 'dine-in'
       });
+
+      const result = await onCreateOrder(finalTableNumber, orderData, 'dine-in');
+      
+      console.log('✅ Order placed successfully:', result);
+      
+      // Clear cart and show success
+      setCart([]);
+      setOrderSuccess(true);
+      
+      setTimeout(() => setOrderSuccess(false), 5000);
+      
+      alert(`Order placed successfully! Your order number is: ${result.orderNumber}`);
+      
+    } catch (error) {
+      console.error('❌ Order failed:', error);
+      alert('Failed to place order: ' + error.message);
     }
   };
-
-  if (isCustomerView) {
-    console.log('👤 Customer view - starting table detection');
-    
-    // Detect immediately
-    detectTableFromURL();
-    
-    // Also detect after a short delay (for SPA routing)
-    const timeoutId = setTimeout(detectTableFromURL, 500);
-    
-    // Listen for URL changes
-    window.addEventListener('hashchange', detectTableFromURL);
-    window.addEventListener('popstate', detectTableFromURL);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener('hashchange', detectTableFromURL);
-      window.removeEventListener('popstate', detectTableFromURL);
-    };
-  }
-}, [isCustomerView]);
-
-// UPDATE the handlePlaceOrder function in DigitalMenu.jsx:
-const handlePlaceOrder = async () => {
-  if (cart.length === 0) {
-    alert('Your cart is empty. Please add some items first.');
-    return;
-  }
-
-  // Use detected table number or manual selection
-  const finalTableNumber = tableNumber || selectedTable;
-  
-  if (!finalTableNumber && isCustomerView) {
-    alert('Table number not detected. Please scan the QR code again or contact staff.');
-    console.error('❌ No table number available for QR order');
-    return;
-  }
-
-  console.log('🛒 Placing order for table:', finalTableNumber);
-  console.log('📦 Cart items:', cart);
-
-  try {
-    const orderData = cart.map(item => ({
-      menuItemId: item._id || item.id,
-      _id: item._id || item.id,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      category: item.category
-    }));
-
-    console.log('📤 Sending order data:', {
-      tableNumber: finalTableNumber,
-      items: orderData,
-      orderType: 'dine-in'
-    });
-
-    const result = await onCreateOrder(finalTableNumber, orderData, 'dine-in');
-    
-    console.log('✅ Order placed successfully:', result);
-    
-    // Clear cart and show success
-    setCart([]);
-    setOrderSuccess(true);
-    
-    setTimeout(() => setOrderSuccess(false), 5000);
-    
-    alert(`Order placed successfully! Your order number is: ${result.orderNumber}`);
-    
-  } catch (error) {
-    console.error('❌ Order failed:', error);
-    alert('Failed to place order: ' + error.message);
-  }
-};
 
   const handleProceedToPayment = () => {
     if (cart.length === 0) return;
     setShowPayment(true);
   };
-
-  // Get filtered items for specific category
-  const filteredItems = activeCategory === 'all' 
-    ? [] // We'll handle "all" differently
-    : menuSections.find(section => section.id === activeCategory)?.items || [];
 
   // Safe text truncation
   const truncateText = (text, maxLength = 20) => {
@@ -866,33 +662,21 @@ const handlePlaceOrder = async () => {
 
           {/* Menu Items Container */}
           <div className="menu-items-container">
-            {activeCategory === 'all' ? (
-              // Show all sections when "All Items" is selected
-              menuSections.map(section => (
-                <div key={section.id} className="menu-section">
-                  <h3 className="section-title">{section.name}</h3>
-                  <div className="menu-items-grid">
-                    {section.items.map(item => (
-                      <MenuItemCard 
-                        key={item.id} 
-                        item={item} 
-                        onAddToCart={addToCart}
-                        isMobile={isMobile}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))
+            {filteredItems.length === 0 ? (
+              <div className="empty-menu-state">
+                <div className="empty-menu-icon">🍽️</div>
+                <h3>No Menu Items Available</h3>
+                <p>Menu items will appear here once loaded from the digital menu</p>
+              </div>
             ) : (
-              // Show filtered items when a specific category is selected
               <div className="menu-section">
                 <h3 className="section-title">
-                  {menuSections.find(s => s.id === activeCategory)?.name}
+                  {activeCategory === 'all' ? 'All Menu Items' : menuCategories.find(c => c.id === activeCategory)?.name}
                 </h3>
                 <div className="menu-items-grid">
                   {filteredItems.map(item => (
                     <MenuItemCard 
-                      key={item.id} 
+                      key={item._id || item.id} 
                       item={item} 
                       onAddToCart={addToCart}
                       isMobile={isMobile}
