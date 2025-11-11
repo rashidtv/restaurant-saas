@@ -343,10 +343,12 @@ app.get('/api/payments', (req, res) => {
   }
 });
 
-// In server.js - UPDATE the payments endpoint
+// FIX: Update payments endpoint to properly trigger table cleaning
 app.post('/api/payments', (req, res) => {
   try {
     const { orderId, amount, method } = req.body;
+    
+    console.log('💰 Processing payment for order:', orderId);
     
     // Find order by orderNumber or ID
     const orderIndex = orders.findIndex(o => 
@@ -358,13 +360,6 @@ app.post('/api/payments', (req, res) => {
     }
     
     const order = orders[orderIndex];
-    
-    // Validate order is ready for payment
-    if (order.status !== 'ready' && order.status !== 'completed') {
-      return res.status(400).json({ 
-        error: 'Order must be ready or completed before payment' 
-      });
-    }
     
     const payment = {
       _id: Date.now().toString(),
@@ -378,26 +373,35 @@ app.post('/api/payments', (req, res) => {
     
     payments.push(payment);
     
-    // UPDATE ORDER STATUS AND HANDLE TABLE CLEANING
+    // UPDATE ORDER STATUS
     orders[orderIndex].paymentStatus = 'paid';
     orders[orderIndex].paymentMethod = method;
-    orders[orderIndex].status = 'completed'; // Mark as completed after payment
+    orders[orderIndex].status = 'completed';
     
-    // 🎯 NEW: Only mark table for cleaning AFTER payment
+    console.log('✅ Payment processed for order:', order.orderNumber);
+    
+    // 🎯 CRITICAL FIX: Trigger table cleaning after payment
     const tableId = order.tableId || order.table;
+    console.log('🔍 Looking for table:', tableId);
+    
     if (tableId && tableId !== 'undefined' && tableId !== 'null') {
       const tableIndex = tables.findIndex(t => 
         t.number === tableId || t._id === tableId
       );
       
       if (tableIndex !== -1) {
+        console.log('🎯 Found table, marking for cleaning:', tables[tableIndex].number);
         tables[tableIndex].status = 'needs_cleaning';
-        tables[tableIndex].orderId = null; // Remove order reference
-        console.log(`💰 Payment completed - Table ${tables[tableIndex].number} marked for cleaning`);
+        tables[tableIndex].orderId = null;
         
-        // Emit table update for cleaning notification
+        // Emit table update
         io.emit('tableUpdated', tables[tableIndex]);
+        console.log('🔔 Table cleaning notification sent for:', tables[tableIndex].number);
+      } else {
+        console.log('❌ Table not found for cleaning:', tableId);
       }
+    } else {
+      console.log('❌ Invalid tableId for cleaning:', tableId);
     }
     
     io.emit('paymentProcessed', payment);
@@ -405,6 +409,7 @@ app.post('/api/payments', (req, res) => {
     
     res.json(payment);
   } catch (error) {
+    console.error('❌ Payment error:', error);
     res.status(500).json({ error: error.message });
   }
 });

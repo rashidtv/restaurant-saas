@@ -13,21 +13,23 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return () => clearInterval(timer);
   }, []);
 
-  // FIXED: Simplified status update - no table cleaning logic
-  const handleUpdateOrderStatus = async (orderId, newStatus) => {
-    try {
-      console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
-      
-      // Just update order status - backend handles table cleaning
-      await onUpdateOrderStatus(orderId, newStatus);
-      
-      console.log(`✅ Order ${orderId} updated to ${newStatus}`);
-      
-    } catch (error) {
-      console.error('❌ Status update failed:', error);
-      alert(`Failed: ${error.message}`);
-    }
-  };
+  // In KitchenDisplay.jsx - Ensure no table cleaning happens
+const handleUpdateOrderStatus = async (orderId, newStatus) => {
+  try {
+    console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
+    
+    // JUST update order status - NO table cleaning
+    await onUpdateOrderStatus(orderId, newStatus);
+    
+    console.log(`✅ Order ${orderId} updated to ${newStatus}`);
+    
+  } catch (error) {
+    console.error('❌ Status update failed:', error);
+    alert(`Failed: ${error.message}`);
+  }
+};
+
+// Remove any markTableForCleaning calls from the complete order button
 
   const filteredOrders = activeFilter === 'all' 
     ? orders 

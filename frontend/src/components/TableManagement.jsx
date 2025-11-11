@@ -28,17 +28,17 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     }
   }, [showOrderModal, selectedTable, menuItems]);
 
- // In TableManagement.jsx - UPDATE the clean table function
 const updateTableStatus = (tableId, newStatus) => {
-  setTables(tables.map(table =>
+  setTables(prevTables => prevTables.map(table =>
     table._id === tableId || table.id === tableId
       ? { 
           ...table, 
           status: newStatus,
-          // 🎯 CLEAR orderId when marking as available
+          // 🎯 CLEAR order data when marking as available
           ...(newStatus === 'available' && { 
             lastCleaned: new Date(), 
-            orderId: null 
+            orderId: null,  // Clear order reference
+            currentOrder: null // Clear any order data
           })
         }
       : table
@@ -79,19 +79,16 @@ const updateTableStatus = (tableId, newStatus) => {
     }
   };
 
-  const handleCompleteOrder = (order) => {
-    // Complete only this specific order
-    onCompleteOrder(order.id || order._id, order.table || order.tableId);
-    
-    // Update ONLY the table associated with this order
-    setTables(prevTables => prevTables.map(table => 
-      table.orderId === (order.id || order._id) 
-        ? { ...table, status: 'needs_cleaning', orderId: null }
-        : table
-    ));
-    
-    setShowOrderDetails(false);
-  };
+  // Also update the complete order function:
+const handleCompleteOrder = (order) => {
+  // Complete only this specific order
+  onCompleteOrder(order.id || order._id, order.table || order.tableId);
+  
+  // 🎯 DON'T update table status here - wait for payment
+  // Just close the modal
+  setShowOrderDetails(false);
+};
+
 
 // In handleCreateOrder function, ensure tableId is properly passed:
 const handleCreateOrder = async () => {
@@ -151,13 +148,20 @@ const handleCreateOrder = async () => {
     ));
   };
 
-  // FIXED: Only get order for this specific table
-  const getOrderForTable = (table) => {
-    return orders.find(order => 
-      (order.id === table.orderId || order._id === table.orderId) && 
-      (order.table === table.number || order.tableId === table.number)
-    );
-  };
+ // FIX: Better order detection for table management orders
+const getOrderForTable = (table) => {
+  return orders.find(order => {
+    // Check by table orderId first
+    if (table.orderId && (order._id === table.orderId || order.id === table.orderId)) {
+      return true;
+    }
+    // Check by table number
+    if (order.table === table.number || order.tableId === table.number) {
+      return true;
+    }
+    return false;
+  });
+};
 
  // **FIXED: Enhanced getItemName function**
 const getItemName = (item) => {
