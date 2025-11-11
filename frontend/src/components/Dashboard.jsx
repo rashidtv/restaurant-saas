@@ -10,20 +10,21 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
       allOrders: orders?.length
     });
 
-    // Method 1: From payments collection (primary source)
+    // Method 1: From payments collection (for accuracy)
     const fromPayments = payments && Array.isArray(payments) 
       ? payments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
       : 0;
 
-    // Method 2: From paid orders (fallback when payments array is empty)
+    // Method 2: From paid orders (primary source - this should be the truth)
     const fromPaidOrders = orders && Array.isArray(orders)
       ? orders
-          .filter(order => order.paymentStatus === 'paid')
+          .filter(order => order.paymentStatus === 'paid' && order.status === 'completed')
           .reduce((sum, order) => sum + (order.total || 0), 0)
       : 0;
 
-    // Use payments if available, otherwise use paid orders
-    const totalRevenue = fromPayments > 0 ? fromPayments : fromPaidOrders;
+    // FIXED: Use the HIGHER value to ensure we don't under-report revenue
+    // This handles cases where payments might not be fully synced
+    const totalRevenue = Math.max(fromPayments, fromPaidOrders);
 
     console.log('💰 Revenue Calculation:', {
       fromPayments,
@@ -36,7 +37,7 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
 
   const totalRevenue = calculateRevenue();
 
-  // Today's revenue - calculate from both sources
+  // Today's revenue - FIXED to use same logic
   const todayRevenue = () => {
     const today = new Date().toDateString();
     
@@ -53,10 +54,10 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
         }).reduce((sum, payment) => sum + (payment.amount || 0), 0)
       : 0;
 
-    // From paid orders (fallback)
+    // From paid orders
     const fromPaidOrders = orders && Array.isArray(orders)
       ? orders.filter(order => {
-          if (!order.orderedAt || order.paymentStatus !== 'paid') return false;
+          if (!order.orderedAt || order.paymentStatus !== 'paid' || order.status !== 'completed') return false;
           try {
             const orderDate = new Date(order.orderedAt);
             return orderDate.toDateString() === today;
@@ -66,7 +67,8 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
         }).reduce((sum, order) => sum + (order.total || 0), 0)
       : 0;
 
-    return fromPayments > 0 ? fromPayments : fromPaidOrders;
+    // FIXED: Use the higher value
+    return Math.max(fromPayments, fromPaidOrders);
   };
 
   // FIXED: Add proper array checks for all data
