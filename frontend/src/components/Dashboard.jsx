@@ -2,7 +2,7 @@ import React from 'react';
 import './Dashboard.css';
 
 const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead, getPrepTimeRemaining, isMobile, apiConnected }) => {
-  // FIXED: Add proper error handling for payments data
+  // FIXED: Revenue calculations with proper error handling
   const totalRevenue = payments && Array.isArray(payments) 
     ? payments.reduce((sum, payment) => sum + (payment.amount || 0), 0)
     : 0;
@@ -20,7 +20,7 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
       }).reduce((sum, payment) => sum + (payment.amount || 0), 0)
     : 0;
 
-  // FIXED: Add proper array checks
+  // FIXED: Add proper array checks for all data
   const activeOrders = orders && Array.isArray(orders) 
     ? orders.filter(order => order.status !== 'completed' && order.status !== 'cancelled')
     : [];
@@ -67,16 +67,6 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
         }
       })
     : [];
-
-  console.log('📊 Dashboard Data:', {
-    totalOrders: orders?.length || 0,
-    totalRevenue,
-    todayRevenue,
-    activeOrders: activeOrders.length,
-    occupiedTables: occupiedTables.length,
-    totalTables: tables?.length || 0,
-    payments: payments?.length || 0
-  });
 
   return (
     <div className="dashboard">

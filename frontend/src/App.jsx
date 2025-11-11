@@ -36,6 +36,9 @@ function App() {
   const [isCustomerView, setIsCustomerView] = useState(false);
   const [socket, setSocket] = useState(null);
 
+  // In App.jsx - check if payments are properly synchronized
+console.log('💰 Payments in Dashboard:', payments);
+console.log('💰 Orders in PaymentSystem:', orders.filter(o => o.paymentStatus === 'paid'));
   // FIXED: Health check without cache-control headers
   const healthCheck = async () => {
     try {
