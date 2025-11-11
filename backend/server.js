@@ -295,7 +295,7 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// In server.js - UPDATE the order status endpoint
+// In server.js - UPDATE order status endpoint (remove table cleaning)
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
@@ -308,43 +308,19 @@ app.put('/api/orders/:id/status', (req, res) => {
     );
     
     if (orderIndex === -1) {
-      console.log(`❌ Order not found: ${orderId}`);
       return res.status(404).json({ error: 'Order not found' });
     }
     
-    const previousStatus = orders[orderIndex].status;
     orders[orderIndex].status = status;
     
-    // FIX: Only handle table cleaning for COMPLETED orders that have valid tableId
-    if (status === 'completed' && previousStatus !== 'completed') {
+    // 🎯 REMOVED: Table cleaning logic - now only happens after payment
+    if (status === 'completed') {
       orders[orderIndex].completedAt = new Date();
       orders[orderIndex].paymentStatus = 'pending';
-      console.log(`✅ Order ${orderId} marked as completed`);
-      
-      // CRITICAL FIX: Only update table if order has a valid tableId
-      const tableId = orders[orderIndex].tableId || orders[orderIndex].table;
-      
-      if (tableId && tableId !== 'undefined' && tableId !== 'null') {
-        const tableIndex = tables.findIndex(t => 
-          t.number === tableId || t._id === tableId
-        );
-        
-        if (tableIndex !== -1 && tables[tableIndex].status === 'occupied') {
-          tables[tableIndex].status = 'needs_cleaning';
-          tables[tableIndex].orderId = null;
-          console.log(`🔄 Table ${tables[tableIndex].number} marked for cleaning`);
-          
-          // Emit table update
-          io.emit('tableUpdated', tables[tableIndex]);
-        } else {
-          console.log(`⚠️ Table ${tableId} not found or not occupied, skipping table update`);
-        }
-      } else {
-        console.log(`⚠️ Order ${orderId} has invalid tableId: ${tableId}, skipping table update`);
-      }
+      console.log(`✅ Order ${orderId} marked as completed - Ready for payment`);
+      // NO table cleaning here anymore - wait for payment
     }
     
-    // When order is ready, it should also appear in payments
     if (status === 'ready') {
       orders[orderIndex].paymentStatus = 'pending';
       console.log(`💰 Order ${orderId} is ready for payment`);
@@ -354,7 +330,6 @@ app.put('/api/orders/:id/status', (req, res) => {
     res.json(orders[orderIndex]);
     
   } catch (error) {
-    console.error('Error updating order status:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -368,12 +343,12 @@ app.get('/api/payments', (req, res) => {
   }
 });
 
-// FIXED: Payments endpoint
+// In server.js - UPDATE the payments endpoint
 app.post('/api/payments', (req, res) => {
   try {
     const { orderId, amount, method } = req.body;
     
-    // Find order by orderNumber (MESRA522201) or ID
+    // Find order by orderNumber or ID
     const orderIndex = orders.findIndex(o => 
       o.orderNumber === orderId || o._id === orderId
     );
@@ -393,8 +368,8 @@ app.post('/api/payments', (req, res) => {
     
     const payment = {
       _id: Date.now().toString(),
-      orderId: order.orderNumber, // Store orderNumber for reference
-      orderInternalId: order._id, // Store internal ID for linking
+      orderId: order.orderNumber,
+      orderInternalId: order._id,
       amount,
       method,
       status: 'completed',
@@ -403,14 +378,26 @@ app.post('/api/payments', (req, res) => {
     
     payments.push(payment);
     
-    // Update order payment status
+    // UPDATE ORDER STATUS AND HANDLE TABLE CLEANING
     orders[orderIndex].paymentStatus = 'paid';
     orders[orderIndex].paymentMethod = method;
+    orders[orderIndex].status = 'completed'; // Mark as completed after payment
     
-    // If order was ready, mark as completed after payment
-    if (order.status === 'ready') {
-      orders[orderIndex].status = 'completed';
-      orders[orderIndex].completedAt = new Date();
+    // 🎯 NEW: Only mark table for cleaning AFTER payment
+    const tableId = order.tableId || order.table;
+    if (tableId && tableId !== 'undefined' && tableId !== 'null') {
+      const tableIndex = tables.findIndex(t => 
+        t.number === tableId || t._id === tableId
+      );
+      
+      if (tableIndex !== -1) {
+        tables[tableIndex].status = 'needs_cleaning';
+        tables[tableIndex].orderId = null; // Remove order reference
+        console.log(`💰 Payment completed - Table ${tables[tableIndex].number} marked for cleaning`);
+        
+        // Emit table update for cleaning notification
+        io.emit('tableUpdated', tables[tableIndex]);
+      }
     }
     
     io.emit('paymentProcessed', payment);

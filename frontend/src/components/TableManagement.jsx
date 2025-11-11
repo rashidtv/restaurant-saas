@@ -28,17 +28,22 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     }
   }, [showOrderModal, selectedTable, menuItems]);
 
-  const updateTableStatus = (tableId, newStatus) => {
-    setTables(tables.map(table =>
-      table._id === tableId || table.id === tableId
-        ? { 
-            ...table, 
-            status: newStatus,
-            ...(newStatus === 'available' && { lastCleaned: new Date(), orderId: null })
-          }
-        : table
-    ));
-  };
+ // In TableManagement.jsx - UPDATE the clean table function
+const updateTableStatus = (tableId, newStatus) => {
+  setTables(tables.map(table =>
+    table._id === tableId || table.id === tableId
+      ? { 
+          ...table, 
+          status: newStatus,
+          // 🎯 CLEAR orderId when marking as available
+          ...(newStatus === 'available' && { 
+            lastCleaned: new Date(), 
+            orderId: null 
+          })
+        }
+      : table
+  ));
+};
 
   const getCleaningStatus = (lastCleaned) => {
     const hoursSinceCleaned = (new Date() - new Date(lastCleaned)) / (1000 * 60 * 60);
@@ -243,10 +248,13 @@ const getItemName = (item) => {
                   Last cleaned: {getTimeAgo(table.lastCleaned)}
                 </div>
                 {tableOrder && (
-                  <div className="table-order">
-                    Order: {tableOrder.id || tableOrder._id} • {tableOrder.status}
-                  </div>
-                )}
+  <div className="table-order">
+    <strong>Order: {tableOrder.orderNumber}</strong> • {tableOrder.status}
+    {tableOrder.total && (
+      <div className="order-total-small">Total: RM {tableOrder.total.toFixed(2)}</div>
+    )}
+  </div>
+)}
               </div>
 
               <div className="table-actions">
