@@ -295,7 +295,7 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// FIXED: Order status endpoint - prevent infinite loops
+// In server.js - UPDATE the order status endpoint
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
@@ -315,27 +315,38 @@ app.put('/api/orders/:id/status', (req, res) => {
     const previousStatus = orders[orderIndex].status;
     orders[orderIndex].status = status;
     
-    // CRITICAL: When order is completed, ensure it's ready for payments
+    // FIX: Only handle table cleaning for COMPLETED orders that have valid tableId
     if (status === 'completed' && previousStatus !== 'completed') {
       orders[orderIndex].completedAt = new Date();
-      orders[orderIndex].paymentStatus = 'pending'; // Ready for payment
-      console.log(`✅ Order ${orderId} marked as completed - READY FOR PAYMENT`);
+      orders[orderIndex].paymentStatus = 'pending';
+      console.log(`✅ Order ${orderId} marked as completed`);
       
-      // Free the table - but only if it's currently occupied by this order
-      const tableIndex = tables.findIndex(t => t.orderId === orders[orderIndex]._id);
-      if (tableIndex !== -1 && tables[tableIndex].status === 'occupied') {
-        tables[tableIndex].status = 'needs_cleaning';
-        tables[tableIndex].orderId = null;
-        console.log(`🔄 Table ${tables[tableIndex].number} marked for cleaning`);
+      // CRITICAL FIX: Only update table if order has a valid tableId
+      const tableId = orders[orderIndex].tableId || orders[orderIndex].table;
+      
+      if (tableId && tableId !== 'undefined' && tableId !== 'null') {
+        const tableIndex = tables.findIndex(t => 
+          t.number === tableId || t._id === tableId
+        );
         
-        // Emit table update
-        io.emit('tableUpdated', tables[tableIndex]);
+        if (tableIndex !== -1 && tables[tableIndex].status === 'occupied') {
+          tables[tableIndex].status = 'needs_cleaning';
+          tables[tableIndex].orderId = null;
+          console.log(`🔄 Table ${tables[tableIndex].number} marked for cleaning`);
+          
+          // Emit table update
+          io.emit('tableUpdated', tables[tableIndex]);
+        } else {
+          console.log(`⚠️ Table ${tableId} not found or not occupied, skipping table update`);
+        }
+      } else {
+        console.log(`⚠️ Order ${orderId} has invalid tableId: ${tableId}, skipping table update`);
       }
     }
     
     // When order is ready, it should also appear in payments
     if (status === 'ready') {
-      orders[orderIndex].paymentStatus = 'pending'; // Ready for payment
+      orders[orderIndex].paymentStatus = 'pending';
       console.log(`💰 Order ${orderId} is ready for payment`);
     }
     
@@ -411,7 +422,7 @@ app.post('/api/payments', (req, res) => {
   }
 });
 
-// FIXED: Customer orders endpoint with proper table detection
+// In server.js - UPDATE the customer orders endpoint
 app.post('/api/customer/orders', (req, res) => {
   try {
     const { items, customerName, customerPhone, orderType = 'dine-in', tableNumber } = req.body;
@@ -426,14 +437,13 @@ app.post('/api/customer/orders', (req, res) => {
       return res.status(400).json({ error: 'No items in order' });
     }
 
-    if (!tableNumber || tableNumber === 'undefined') {
-      return res.status(400).json({ error: 'Table number is required' });
+    // FIX: Validate table number properly
+    if (!tableNumber || tableNumber === 'undefined' || tableNumber === 'null') {
+      return res.status(400).json({ error: 'Valid table number is required' });
     }
 
     // VALIDATE and MAP items using backend menu data
     const mappedItems = items.map(item => {
-      console.log('🔍 Processing QR item:', item);
-      
       // Find match in backend menu
       const menuItem = menuItems.find(m => 
         m._id === item.menuItemId || 
@@ -456,8 +466,6 @@ app.post('/api/customer/orders', (req, res) => {
         };
       }
 
-      console.log('✅ Mapped to backend item:', menuItem.name);
-      
       return {
         menuItem: menuItem,
         quantity: item.quantity || 1,
@@ -473,7 +481,7 @@ app.post('/api/customer/orders', (req, res) => {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
       tableId: tableNumber, // USE THE ACTUAL TABLE NUMBER
-      table: tableNumber,   // ADD BOTH tableId AND table for compatibility
+      table: tableNumber,   // ADD BOTH for compatibility
       items: mappedItems,
       total,
       status: 'pending',
@@ -488,7 +496,19 @@ app.post('/api/customer/orders', (req, res) => {
     orders.push(order);
     
     console.log(`📱 QR Order created: ${order.orderNumber} for Table ${tableNumber}`);
-    console.log('📦 Order items:', order.items.map(i => `${i.quantity}x ${i.menuItem.name} (RM ${i.menuItem.price})`));
+    
+    // FIX: Only update table if it exists and is available
+    const tableIndex = tables.findIndex(t => t.number === tableNumber);
+    if (tableIndex !== -1 && tables[tableIndex].status === 'available') {
+      tables[tableIndex].status = 'occupied';
+      tables[tableIndex].orderId = order._id;
+      console.log(`🔄 Table ${tableNumber} marked as occupied`);
+      
+      // Emit table update
+      io.emit('tableUpdated', tables[tableIndex]);
+    } else {
+      console.log(`⚠️ Table ${tableNumber} not found or not available, skipping table update`);
+    }
     
     // EMIT the new order via WebSocket
     io.emit('newOrder', order);
