@@ -7,7 +7,7 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// CORS configuration
+// CORS configuration - FIXED: Remove cache-control from allowed headers
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
 
 app.use(cors({
@@ -17,8 +17,8 @@ app.use(cors({
     FRONTEND_URL
   ].filter(Boolean),
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  // REMOVED: allowedHeaders to use default ones
 }));
 
 app.options('*', cors());
@@ -45,133 +45,65 @@ let menuItems = [];
 function initializeData() {
   // Malaysian Menu Data
   menuItems = [
-    // Drinks
     {
-      _id: '1',
-      name: "Teh Tarik",
-      nameBM: "Teh Tarik",
-      description: "Famous Malaysian pulled tea with creamy texture",
-      descriptionBM: "Teh tarik terkenal Malaysia dengan tekstur berkrim",
-      price: 4.50,
-      category: "drinks",
-      preparationTime: 5,
-      spicyLevel: "Mild"
+      _id: '1', name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5,
+      nameBM: "Teh Tarik", description: "Famous Malaysian pulled tea", descriptionBM: "Teh tarik terkenal Malaysia"
     },
     {
-      _id: '2',
-      name: "Kopi O",
-      nameBM: "Kopi O",
-      description: "Traditional black coffee",
-      descriptionBM: "Kopi hitam tradisional",
-      price: 3.80,
-      category: "drinks",
-      preparationTime: 3,
-      spicyLevel: "Mild"
+      _id: '2', name: "Kopi O", price: 3.80, category: "drinks", preparationTime: 3,
+      nameBM: "Kopi O", description: "Traditional black coffee", descriptionBM: "Kopi hitam tradisional"
     },
     {
-      _id: '3',
-      name: "Milo Dinosaur",
-      nameBM: "Milo Dinosaur",
-      description: "Iced Milo with extra Milo powder on top",
-      descriptionBM: "Milo ais dengan serbuk Milo tambahan",
-      price: 6.50,
-      category: "drinks",
-      preparationTime: 4,
-      spicyLevel: "Mild"
-    },
-
-    // Malaysian Main Courses
-    {
-      _id: '4',
-      name: "Nasi Lemak",
-      nameBM: "Nasi Lemak",
-      description: "Coconut rice with sambal, anchovies, peanuts, and egg",
-      descriptionBM: "Nasi santan dengan sambal, ikan bilis, kacang dan telur",
-      price: 12.90,
-      category: "main",
-      preparationTime: 15,
-      spicyLevel: "Medium"
+      _id: '3', name: "Milo Dinosaur", price: 6.50, category: "drinks", preparationTime: 4,
+      nameBM: "Milo Dinosaur", description: "Iced Milo with extra Milo powder", descriptionBM: "Milo ais dengan serbuk Milo tambahan"
     },
     {
-      _id: '5',
-      name: "Char Kuey Teow",
-      nameBM: "Char Kuey Teow",
-      description: "Stir-fried rice noodles with prawns, cockles, and bean sprouts",
-      descriptionBM: "Kuey teow goreng dengan udang, kerang dan taugeh",
-      price: 14.50,
-      category: "main",
-      preparationTime: 12,
-      spicyLevel: "Medium"
+      _id: '4', name: "Nasi Lemak", price: 12.90, category: "main", preparationTime: 15,
+      nameBM: "Nasi Lemak", description: "Coconut rice with sambal", descriptionBM: "Nasi santan dengan sambal"
     },
     {
-      _id: '6',
-      name: "Roti Canai",
-      nameBM: "Roti Canai",
-      description: "Flaky flatbread served with dhal curry",
-      descriptionBM: "Roti canai berlapis dihidang dengan kuah dhal",
-      price: 3.50,
-      category: "main",
-      preparationTime: 8,
-      spicyLevel: "Mild"
+      _id: '5', name: "Char Kuey Teow", price: 14.50, category: "main", preparationTime: 12,
+      nameBM: "Char Kuey Teow", description: "Stir-fried rice noodles", descriptionBM: "Kuey teow goreng"
     },
     {
-      _id: '7',
-      name: "Satay Set",
-      nameBM: "Set Satay",
-      description: "6 chicken satay sticks with peanut sauce and ketupat",
-      descriptionBM: "6 cucuk satay ayam dengan kuah kacang dan ketupat",
-      price: 18.90,
-      category: "main",
-      preparationTime: 20,
-      spicyLevel: "Mild"
-    },
-
-    // Desserts
-    {
-      _id: '8',
-      name: "Cendol",
-      nameBM: "Cendol",
-      description: "Shaved ice dessert with coconut milk and palm sugar",
-      descriptionBM: "Pencuci mulut ais dengan santan dan gula melaka",
-      price: 6.90,
-      category: "desserts",
-      preparationTime: 7,
-      spicyLevel: "Mild"
+      _id: '6', name: "Roti Canai", price: 3.50, category: "main", preparationTime: 8,
+      nameBM: "Roti Canai", description: "Flaky flatbread with curry", descriptionBM: "Roti canai dengan kuah kari"
     },
     {
-      _id: '9',
-      name: "Apam Balik",
-      nameBM: "Apam Balik",
-      description: "Malaysian peanut pancake",
-      descriptionBM: "Apam balik kacang",
-      price: 5.50,
-      category: "desserts",
-      preparationTime: 10,
-      spicyLevel: "Mild"
+      _id: '7', name: "Satay Set", price: 18.90, category: "main", preparationTime: 20,
+      nameBM: "Set Satay", description: "Chicken satay with peanut sauce", descriptionBM: "Satay ayam dengan kuah kacang"
+    },
+    {
+      _id: '8', name: "Cendol", price: 6.90, category: "desserts", preparationTime: 7,
+      nameBM: "Cendol", description: "Shaved ice dessert", descriptionBM: "Pencuci mulut ais"
+    },
+    {
+      _id: '9', name: "Apam Balik", price: 5.50, category: "desserts", preparationTime: 10,
+      nameBM: "Apam Balik", description: "Malaysian peanut pancake", descriptionBM: "Apam balik kacang"
     }
   ];
 
   // Sample tables
   tables = [
-    { _id: '1', number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date() },
-    { _id: '2', number: 'T02', status: 'available', capacity: 2, lastCleaned: new Date() },
-    { _id: '3', number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date() },
-    { _id: '4', number: 'T04', status: 'available', capacity: 4, lastCleaned: new Date() },
-    { _id: '5', number: 'T05', status: 'available', capacity: 4, lastCleaned: new Date() },
-    { _id: '6', number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date() },
-    { _id: '7', number: 'T07', status: 'available', capacity: 4, lastCleaned: new Date() },
-    { _id: '8', number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date() }
+    { _id: '1', number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null },
+    { _id: '2', number: 'T02', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null },
+    { _id: '3', number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date(), orderId: null },
+    { _id: '4', number: 'T04', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null },
+    { _id: '5', number: 'T05', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null },
+    { _id: '6', number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null },
+    { _id: '7', number: 'T07', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null },
+    { _id: '8', number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date(), orderId: null }
   ];
 
   console.log('🍛 Sample data initialized!');
 }
 
-// Generate order number (MESRA001, MESRA002, etc.)
+// Generate order number
 function generateOrderNumber() {
   return `MESRA${Date.now().toString().slice(-6)}`;
 }
 
-// Simple health endpoint for quick response
+// Simple health endpoint for quick response - FIXED CORS
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
@@ -187,7 +119,6 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     message: 'Restaurant SaaS API is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
     data: {
       menuItems: menuItems.length,
       tables: tables.length,
@@ -220,6 +151,7 @@ app.get('/api/tables', (req, res) => {
   }
 });
 
+// FIXED: Table update endpoint
 app.put('/api/tables/:id', (req, res) => {
   try {
     const tableId = req.params.id;
@@ -229,14 +161,19 @@ app.put('/api/tables/:id', (req, res) => {
       return res.status(404).json({ error: 'Table not found' });
     }
     
+    // Update table
     tables[tableIndex] = { ...tables[tableIndex], ...req.body };
+    
+    // Emit update for ONLY this table
+    io.emit('tableUpdated', tables[tableIndex]);
+    
     res.json(tables[tableIndex]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Return ALL orders, not just active ones
+// Return ALL orders
 app.get('/api/orders', (req, res) => {
   try {
     res.json(orders);
@@ -245,10 +182,10 @@ app.get('/api/orders', (req, res) => {
   }
 });
 
-// Ensure paymentStatus is initialized
+// FIXED: Order creation - emit only specific table
 app.post('/api/orders', (req, res) => {
   try {
-    const { tableId, items, customerName, customerPhone, orderType } = req.body;
+    const { tableId, items, orderType } = req.body;
     
     console.log('📦 Creating order for table:', tableId);
     
@@ -276,9 +213,7 @@ app.post('/api/orders', (req, res) => {
       })),
       total,
       status: 'pending',
-      paymentStatus: 'pending', // CRITICAL: Initialize payment status
-      customerName: customerName || '',
-      customerPhone: customerPhone || '',
+      paymentStatus: 'pending',
       orderType: orderType || 'dine-in',
       orderedAt: new Date(),
       completedAt: null
@@ -286,16 +221,18 @@ app.post('/api/orders', (req, res) => {
     
     orders.push(order);
     
-    // Update table status
+    // Update table status - FIXED: Only update the specific table
     const tableIndex = tables.findIndex(t => t.number === tableId);
     if (tableIndex !== -1) {
       tables[tableIndex].status = 'occupied';
       tables[tableIndex].orderId = order._id;
       
-      // Emit table update
+      // Emit table update for ONLY this table
+      console.log(`🔄 Emitting table update for: ${tables[tableIndex].number}`);
       io.emit('tableUpdated', tables[tableIndex]);
     }
     
+    // Emit new order
     io.emit('newOrder', order);
     console.log(`📦 New order: ${order.orderNumber} for Table ${tableId}`);
     
@@ -305,7 +242,7 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// Order status endpoint (remove table cleaning)
+// Order status endpoint
 app.put('/api/orders/:id/status', (req, res) => {
   try {
     const { status } = req.body;
@@ -323,17 +260,9 @@ app.put('/api/orders/:id/status', (req, res) => {
     
     orders[orderIndex].status = status;
     
-    // REMOVED: Table cleaning logic - now only happens after payment
     if (status === 'completed') {
       orders[orderIndex].completedAt = new Date();
       orders[orderIndex].paymentStatus = 'pending';
-      console.log(`✅ Order ${orderId} marked as completed - Ready for payment`);
-      // NO table cleaning here anymore - wait for payment
-    }
-    
-    if (status === 'ready') {
-      orders[orderIndex].paymentStatus = 'pending';
-      console.log(`💰 Order ${orderId} is ready for payment`);
     }
     
     io.emit('orderUpdated', orders[orderIndex]);
@@ -353,7 +282,7 @@ app.get('/api/payments', (req, res) => {
   }
 });
 
-// Fixed payments endpoint to prevent infinite loops
+// FIXED: Payments endpoint - prevent multiple emits
 app.post('/api/payments', (req, res) => {
   try {
     const { orderId, amount, method } = req.body;
@@ -387,28 +316,23 @@ app.post('/api/payments', (req, res) => {
     
     console.log('✅ Payment processed for order:', order.orderNumber);
     
-    // CRITICAL FIX: Only update table if status will actually change
-    const tableId = order.tableId || order.table;
+    // FIXED: Only update table if it exists and status will change
+    const tableId = order.tableId;
     
     if (tableId && tableId !== 'undefined' && tableId !== 'null') {
-      const tableIndex = tables.findIndex(t => 
-        t.number === tableId || t._id === tableId
-      );
+      const tableIndex = tables.findIndex(t => t.number === tableId);
       
-      if (tableIndex !== -1) {
-        // ONLY update if table is not already needs_cleaning
-        if (tables[tableIndex].status !== 'needs_cleaning') {
-          tables[tableIndex].status = 'needs_cleaning';
-          tables[tableIndex].orderId = null;
-          
-          console.log('🎯 Table marked for cleaning:', tables[tableIndex].number);
-          io.emit('tableUpdated', tables[tableIndex]);
-        } else {
-          console.log('⚠️ Table already needs cleaning, skipping update:', tables[tableIndex].number);
-        }
+      if (tableIndex !== -1 && tables[tableIndex].status !== 'needs_cleaning') {
+        tables[tableIndex].status = 'needs_cleaning';
+        tables[tableIndex].orderId = null;
+        
+        console.log('🎯 Table marked for cleaning:', tables[tableIndex].number);
+        // Emit ONLY this table update
+        io.emit('tableUpdated', tables[tableIndex]);
       }
     }
     
+    // Emit events
     io.emit('paymentProcessed', payment);
     io.emit('orderUpdated', orders[orderIndex]);
     
@@ -422,40 +346,28 @@ app.post('/api/payments', (req, res) => {
 // Customer orders endpoint for QR codes
 app.post('/api/customer/orders', (req, res) => {
   try {
-    const { items, customerName, customerPhone, orderType = 'dine-in', tableNumber } = req.body;
+    const { items, orderType = 'dine-in', tableNumber } = req.body;
     
-    console.log('📱 QR Order received:', { 
-      tableNumber, 
-      itemCount: items?.length,
-      orderType 
-    });
+    console.log('📱 QR Order received for table:', tableNumber);
     
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'No items in order' });
     }
 
-    // Validate table number properly
     if (!tableNumber || tableNumber === 'undefined' || tableNumber === 'null') {
       return res.status(400).json({ error: 'Valid table number is required' });
     }
 
-    // VALIDATE and MAP items using backend menu data
+    // Map items using backend menu data
     const mappedItems = items.map(item => {
-      // Find match in backend menu
-      const menuItem = menuItems.find(m => 
-        m._id === item.menuItemId || 
-        m._id === item._id || 
-        m._id === item.id
-      );
+      const menuItem = menuItems.find(m => m._id === item.menuItemId);
 
       if (!menuItem) {
-        console.warn('⚠️ Menu item not found, using fallback:', item);
         return {
           menuItem: { 
-            _id: item.menuItemId || item._id || item.id,
+            _id: item.menuItemId,
             name: item.name || 'Unknown Item',
-            price: item.price || 0,
-            category: item.category || 'main'
+            price: item.price || 0
           },
           quantity: item.quantity || 1,
           specialInstructions: item.specialInstructions || '',
@@ -471,20 +383,18 @@ app.post('/api/customer/orders', (req, res) => {
       };
     });
 
-    // Calculate total from backend prices
     const total = mappedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     const order = {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
-      tableId: tableNumber, // USE THE ACTUAL TABLE NUMBER
-      table: tableNumber,   // ADD BOTH for compatibility
+      tableId: tableNumber,
+      table: tableNumber,
       items: mappedItems,
       total,
       status: 'pending',
       paymentStatus: 'pending',
-      customerName: customerName || 'QR Customer',
-      customerPhone: customerPhone || '',
+      customerName: 'QR Customer',
       orderType: orderType,
       orderedAt: new Date(),
       completedAt: null
@@ -494,22 +404,18 @@ app.post('/api/customer/orders', (req, res) => {
     
     console.log(`📱 QR Order created: ${order.orderNumber} for Table ${tableNumber}`);
     
-    // Only update table if it exists and is available
+    // Update table if available
     const tableIndex = tables.findIndex(t => t.number === tableNumber);
     if (tableIndex !== -1 && tables[tableIndex].status === 'available') {
       tables[tableIndex].status = 'occupied';
       tables[tableIndex].orderId = order._id;
-      console.log(`🔄 Table ${tableNumber} marked as occupied`);
       
-      // Emit table update
+      // Emit ONLY this table update
       io.emit('tableUpdated', tables[tableIndex]);
-    } else {
-      console.log(`⚠️ Table ${tableNumber} not found or not available, skipping table update`);
     }
     
-    // EMIT the new order via WebSocket
+    // Emit new order
     io.emit('newOrder', order);
-    console.log(`🔔 WebSocket notification sent for order: ${order.orderNumber}`);
     
     res.json({
       success: true,
@@ -539,8 +445,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Mesra POS Server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
   console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
-  console.log(`🍛 Serving authentic Malaysian cuisine!`);
-  console.log(`💵 Currency: Malaysian Ringgit (MYR)`);
   
   // Initialize data
   initializeData();

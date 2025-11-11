@@ -36,52 +36,27 @@ function App() {
   const [isCustomerView, setIsCustomerView] = useState(false);
   const [socket, setSocket] = useState(null);
 
-  // Health check function
+  // FIXED: Health check without cache-control headers
   const healthCheck = async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       
+      // REMOVED: cache-control headers that cause CORS issues
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/health', {
-        signal: controller.signal,
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
+        signal: controller.signal
       });
       clearTimeout(timeoutId);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Health check passed:', data);
+        console.log('✅ Health check passed');
         setApiConnected(true);
         return true;
       }
       return false;
     } catch (error) {
-      console.log('⚠️ Health check failed, but continuing:', error.message);
-      return false;
-    }
-  };
-
-  // Warm-up function for backend
-  const warmUpBackend = async () => {
-    try {
-      console.log('🔥 Warming up backend...');
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/menu', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        }
-      });
-      
-      if (response.ok) {
-        console.log('✅ Backend warmed up successfully');
-        setApiConnected(true);
-        return true;
-      }
-    } catch (error) {
-      console.log('⚠️ Backend warm-up failed, will retry:', error.message);
+      console.log('⚠️ Health check failed:', error.message);
       return false;
     }
   };
@@ -117,46 +92,41 @@ function App() {
 
         // Socket event listeners
         socketInstance.on('newOrder', (order) => {
-          console.log('📦 New order received via WebSocket:', order);
+          console.log('📦 New order received via WebSocket:', order.orderNumber);
           setOrders(prev => {
-            const exists = prev.some(o => 
-              o._id === order._id || o.orderNumber === order.orderNumber
-            );
+            const exists = prev.some(o => o._id === order._id);
             return exists ? prev : [...prev, order];
           });
         });
 
         socketInstance.on('orderUpdated', (updatedOrder) => {
-          console.log('🔄 Order updated via WebSocket:', updatedOrder);
+          console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
           setOrders(prev => prev.map(order => 
-            (order._id === updatedOrder._id || order.orderNumber === updatedOrder.orderNumber) 
-              ? { ...order, ...updatedOrder }
-              : order
+            order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
           ));
         });
 
-        // FIXED: Table update handler with status change check
+        // FIXED: Table update handler - prevent infinite loops
         socketInstance.on('tableUpdated', (updatedTable) => {
           console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
           
-          setTables(prev => prev.map(t => {
-            const currentTable = prev.find(table => table._id === updatedTable._id);
-            
-            if (currentTable) {
-              if (currentTable.status !== updatedTable.status) {
-                console.log('✅ Updating table status from', currentTable.status, 'to', updatedTable.status);
+          setTables(prev => prev.map(table => {
+            // Only update if it's the exact same table AND status changed
+            if (table._id === updatedTable._id) {
+              if (table.status !== updatedTable.status) {
+                console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
                 return updatedTable;
               } else {
-                console.log('⚠️ Table status unchanged, skipping update');
-                return t;
+                console.log('⚠️ Table status unchanged, skipping:', table.number);
+                return table;
               }
             }
-            return t;
+            return table;
           }));
         });
 
         socketInstance.on('paymentProcessed', (payment) => {
-          console.log('💰 Payment processed via WebSocket:', payment);
+          console.log('💰 Payment processed via WebSocket:', payment.orderId);
           setPayments(prev => [...prev, payment]);
         });
 
@@ -187,17 +157,6 @@ function App() {
           console.log('✅ Backend connection restored');
           setApiConnected(true);
           clearInterval(interval);
-          
-          // Reload data now that backend is available
-          const [menuData, tablesData, ordersData] = await Promise.all([
-            fetchMenu().catch(() => []),
-            fetchTables().catch(() => []),
-            fetchOrders().catch(() => [])
-          ]);
-          
-          setMenu(menuData || []);
-          setTables(tablesData || []);
-          setOrders(ordersData || []);
         }
       }, 15000);
 
@@ -238,22 +197,18 @@ function App() {
       
       console.log('🔍 Route check - Hash:', hash, 'Path:', path);
       
-      // Handle both /#/menu and /menu routes
       if (hash.includes('#/menu') || path.includes('/menu')) {
         console.log('✅ Menu route detected');
         setIsMenuRoute(true);
         setIsCustomerView(true);
         setCurrentPage('menu');
         
-        // Extract table parameter from URL
         const urlParams = new URLSearchParams(window.location.search);
         const tableParam = urlParams.get('table');
         
         if (tableParam) {
           console.log('🎯 Table parameter found:', tableParam);
           setCurrentTable(tableParam);
-        } else {
-          console.log('❌ No table parameter in URL');
         }
       } else {
         console.log('📊 Staff view detected');
@@ -265,7 +220,6 @@ function App() {
     checkRoute();
     
     const handleHashChange = () => {
-      console.log('🔄 Hash changed');
       checkRoute();
     };
     
@@ -312,56 +266,33 @@ function App() {
       try {
         setLoading(true);
         
-        // First attempt: Quick health check
+        // Attempt health check
         let isHealthy = await healthCheck();
-        
-        // Second attempt: If health check fails, try warm-up
-        if (!isHealthy) {
-          console.log('🔄 Health check failed, attempting warm-up...');
-          isHealthy = await warmUpBackend();
-        }
 
         if (isHealthy) {
           setApiConnected(true);
           
-          // Initialize sample data
+          // Load data
           try {
-            await fetch(API_ENDPOINTS.INIT, { method: 'POST' });
+            const [menuData, tablesData, ordersData] = await Promise.all([
+              fetchMenu().catch(() => []),
+              fetchTables().catch(() => []),
+              fetchOrders().catch(() => [])
+            ]);
+            
+            setMenu(menuData || []);
+            setTables(tablesData || []);
+            setOrders(ordersData || []);
+            setPayments([]);
+            
+            console.log('✅ Data loaded successfully');
           } catch (error) {
-            console.log('Init endpoint not available, continuing...');
+            console.log('❌ Data load failed, using fallback');
           }
           
-          // Load data with retry logic
-          const loadDataWithRetry = async (retries = 3) => {
-            try {
-              const [menuData, tablesData, ordersData] = await Promise.all([
-                fetchMenu().catch(() => []),
-                fetchTables().catch(() => []),
-                fetchOrders().catch(() => [])
-              ]);
-              
-              setMenu(menuData || []);
-              setTables(tablesData || []);
-              setOrders(ordersData || []);
-              setPayments([]);
-              
-              console.log('✅ Data loaded successfully');
-              return true;
-            } catch (error) {
-              console.log(`❌ Data load failed, ${retries} retries left:`, error);
-              if (retries > 0) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                return loadDataWithRetry(retries - 1);
-              }
-              return false;
-            }
-          };
-
-          await loadDataWithRetry();
-          
         } else {
-          // Use fallback data but don't throw error
-          console.log('🔄 Using fallback data while backend warms up');
+          // Use fallback data
+          console.log('🔄 Using fallback data');
           const backendMenu = [
             { _id: '1', name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5 },
             { _id: '2', name: "Kopi O", price: 3.80, category: "drinks", preparationTime: 3 },
@@ -392,7 +323,6 @@ function App() {
 
       } catch (error) {
         console.error('Error initializing data:', error);
-        // Don't block the UI - continue with fallback data
         setApiConnected(false);
       } finally {
         setLoading(false);
@@ -435,15 +365,12 @@ function App() {
 
   const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
     try {
-      console.log('🔄 createNewOrder called with:', { tableNumber, orderItems, orderType });
+      console.log('🔄 createNewOrder called for table:', tableNumber);
       
-      // VALIDATE orderItems to prevent undefined errors
       if (!orderItems || !Array.isArray(orderItems)) {
-        console.error('❌ Invalid orderItems:', orderItems);
-        throw new Error('Order items are required and must be an array');
+        throw new Error('Order items are required');
       }
 
-      // Filter out items with quantity 0 and validate
       const validOrderItems = orderItems
         .filter(item => item && item.quantity > 0)
         .map(item => ({
@@ -470,10 +397,8 @@ function App() {
           orderType: orderType
         };
         
-        console.log('📦 Sending order data to API:', orderData);
         newOrder = await apiCreateOrder(orderData);
       } else {
-        // Fallback: Generate order locally
         const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
         newOrder = {
           id: orderNumber,
@@ -485,14 +410,11 @@ function App() {
           orderType: orderType,
           status: 'pending',
           total: validOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-          createdAt: new Date(),
-          time: 'Just now'
+          createdAt: new Date()
         };
 
-        console.log('📦 Creating local order:', newOrder);
         setOrders(prev => [newOrder, ...prev]);
         
-        // Update table status
         setTables(prev => prev.map(table => 
           table.number === tableNumber 
             ? { ...table, status: 'occupied', orderId: orderNumber }
@@ -500,24 +422,22 @@ function App() {
         ));
       }
 
-      console.log('✅ Order created successfully:', newOrder);
+      console.log('✅ Order created successfully:', newOrder.orderNumber);
       return newOrder;
 
     } catch (error) {
       console.error('❌ Error creating order:', error);
       
-      // Provide a basic fallback order
       const fallbackOrder = {
         id: `ORD-${Date.now()}`,
         _id: `ORD-${Date.now()}`,
         orderNumber: `ORD-${Date.now().toString().slice(-6)}`,
         table: tableNumber,
         status: 'pending',
-        items: orderItems && Array.isArray(orderItems) ? orderItems : [],
+        items: orderItems || [],
         total: 0
       };
       
-      // Still add to orders even if there was an error
       setOrders(prev => [fallbackOrder, ...prev]);
       
       return fallbackOrder;
@@ -525,22 +445,17 @@ function App() {
   };
 
   const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-    console.log('🔵 handleCustomerOrder called:', { tableNumber, orderItems, orderType });
+    console.log('🔵 handleCustomerOrder called for table:', tableNumber);
     
-    // Validate inputs
     if (!tableNumber) {
-      console.error('❌ Table number is required');
       throw new Error('Table number is required');
     }
 
-    if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
-      console.error('❌ No items in order');
+    if (!orderItems || orderItems.length === 0) {
       throw new Error('Please add items to your order');
     }
 
     const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
-    
-    console.log('🔵 New customer order created:', newOrder);
     
     setNotifications(prev => [{
       id: Date.now(),
@@ -560,11 +475,8 @@ function App() {
       if (apiConnected) {
         updatedOrder = await apiUpdateOrderStatus(orderId, newStatus);
       } else {
-        // Fallback to local state
         setOrders(prev => prev.map(order => 
-          (order.id === orderId || order._id === orderId || order.orderNumber === orderId) 
-            ? { ...order, status: newStatus }
-            : order
+          order._id === orderId ? { ...order, status: newStatus } : order
         ));
         updatedOrder = { id: orderId, status: newStatus };
       }
@@ -582,11 +494,9 @@ function App() {
       await updateOrderStatus(orderId, 'completed');
       
       if (apiConnected) {
-        // Refresh tables data
         const tablesData = await fetchTables();
         setTables(tablesData);
       } else {
-        // Fallback to local state
         setTables(prev => prev.map(table => 
           table.number === tableNumber 
             ? { ...table, status: 'needs_cleaning', orderId: null }
@@ -720,7 +630,7 @@ function App() {
               getTimeAgo={getTimeAgo}
               isMobile={isMobile}
               menu={menu}
-              apiConnected={apiConnected}
+              apiConnected={apiConnected} // FIXED: Pass apiConnected prop
             />
           )}
           {currentPage === 'qr-generator' && (
