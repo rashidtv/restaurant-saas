@@ -28,52 +28,52 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     }
   }, [showOrderModal, selectedTable, menuItems]);
 
-// In TableManagement.jsx - UPDATE the updateTableStatus function
-const updateTableStatus = async (tableId, newStatus) => {
-  console.log('🔄 Updating table status:', tableId, 'to', newStatus);
-  
-  try {
-    // Update local state first
-    setTables(prevTables => prevTables.map(table => {
-      if (table._id === tableId || table.id === tableId) {
-        const updatedTable = { 
-          ...table, 
-          status: newStatus
-        };
-        
-        // Clear order data when marking as available
-        if (newStatus === 'available') {
-          updatedTable.lastCleaned = new Date().toISOString();
-          updatedTable.orderId = null;
-          updatedTable.currentOrder = null;
-          console.log('✅ Cleared order data for table:', table.number);
+  // In TableManagement.jsx - UPDATE the updateTableStatus function
+  const updateTableStatus = async (tableId, newStatus) => {
+    console.log('🔄 Updating table status:', tableId, 'to', newStatus);
+    
+    try {
+      // Update local state first
+      setTables(prevTables => prevTables.map(table => {
+        if (table._id === tableId || table.id === tableId) {
+          const updatedTable = { 
+            ...table, 
+            status: newStatus
+          };
+          
+          // Clear order data when marking as available
+          if (newStatus === 'available') {
+            updatedTable.lastCleaned = new Date().toISOString();
+            updatedTable.orderId = null;
+            updatedTable.currentOrder = null;
+            console.log('✅ Cleared order data for table:', table.number);
+          }
+          
+          return updatedTable;
         }
-        
-        return updatedTable;
-      }
-      return table;
-    }));
+        return table;
+      }));
 
-    // Update backend if connected - FIXED: Use the apiConnected prop
-    if (apiConnected) {
-      await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/tables/${tableId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: newStatus,
-          ...(newStatus === 'available' && { 
-            orderId: null,
-            lastCleaned: new Date().toISOString()
+      // Update backend if connected - FIXED: Use the apiConnected prop
+      if (apiConnected) {
+        await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/tables/${tableId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: newStatus,
+            ...(newStatus === 'available' && { 
+              orderId: null,
+              lastCleaned: new Date().toISOString()
+            })
           })
-        })
-      });
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error updating table status:', error);
     }
-  } catch (error) {
-    console.error('❌ Error updating table status:', error);
-  }
-};
+  };
 
   const getCleaningStatus = (lastCleaned) => {
     const hoursSinceCleaned = (new Date() - new Date(lastCleaned)) / (1000 * 60 * 60);
@@ -110,61 +110,60 @@ const updateTableStatus = async (tableId, newStatus) => {
   };
 
   // Also update the complete order function:
-const handleCompleteOrder = (order) => {
-  // Complete only this specific order
-  onCompleteOrder(order.id || order._id, order.table || order.tableId);
-  
-  // 🎯 DON'T update table status here - wait for payment
-  // Just close the modal
-  setShowOrderDetails(false);
-};
-
-
-// In handleCreateOrder function, ensure tableId is properly passed:
-const handleCreateOrder = async () => {
-  const selectedItems = orderItems 
-    ? orderItems.filter(item => item && item.quantity > 0)
-    : [];
-
-  if (selectedItems.length === 0) {
-    alert('Please select at least one item');
-    return;
-  }
-
-  console.log('📦 Creating order for table:', selectedTable?.number);
-
-  const orderData = {
-    tableId: selectedTable?.number, // ENSURE this is not undefined
-    items: selectedItems.map(item => ({
-      menuItemId: item._id || item.id,
-      quantity: item.quantity,
-      price: item.price,
-      specialInstructions: ''
-    })),
-    orderType: 'dine-in'
+  const handleCompleteOrder = (order) => {
+    // Complete only this specific order
+    onCompleteOrder(order.id || order._id, order.table || order.tableId);
+    
+    // 🎯 DON'T update table status here - wait for payment
+    // Just close the modal
+    setShowOrderDetails(false);
   };
 
-  console.log('TableManagement - Creating order with data:', orderData);
+  // In handleCreateOrder function, ensure tableId is properly passed:
+  const handleCreateOrder = async () => {
+    const selectedItems = orderItems 
+      ? orderItems.filter(item => item && item.quantity > 0)
+      : [];
 
-  try {
-    const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in');
-    
-    if (newOrder) {
-      setTables(prevTables => prevTables.map(table => 
-        table.number === selectedTable?.number
-          ? { ...table, status: 'occupied', orderId: newOrder._id || newOrder.id }
-          : table
-      ));
+    if (selectedItems.length === 0) {
+      alert('Please select at least one item');
+      return;
     }
-    
-    setShowOrderModal(false);
-    setSelectedTable(null);
-    setOrderItems([]);
-  } catch (error) {
-    console.error('Failed to create order:', error);
-    alert('Failed to create order: ' + error.message);
-  }
-};
+
+    console.log('📦 Creating order for table:', selectedTable?.number);
+
+    const orderData = {
+      tableId: selectedTable?.number, // ENSURE this is not undefined
+      items: selectedItems.map(item => ({
+        menuItemId: item._id || item.id,
+        quantity: item.quantity,
+        price: item.price,
+        specialInstructions: ''
+      })),
+      orderType: 'dine-in'
+    };
+
+    console.log('TableManagement - Creating order with data:', orderData);
+
+    try {
+      const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in');
+      
+      if (newOrder) {
+        setTables(prevTables => prevTables.map(table => 
+          table.number === selectedTable?.number
+            ? { ...table, status: 'occupied', orderId: newOrder._id || newOrder.id }
+            : table
+        ));
+      }
+      
+      setShowOrderModal(false);
+      setSelectedTable(null);
+      setOrderItems([]);
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      alert('Failed to create order: ' + error.message);
+    }
+  };
 
   const updateOrderItemQuantity = (itemId, change) => {
     setOrderItems(prev => prev.map(item => 
@@ -178,69 +177,92 @@ const handleCreateOrder = async () => {
     ));
   };
 
-// In TableManagement.jsx - UPDATE order display logic
-const getOrderForTable = (table) => {
-  // If table is available or needs_cleaning, no order to show
-  if (table.status === 'available' || table.status === 'needs_cleaning') {
-    return null;
-  }
-  
-  // Find order by table number (most reliable)
-  return orders.find(order => {
-    const orderTableId = order.tableId || order.table;
-    const tableId = table.number || table._id;
+  // In TableManagement.jsx - UPDATE order display logic
+  const getOrderForTable = (table) => {
+    // If table is available or needs_cleaning, no order to show
+    if (table.status === 'available' || table.status === 'needs_cleaning') {
+      return null;
+    }
     
-    return orderTableId === tableId && 
-           order.status !== 'completed' && 
-           order.status !== 'cancelled';
-  });
-};
+    // Find order by table number (most reliable)
+    return orders.find(order => {
+      const orderTableId = order.tableId || order.table;
+      const tableId = table.number || table._id;
+      
+      return orderTableId === tableId && 
+             order.status !== 'completed' && 
+             order.status !== 'cancelled';
+    });
+  };
 
- // **FIXED: Enhanced getItemName function**
-const getItemName = (item) => {
-  console.log('TableManagement - Processing item:', item);
-  
-  // Check direct name first
-  if (item.name && item.name !== 'Unknown Item' && item.name !== 'Menu Item') {
-    return item.name;
-  }
-  
-  // Check menuItem name
-  if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
-    return item.menuItem.name;
-  }
-  
-  // Fallback to price-based reconstruction
-  const price = item.price || (item.menuItem && item.menuItem.price);
-  if (price) {
-    const menuItems = {
-      16.90: 'Nasi Lemak Royal',
-      22.90: 'Rendang Tok', 
-      18.90: 'Satay Set',
-      14.90: 'Char Kway Teow',
-      6.50: 'Teh Tarik',
-      5.90: 'Iced Lemon Tea',
-      8.90: 'Fresh Coconut',
-      7.50: 'Iced Coffee',
-      12.90: 'Mango Sticky Rice',
-      7.90: 'Cendol Delight',
-      9.90: 'Spring Rolls',
-      6.90: 'Prawn Crackers',
-      14.90: 'Chicken Curry',
-      12.90: 'Fried Rice Special',
-      19.90: 'Beef Rendang',
-      8.90: 'Pisang Goreng'
-    };
-    return menuItems[price] || `Menu Item (RM ${price})`;
-  }
-  
-  return 'Menu Item';
-};
+  // **FIXED: Enhanced getItemName function - NO HARDCODED FALLBACKS**
+  const getItemName = (item) => {
+    console.log('TableManagement - Processing item:', item);
+    
+    // Check direct name first
+    if (item.name && item.name !== 'Unknown Item' && item.name !== 'Menu Item') {
+      return item.name;
+    }
+    
+    // Check menuItem name
+    if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
+      return item.menuItem.name;
+    }
+    
+    // **REMOVED HARDCODED PRICE MAPPING**
+    // If we have a price but no name, create a generic name
+    const price = item.price || (item.menuItem && item.menuItem.price);
+    if (price) {
+      // Try to find the actual menu item from our digital menu
+      const actualMenuItem = menuItems.find(menuItem => 
+        menuItem.price === price || menuItem._id === item.menuItemId || menuItem.id === item.menuItemId
+      );
+      
+      if (actualMenuItem && actualMenuItem.name) {
+        return actualMenuItem.name;
+      }
+      
+      // Last resort: generic name with price
+      return `Menu Item (RM ${price})`;
+    }
+    
+    // Final fallback
+    return 'Menu Item';
+  };
 
   // Safe string function for mobile display
   const truncateText = (text, maxLength = 20) => {
     if (!text || typeof text !== 'string') return 'Unknown Item';
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+  };
+
+  // **NEW: Function to get item details from actual menu**
+  const getItemDetails = (item) => {
+    // If item already has name and price, use them
+    if (item.name && item.price) {
+      return { name: item.name, price: item.price };
+    }
+    
+    // Try to find in the actual menu
+    const menuItemId = item.menuItemId || item._id || item.id;
+    const actualMenuItem = menuItems.find(menuItem => 
+      menuItem._id === menuItemId || 
+      menuItem.id === menuItemId ||
+      menuItem.price === item.price
+    );
+    
+    if (actualMenuItem) {
+      return { 
+        name: actualMenuItem.name || 'Menu Item', 
+        price: actualMenuItem.price || 0 
+      };
+    }
+    
+    // Final fallback
+    return { 
+      name: item.name || 'Menu Item', 
+      price: item.price || 0 
+    };
   };
 
   return (
@@ -285,13 +307,13 @@ const getItemName = (item) => {
                   Last cleaned: {getTimeAgo(table.lastCleaned)}
                 </div>
                 {tableOrder && (
-  <div className="table-order">
-    <strong>Order: {tableOrder.orderNumber}</strong> • {tableOrder.status}
-    {tableOrder.total && (
-      <div className="order-total-small">Total: RM {tableOrder.total.toFixed(2)}</div>
-    )}
-  </div>
-)}
+                  <div className="table-order">
+                    <strong>Order: {tableOrder.orderNumber}</strong> • {tableOrder.status}
+                    {tableOrder.total && (
+                      <div className="order-total-small">Total: RM {tableOrder.total.toFixed(2)}</div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="table-actions">
@@ -456,22 +478,24 @@ const getItemName = (item) => {
               <div className="order-items">
                 <h3 className="form-label">Order Items</h3>
                 {(selectedOrder.items || []).map((item, index) => {
-  const itemName = item.name || item.menuItem?.name || 'Menu Item';
-  const itemPrice = item.price || item.menuItem?.price || 0;
-  const itemQuantity = item.quantity || 1;
-  
-  return (
-    <div key={index} className="order-item">
-      <div className="item-details">
-        <div className="item-name">{itemQuantity}x {itemName}</div>
-        <div className="item-price">RM {itemPrice.toFixed(2)} each</div>
-      </div>
-      <div className="item-total">
-        RM {(itemPrice * itemQuantity).toFixed(2)}
-      </div>
-    </div>
-  );
-})}
+                  // **FIXED: Use actual menu data instead of hardcoded fallbacks**
+                  const itemDetails = getItemDetails(item);
+                  const itemName = itemDetails.name;
+                  const itemPrice = itemDetails.price;
+                  const itemQuantity = item.quantity || 1;
+                  
+                  return (
+                    <div key={index} className="order-item">
+                      <div className="item-details">
+                        <div className="item-name">{itemQuantity}x {itemName}</div>
+                        <div className="item-price">RM {itemPrice.toFixed(2)} each</div>
+                      </div>
+                      <div className="item-total">
+                        RM {(itemPrice * itemQuantity).toFixed(2)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="order-total">
