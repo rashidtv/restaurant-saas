@@ -96,6 +96,29 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     setShowOrderModal(true);
   };
 
+  // Enhanced debug function
+  const debugOrderIssue = (order) => {
+    if (!order || !order.items) return;
+    
+    console.group('🐛 ORDER DATA DEBUG');
+    console.log('Order ID:', order._id || order.id);
+    console.log('Table:', order.table || order.tableId);
+    order.items.forEach((item, index) => {
+      const foundMenuItem = menuItems.find(m => 
+        m._id === item.menuItemId || m.id === item.menuItemId || m.price === item.price
+      );
+      console.log(`Item ${index}:`, {
+        storedName: item.name,
+        menuItemId: item.menuItemId,
+        price: item.price,
+        quantity: item.quantity,
+        foundInMenu: foundMenuItem ? foundMenuItem.name : 'NOT FOUND',
+        foundMenuItemId: foundMenuItem?._id || foundMenuItem?.id
+      });
+    });
+    console.groupEnd();
+  };
+
   const handleViewOrder = (table) => {
     const order = orders.find(o => 
       (o.id === table.orderId || o._id === table.orderId) && 
@@ -103,6 +126,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     );
     
     if (order) {
+      debugOrderIssue(order); // Debug current data
       console.log('TableManagement - Viewing order:', order);
       setSelectedOrder(order);
       setShowOrderDetails(true);
@@ -117,6 +141,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     setShowOrderDetails(false);
   };
 
+  // SAFE: Keep existing order creation logic, just enhance debugging
   const handleCreateOrder = async () => {
     const selectedItems = orderItems 
       ? orderItems.filter(item => item && item.quantity > 0)
@@ -129,6 +154,14 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
 
     console.log('📦 Creating order for table:', selectedTable?.number);
 
+    // Debug what we're about to send
+    console.log('🔍 Items to be ordered:', selectedItems.map(item => ({
+      id: item._id || item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity
+    })));
+
     const orderData = {
       tableId: selectedTable?.number,
       items: selectedItems.map(item => ({
@@ -136,6 +169,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
         quantity: item.quantity,
         price: item.price,
         specialInstructions: ''
+        // Note: Not adding 'name' field to avoid breaking existing API
       })),
       orderType: 'dine-in'
     };
@@ -191,67 +225,87 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     });
   };
 
-  const getItemName = (item) => {
-    console.log('TableManagement - Processing item:', item);
-    
-    // Check direct name first
-    if (item.name && item.name !== 'Unknown Item' && item.name !== 'Menu Item') {
-      return item.name;
-    }
-    
-    // Check menuItem name
-    if (item.menuItem && item.menuItem.name && item.menuItem.name !== 'Unknown Item') {
-      return item.menuItem.name;
-    }
-    
-    // If we have a price but no name, create a generic name
-    const price = item.price || (item.menuItem && item.menuItem.price);
-    if (price) {
-      // Try to find the actual menu item from our digital menu
-      const actualMenuItem = menuItems.find(menuItem => 
-        menuItem.price === price || menuItem._id === item.menuItemId || menuItem.id === item.menuItemId
-      );
-      
-      if (actualMenuItem && actualMenuItem.name) {
-        return actualMenuItem.name;
-      }
-      
-      // Last resort: generic name with price
-      return `Menu Item (RM ${price})`;
-    }
-    
-    // Final fallback
-    return 'Menu Item';
-  };
-
-  // Function to get item details from actual menu
+  // ENHANCED BUT SAFE: Improved item name resolution without breaking existing flow
   const getItemDetails = (item) => {
-    // If item already has name and price, use them
-    if (item.name && item.price) {
-      return { name: item.name, price: item.price };
-    }
+    console.log('🔍 Getting item details for:', item);
     
-    // Try to find in the actual menu
-    const menuItemId = item.menuItemId || item._id || item.id;
-    const actualMenuItem = menuItems.find(menuItem => 
-      menuItem._id === menuItemId || 
-      menuItem.id === menuItemId ||
-      menuItem.price === item.price
-    );
-    
-    if (actualMenuItem) {
+    // PRIORITY 1: Use the name that's already stored with the order item
+    if (item.name && item.name !== 'Unknown Item' && item.name !== 'Menu Item') {
+      console.log('✅ Using stored name:', item.name);
       return { 
-        name: actualMenuItem.name || 'Menu Item', 
-        price: actualMenuItem.price || 0 
+        name: item.name, 
+        price: item.price || 0 
       };
     }
     
-    // Final fallback
+    // PRIORITY 2: Try to find in current menu by exact ID match
+    const menuItemId = item.menuItemId || item._id || item.id;
+    if (menuItemId) {
+      const actualMenuItem = menuItems.find(menuItem => 
+        menuItem._id === menuItemId || menuItem.id === menuItemId
+      );
+      
+      if (actualMenuItem) {
+        console.log('✅ Found in menu by ID:', actualMenuItem.name);
+        return { 
+          name: actualMenuItem.name || 'Menu Item', 
+          price: actualMenuItem.price || item.price || 0 
+        };
+      }
+    }
+    
+    // PRIORITY 3: Try to find by price (existing fallback logic)
+    if (item.price) {
+      const priceMatchItems = menuItems.filter(menuItem => 
+        menuItem.price === item.price
+      );
+      
+      if (priceMatchItems.length > 0) {
+        // If multiple items have same price, use the first one
+        // This maintains existing behavior but we log it
+        console.log('⚠️ Found by price match:', priceMatchItems[0].name);
+        return { 
+          name: priceMatchItems[0].name, 
+          price: item.price 
+        };
+      }
+      
+      // If no match but we have price, create descriptive name
+      console.log('⚠️ No menu match, using price-based name');
+      return { 
+        name: `Menu Item (RM ${item.price})`, 
+        price: item.price 
+      };
+    }
+    
+    // FINAL FALLBACK: Maintain existing behavior
+    console.log('❌ No identifying information, using fallback');
     return { 
       name: item.name || 'Menu Item', 
       price: item.price || 0 
     };
   };
+
+  // Debug current orders on component mount
+  useEffect(() => {
+    if (orders.length > 0) {
+      console.log('📊 CURRENT ORDERS ANALYSIS:');
+      orders.forEach((order, index) => {
+        if (order.items && order.items.length > 0) {
+          console.log(`Order ${index} (${order._id || order.id}):`);
+          order.items.forEach((item, itemIndex) => {
+            const details = getItemDetails(item);
+            console.log(`  Item ${itemIndex}:`, {
+              finalName: details.name,
+              storedName: item.name,
+              menuItemId: item.menuItemId,
+              price: item.price
+            });
+          });
+        }
+      });
+    }
+  }, [orders]);
 
   return (
     <div className="table-management-modern">
