@@ -105,7 +105,7 @@
   font-weight: 500;
 }
 
-/* Modal Styles - Fixed Positioning */
+/* Modal Styles - FIXED: Position at top with better scrolling */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -114,12 +114,12 @@
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: flex-start; /* Changed from center to flex-start */
+  align-items: flex-start; /* Changed to top alignment */
   justify-content: center;
   z-index: 1000;
-  padding: 1rem;
+  padding: 2rem 1rem 1rem 1rem; /* More padding at top, less at bottom */
   animation: fadeIn 0.2s ease;
-  overflow-y: auto; /* Enable scrolling for the overlay */
+  overflow-y: auto;
 }
 
 @keyframes fadeIn {
@@ -134,17 +134,16 @@
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   max-width: 500px;
   width: 100%;
-  max-height: 85vh; /* Reduced from 90vh to ensure it's not too tall */
-  overflow: auto;
-  animation: slideUp 0.3s ease;
-  margin-top: 2rem; /* Added margin from top */
-  margin-bottom: 2rem; /* Added margin from bottom */
+  max-height: fit-content; /* Let content determine height */
+  overflow: visible; /* Remove scrolling from modal itself */
+  animation: slideDown 0.3s ease; /* Changed to slide down from top */
+  margin-top: 0; /* Start from top */
 }
 
-@keyframes slideUp {
+@keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(-20px);
   }
   to {
     opacity: 1;
@@ -159,6 +158,10 @@
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
 }
 
 .modal-title {
@@ -227,7 +230,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: 300px;
+  max-height: 50vh; /* Use viewport height for better control */
   overflow-y: auto;
   padding: 0.5rem;
   border: 1px solid #e2e8f0;
@@ -319,6 +322,10 @@
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid #e2e8f0;
+  position: sticky;
+  bottom: 0;
+  background: white;
+  z-index: 10;
 }
 
 /* Order Details */
@@ -418,7 +425,7 @@
   border-radius: 8px;
 }
 
-/* Mobile Responsive - Improved Modal Positioning */
+/* Mobile Responsive - IMPROVED Modal Positioning */
 @media (max-width: 768px) {
   .tables-grid {
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -444,11 +451,16 @@
     flex-direction: column;
   }
   
+  .modal-overlay {
+    padding: 1rem 0.5rem 0.5rem 0.5rem; /* Less padding on mobile */
+    align-items: flex-start;
+  }
+  
   .modal-content {
     padding: 1.5rem;
-    margin: 1rem;
-    max-height: 80vh; /* Slightly smaller on mobile */
-    margin-top: 1rem; /* Less margin on mobile */
+    margin: 0;
+    max-width: 100%;
+    border-radius: 12px 12px 0 0; /* Rounded top only on mobile */
   }
   
   .modal-title {
@@ -462,6 +474,7 @@
   
   .modal-actions {
     flex-direction: column;
+    position: relative; /* Remove sticky on mobile if needed */
   }
   
   .menu-item-row {
@@ -474,10 +487,8 @@
     align-self: flex-end;
   }
   
-  /* Improved mobile modal positioning */
-  .modal-overlay {
-    padding: 0.5rem;
-    align-items: flex-start;
+  .menu-items-grid {
+    max-height: 40vh; /* Smaller on mobile */
   }
 }
 
@@ -488,8 +499,6 @@
   
   .modal-content {
     padding: 1rem;
-    margin: 0.5rem;
-    max-height: 85vh; /* Allow more height on very small screens */
   }
   
   .order-form {
@@ -497,11 +506,15 @@
   }
   
   .page-title {
-    font-size: 1.75rem; /* Smaller title on mobile */
+    font-size: 1.75rem;
   }
   
   .page-subtitle {
-    font-size: 1rem; /* Smaller subtitle on mobile */
+    font-size: 1rem;
+  }
+  
+  .menu-items-grid {
+    max-height: 35vh; /* Even smaller on very small screens */
   }
 }
 
@@ -509,10 +522,9 @@
 @media (max-width: 360px) {
   .modal-content {
     padding: 0.75rem;
-    margin: 0.25rem;
   }
   
   .menu-items-grid {
-    max-height: 250px; /* Smaller menu grid on very small screens */
+    max-height: 30vh;
   }
 }
