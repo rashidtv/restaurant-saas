@@ -36,16 +36,12 @@ function App() {
   const [isCustomerView, setIsCustomerView] = useState(false);
   const [socket, setSocket] = useState(null);
 
-  // In App.jsx - check if payments are properly synchronized
-console.log('💰 Payments in Dashboard:', payments);
-console.log('💰 Orders in PaymentSystem:', orders.filter(o => o.paymentStatus === 'paid'));
-  // FIXED: Health check without cache-control headers
+  // Health check
   const healthCheck = async () => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
       
-      // REMOVED: cache-control headers that cause CORS issues
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/health', {
         signal: controller.signal
       });
@@ -109,25 +105,21 @@ console.log('💰 Orders in PaymentSystem:', orders.filter(o => o.paymentStatus 
           ));
         });
 
-      // In App.jsx - UPDATE the tableUpdated WebSocket handler
-socketInstance.on('tableUpdated', (updatedTable) => {
-  console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
-  
-  setTables(prev => prev.map(table => {
-    // Only update if it's the exact same table
-    if (table._id === updatedTable._id) {
-      // Only update if status actually changed
-      if (table.status !== updatedTable.status) {
-        console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
-        return updatedTable;
-      } else {
-        console.log('⚠️ Table status unchanged, skipping:', table.number);
-        return table;
-      }
-    }
-    return table;
-  }));
-});
+        socketInstance.on('tableUpdated', (updatedTable) => {
+          console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
+          setTables(prev => prev.map(table => {
+            if (table._id === updatedTable._id) {
+              if (table.status !== updatedTable.status) {
+                console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
+                return updatedTable;
+              } else {
+                console.log('⚠️ Table status unchanged, skipping:', table.number);
+                return table;
+              }
+            }
+            return table;
+          }));
+        });
 
         socketInstance.on('paymentProcessed', (payment) => {
           console.log('💰 Payment processed via WebSocket:', payment.orderId);
@@ -264,19 +256,17 @@ socketInstance.on('tableUpdated', (updatedTable) => {
     };
   }, [sidebarOpen, isMobile]);
 
-  // Load initial data - RESILIENT VERSION
+  // Load initial data
   useEffect(() => {
     const initializeData = async () => {
       try {
         setLoading(true);
         
-        // Attempt health check
         let isHealthy = await healthCheck();
 
         if (isHealthy) {
           setApiConnected(true);
           
-          // Load data
           try {
             const [menuData, tablesData, ordersData] = await Promise.all([
               fetchMenu().catch(() => []),
@@ -295,7 +285,6 @@ socketInstance.on('tableUpdated', (updatedTable) => {
           }
           
         } else {
-          // Use fallback data
           console.log('🔄 Using fallback data');
           const backendMenu = [
             { _id: '1', name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5 },
@@ -561,24 +550,24 @@ socketInstance.on('tableUpdated', (updatedTable) => {
   }
 
   // For menu route (customer-facing view)
- if (isMenuRoute) {
-  return (
-    <div className="app-container">
-      <main className="main-content">
-        <DigitalMenu 
-          cart={cart} 
-          setCart={setCart}
-          onCreateOrder={handleCustomerOrder}
-          isMobile={isMobile}
-          menu={menu}
-          apiConnected={apiConnected}
-          currentTable={currentTable}
-          isCustomerView={true}
-        />
-      </main>
-    </div>
-  );
-}
+  if (isMenuRoute) {
+    return (
+      <div className="app-container">
+        <main className="main-content">
+          <DigitalMenu 
+            cart={cart} 
+            setCart={setCart}
+            onCreateOrder={handleCustomerOrder}
+            isMobile={isMobile}
+            menu={menu}
+            apiConnected={apiConnected}
+            currentTable={currentTable}
+            isCustomerView={true}
+          />
+        </main>
+      </div>
+    );
+  }
 
   // Staff/admin view
   return (
@@ -634,24 +623,24 @@ socketInstance.on('tableUpdated', (updatedTable) => {
               getTimeAgo={getTimeAgo}
               isMobile={isMobile}
               menu={menu}
-              apiConnected={apiConnected} // FIXED: Pass apiConnected prop
+              apiConnected={apiConnected}
             />
           )}
           {currentPage === 'qr-generator' && (
             <QRGenerator tables={tables} isMobile={isMobile} />
           )}
           {currentPage === 'menu' && (
-  <DigitalMenu 
-    cart={cart} 
-    setCart={setCart}
-    onCreateOrder={isCustomerView ? handleCustomerOrder : createNewOrder}
-    isMobile={isMobile}
-    menu={menu}
-    apiConnected={apiConnected}
-    currentTable={currentTable}
-    isCustomerView={isCustomerView}
-  />
-)}
+            <DigitalMenu 
+              cart={cart} 
+              setCart={setCart}
+              onCreateOrder={createNewOrder}
+              isMobile={isMobile}
+              menu={menu}
+              apiConnected={apiConnected}
+              currentTable={null}
+              isCustomerView={false}
+            />
+          )}
           {currentPage === 'kitchen' && (
             <KitchenDisplay 
               orders={orders} 

@@ -1,11 +1,34 @@
+/* Modern Global Styles - Safe Version */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --warning-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  --bg-card: rgba(255, 255, 255, 0.95);
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: #1f2937;
+  line-height: 1.6;
+}
+
+/* App Container */
 .app-container {
   min-height: 100vh;
-  background-color: #f8fafc;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-body {
+  flex: 1;
   display: flex;
   min-height: calc(100vh - 80px);
 }
@@ -13,84 +36,74 @@
 .main-content {
   flex: 1;
   padding: 2rem;
-  background-color: #f8fafc;
-  overflow: auto;
-  width: 100%;
-  box-sizing: border-box;
+  overflow-y: auto;
+  background: rgba(249, 250, 251, 0.9);
 }
 
-.sidebar-overlay {
-  display: none;
-  position: fixed;
-  top: 80px;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 998;
-}
-
-/* Mobile Responsive */
-@media (max-width: 768px) {
-  .main-content {
-    padding: 1rem;
-    width: 100vw; /* Ensure full viewport width */
-    overflow-x: hidden; /* Prevent horizontal scroll */
-  }
-  
-  .sidebar-overlay {
-    display: block;
-  }
-  
-  /* Prevent horizontal overflow */
-  body {
-    overflow-x: hidden;
-    max-width: 100vw;
-  }
-}
+/* Loading Spinner */
 .loading-spinner {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  background: #f8fafc;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: #6b7280;
 }
 
-.spinner {
+.loading-spinner .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid #e2e8f0;
-  border-left: 4px solid #3b82f6;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #667eea;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
+}
+
+.loading-subtitle {
+  font-size: 0.9rem;
+  color: #9ca3af;
+  margin-top: 0.5rem;
 }
 
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-/* Global fixes for horizontal overflow */
-.app-container {
-  max-width: 100%;
-  overflow-x: hidden;
+
+/* API Warning */
+.api-warning {
+  background: linear-gradient(135deg, #fef3c7, #fef7cd);
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.app-body {
-  max-width: 100%;
-  overflow-x: hidden;
+/* Sidebar Overlay */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 999;
 }
 
-.main-content {
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
-
-/* Ensure page components don't overflow */
-.page {
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
+/* Responsive */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1rem;
+  }
+  
+  body.sidebar-open {
+    overflow: hidden;
+  }
 }
