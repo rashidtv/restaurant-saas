@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import './QRGenerator.css';
 
-const QRGenerator = ({ tables, isMobile }) => {
+const QRGenerator = ({ tables, isMobile, apiConnected }) => {
   const [selectedTable, setSelectedTable] = useState('');
   const [generatedUrl, setGeneratedUrl] = useState('');
   const qrRef = useRef();
@@ -50,23 +50,29 @@ const QRGenerator = ({ tables, isMobile }) => {
   const allTables = tables;
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h2 className="page-title">QR Code Generator</h2>
-        <p className="page-subtitle">Generate QR codes for table menus</p>
+    <div className="qr-generator-modern">
+      {/* Modern Page Header */}
+      <div className="page-header-modern">
+        <div>
+          <h2 className="page-title-modern">QR Code Generator</h2>
+          <p className="page-subtitle-modern">Generate QR codes for table menus</p>
+          {!apiConnected && (
+            <div className="offline-badge-modern">⚠️ Offline Mode - Data may be limited</div>
+          )}
+        </div>
       </div>
 
-      <div className="qr-generator-container">
-        <div className="qr-controls">
-          <div className="table-selection">
-            <label htmlFor="table-select" className="selection-label">
+      <div className="qr-generator-container-modern">
+        <div className="qr-controls-modern">
+          <div className="table-selection-modern">
+            <label htmlFor="table-select" className="selection-label-modern">
               Select Table:
             </label>
             <select
               id="table-select"
               value={selectedTable}
               onChange={(e) => handleTableSelect(e.target.value)}
-              className="table-select"
+              className="table-select-modern"
             >
               <option value="">Choose a table</option>
               {allTables.map(table => (
@@ -78,44 +84,43 @@ const QRGenerator = ({ tables, isMobile }) => {
           </div>
 
           {selectedTable && (
-            <div className="qr-preview">
-              <div className="qr-code-container">
-                <div className="qr-code-wrapper">
+            <div className="qr-preview-modern">
+              <div className="qr-code-container-modern">
+                <div className="qr-code-wrapper-modern">
                   <QRCodeSVG
                     ref={qrRef}
                     value={generatedUrl}
                     size={200}
                     level="H"
                     includeMargin={true}
-                    className="qr-code"
+                    className="qr-code-modern"
                   />
-                  <div className="qr-table-label">Table {selectedTable}</div>
+                  <div className="qr-table-label-modern">Table {selectedTable}</div>
                 </div>
                 
-                <div className="qr-info">
-                  <div className="qr-url">
+                <div className="qr-info-modern">
+                  <div className="qr-url-modern">
                     <strong>URL:</strong> 
-                    <span className="url-text">{generatedUrl}</span>
+                    <span className="url-text-modern">{generatedUrl}</span>
                   </div>
-                  <div className="qr-instructions">
+                  <div className="qr-instructions-modern">
                     📱 Scan to view digital menu for Table {selectedTable}
                   </div>
                   
                   {/* TEST BUTTON - Remove in production */}
                   <button 
                     onClick={() => window.open(generatedUrl, '_blank')}
-                    className="test-btn"
-                    style={{marginTop: '10px', padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px'}}
+                    className="test-btn-modern"
                   >
                     🔗 Test This Link
                   </button>
                 </div>
               </div>
 
-              <div className="qr-actions">
+              <div className="qr-actions-modern">
                 <button 
                   onClick={downloadQR}
-                  className="download-btn"
+                  className="download-btn-modern"
                 >
                   📥 Download QR Code
                 </button>
@@ -125,7 +130,7 @@ const QRGenerator = ({ tables, isMobile }) => {
                     navigator.clipboard.writeText(generatedUrl);
                     alert('URL copied to clipboard!');
                   }}
-                  className="copy-btn"
+                  className="copy-btn-modern"
                 >
                   📋 Copy URL
                 </button>
@@ -134,30 +139,30 @@ const QRGenerator = ({ tables, isMobile }) => {
           )}
         </div>
 
-        <div className="qr-instructions-section">
-          <h3>How to Use QR Codes:</h3>
-          <div className="instructions-grid">
-            <div className="instruction-step">
-              <div className="step-number">1</div>
-              <div className="step-content">
+        <div className="qr-instructions-section-modern">
+          <h3 className="instructions-title-modern">How to Use QR Codes:</h3>
+          <div className="instructions-grid-modern">
+            <div className="instruction-step-modern">
+              <div className="step-number-modern">1</div>
+              <div className="step-content-modern">
                 <strong>Select a table</strong> and download the QR code
               </div>
             </div>
-            <div className="instruction-step">
-              <div className="step-number">2</div>
-              <div className="step-content">
+            <div className="instruction-step-modern">
+              <div className="step-number-modern">2</div>
+              <div className="step-content-modern">
                 <strong>Print the QR code</strong> and place it on the table
               </div>
             </div>
-            <div className="instruction-step">
-              <div className="step-number">3</div>
-              <div className="step-content">
+            <div className="instruction-step-modern">
+              <div className="step-number-modern">3</div>
+              <div className="step-content-modern">
                 <strong>Customers scan</strong> with their phone camera
               </div>
             </div>
-            <div className="instruction-step">
-              <div className="step-number">4</div>
-              <div className="step-content">
+            <div className="instruction-step-modern">
+              <div className="step-number-modern">4</div>
+              <div className="step-content-modern">
                 <strong>They'll be directed to the digital menu</strong> for that specific table
               </div>
             </div>
