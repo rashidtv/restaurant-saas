@@ -266,30 +266,37 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   };
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h2 className="page-title">Table Management</h2>
-        <p className="page-subtitle">Manage restaurant tables, cleaning schedules, and status</p>
+    <div className="page-modern">
+      <div className="page-header-modern">
+        <h2 className="page-title-modern">Table Management</h2>
+        <p className="page-subtitle-modern">Manage restaurant tables, cleaning schedules, and status</p>
       </div>
 
-      <div className="tables-grid">
+      <div className="tables-grid-modern">
         {tables.map(table => {
           const cleaningStatus = getCleaningStatus(table.lastCleaned);
           const tableOrder = getOrderForTable(table);
           
           return (
-            <div key={table._id || table.id} className="table-card">
-              <div className="table-header">
-                <h3 className="table-number">{table.number}</h3>
-                <div className="table-status-badges">
-                  <span className={`table-status status-${table.status}`}>
+            <div key={table._id || table.id} className="table-card-modern">
+              <div className="table-header-modern">
+                <div>
+                  <h3 className="table-number-modern">{table.number}</h3>
+                  <div className="table-capacity-modern">
+                    <span>👥</span>
+                    Capacity: {table.capacity}
+                  </div>
+                </div>
+                <div className="table-status-badges-modern">
+                  <span className={`table-status-modern status-${table.status}`}>
                     {table.status.replace('_', ' ')}
                   </span>
                   <span 
-                    className="cleaning-status"
+                    className="cleaning-status-modern"
                     style={{
                       backgroundColor: `${cleaningStatus.color}20`,
-                      color: cleaningStatus.color
+                      color: cleaningStatus.color,
+                      border: `1px solid ${cleaningStatus.color}30`
                     }}
                   >
                     {cleaningStatus.text}
@@ -297,29 +304,25 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 </div>
               </div>
               
-              <div className="table-info">
-                <div className="table-capacity">
-                  <span>👥</span>
-                  Capacity: {table.capacity}
-                </div>
-                <div className="cleaning-time">
+              <div className="table-info-modern">
+                <div className="cleaning-time-modern">
                   <span>🧹</span>
                   Last cleaned: {getTimeAgo(table.lastCleaned)}
                 </div>
                 {tableOrder && (
-                  <div className="table-order">
+                  <div className="table-order-modern">
                     <strong>Order: {tableOrder.orderNumber}</strong> • {tableOrder.status}
                     {tableOrder.total && (
-                      <div className="order-total-small">Total: RM {tableOrder.total.toFixed(2)}</div>
+                      <div className="order-total-small-modern">Total: RM {tableOrder.total.toFixed(2)}</div>
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="table-actions">
+              <div className="table-actions-modern">
                 {table.status === 'available' && (
                   <button 
-                    className="btn btn-primary"
+                    className="action-btn-modern btn-primary"
                     onClick={() => handleStartOrder(table)}
                   >
                     Start Order
@@ -328,13 +331,13 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 {table.status === 'occupied' && (
                   <>
                     <button 
-                      className="btn btn-warning"
+                      className="action-btn-modern btn-warning"
                       onClick={() => handleViewOrder(table)}
                     >
                       View Order
                     </button>
                     <button 
-                      className="btn btn-success"
+                      className="action-btn-modern btn-success"
                       onClick={() => {
                         const order = getOrderForTable(table);
                         if (order) {
@@ -348,7 +351,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 )}
                 {table.status === 'needs_cleaning' && (
                   <button 
-                    className="btn btn-success"
+                    className="action-btn-modern btn-success"
                     onClick={() => updateTableStatus(table._id || table.id, 'available')}
                   >
                     Mark Clean
@@ -356,7 +359,7 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 )}
                 {(table.status === 'available' || table.status === 'needs_cleaning') && (
                   <button 
-                    className="btn btn-warning"
+                    className="action-btn-modern btn-warning"
                     onClick={() => {
                       // Force immediate cleaning - customer walked away
                       updateTableStatus(table._id || table.id, 'available');
@@ -373,45 +376,45 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
 
       {/* Order Creation Modal */}
       {showOrderModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2 className="modal-title">Start Order - Table {selectedTable?.number}</h2>
+        <div className="modal-overlay-modern">
+          <div className="modal-content-modern">
+            <div className="modal-header-modern">
+              <h2 className="modal-title-modern">Start Order - Table {selectedTable?.number}</h2>
               <button 
-                className="close-button"
+                className="close-button-modern"
                 onClick={() => setShowOrderModal(false)}
               >
                 ×
               </button>
             </div>
             
-            <div className="order-form">
-              <div className="form-group">
-                <label className="form-label">Select Menu Items ({menuItems.length} available)</label>
+            <div className="order-form-modern">
+              <div className="form-group-modern">
+                <label className="form-label-modern">Select Menu Items ({menuItems.length} available)</label>
                 
-                <div className="menu-items-grid">
+                <div className="menu-items-grid-modern">
                   {orderItems.map((item, index) => (
-                    <div key={item._id || item.id || index} className="menu-item-row">
-                      <div className="menu-item-details">
-                        <div className="menu-item-name">
+                    <div key={item._id || item.id || index} className="menu-item-row-modern">
+                      <div className="menu-item-details-modern">
+                        <div className="menu-item-name-modern">
                           {item.name || 'Unnamed Item'}
                         </div>
-                        <div className="menu-item-price">
+                        <div className="menu-item-price-modern">
                           RM {(item.price || 0).toFixed(2)}
-                          {item.category && <span style={{fontSize: '0.75rem', color: '#64748b', marginLeft: '0.5rem'}}>({item.category})</span>}
+                          {item.category && <span className="menu-item-category-modern">({item.category})</span>}
                         </div>
                       </div>
-                      <div className="quantity-controls">
+                      <div className="quantity-controls-modern">
                         <button 
-                          className="quantity-btn"
+                          className="quantity-btn-modern"
                           onClick={() => updateOrderItemQuantity(item._id || item.id, -1)}
                           disabled={item.quantity === 0}
                         >
                           -
                         </button>
-                        <span className="quantity-display">{item.quantity}</span>
+                        <span className="quantity-display-modern">{item.quantity}</span>
                         <button 
-                          className="quantity-btn"
+                          className="quantity-btn-modern"
                           onClick={() => updateOrderItemQuantity(item._id || item.id, 1)}
                         >
                           +
@@ -422,15 +425,15 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 </div>
               </div>
 
-              <div className="modal-actions">
+              <div className="modal-actions-modern">
                 <button 
-                  className="btn btn-secondary"
+                  className="action-btn-modern btn-secondary"
                   onClick={() => setShowOrderModal(false)}
                 >
                   Cancel
                 </button>
                 <button 
-                  className="btn btn-primary"
+                  className="action-btn-modern btn-primary"
                   onClick={handleCreateOrder}
                 >
                   Create Order (RM {(orderItems.filter(item => item.quantity > 0).reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0)).toFixed(2)})
@@ -443,40 +446,40 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
 
       {/* Order Details Modal */}
       {showOrderDetails && selectedOrder && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2 className="modal-title">Order Details - {selectedOrder.id || selectedOrder._id}</h2>
+        <div className="modal-overlay-modern">
+          <div className="modal-content-modern">
+            <div className="modal-header-modern">
+              <h2 className="modal-title-modern">Order Details - {selectedOrder.id || selectedOrder._id}</h2>
               <button 
-                className="close-button"
+                className="close-button-modern"
                 onClick={() => setShowOrderDetails(false)}
               >
                 ×
               </button>
             </div>
             
-            <div className="order-details">
-              <div className="order-info">
-                <div className="info-item">
-                  <span className="info-label">Table</span>
-                  <span className="info-value">{selectedOrder.table || selectedOrder.tableId}</span>
+            <div className="order-details-modern">
+              <div className="order-info-modern">
+                <div className="info-item-modern">
+                  <span className="info-label-modern">Table</span>
+                  <span className="info-value-modern">{selectedOrder.table || selectedOrder.tableId}</span>
                 </div>
-                <div className="info-item">
-                  <span className="info-label">Status</span>
-                  <span className="info-value">{selectedOrder.status}</span>
+                <div className="info-item-modern">
+                  <span className="info-label-modern">Status</span>
+                  <span className="info-value-modern">{selectedOrder.status}</span>
                 </div>
-                <div className="info-item">
-                  <span className="info-label">Order Type</span>
-                  <span className="info-value">{selectedOrder.orderType || selectedOrder.type || 'dine-in'}</span>
+                <div className="info-item-modern">
+                  <span className="info-label-modern">Order Type</span>
+                  <span className="info-value-modern">{selectedOrder.orderType || selectedOrder.type || 'dine-in'}</span>
                 </div>
-                <div className="info-item">
-                  <span className="info-label">Time</span>
-                  <span className="info-value">{selectedOrder.time || 'Just now'}</span>
+                <div className="info-item-modern">
+                  <span className="info-label-modern">Time</span>
+                  <span className="info-value-modern">{selectedOrder.time || 'Just now'}</span>
                 </div>
               </div>
 
-              <div className="order-items">
-                <h3 className="form-label">Order Items</h3>
+              <div className="order-items-modern">
+                <h3 className="form-label-modern">Order Items</h3>
                 {(selectedOrder.items || []).map((item, index) => {
                   // **FIXED: Use actual menu data instead of hardcoded fallbacks**
                   const itemDetails = getItemDetails(item);
@@ -485,12 +488,12 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                   const itemQuantity = item.quantity || 1;
                   
                   return (
-                    <div key={index} className="order-item">
-                      <div className="item-details">
-                        <div className="item-name">{itemQuantity}x {itemName}</div>
-                        <div className="item-price">RM {itemPrice.toFixed(2)} each</div>
+                    <div key={index} className="order-item-modern">
+                      <div className="item-details-modern">
+                        <div className="item-name-modern">{itemQuantity}x {itemName}</div>
+                        <div className="item-price-modern">RM {itemPrice.toFixed(2)} each</div>
                       </div>
-                      <div className="item-total">
+                      <div className="item-total-modern">
                         RM {(itemPrice * itemQuantity).toFixed(2)}
                       </div>
                     </div>
@@ -498,21 +501,21 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
                 })}
               </div>
 
-              <div className="order-total">
+              <div className="order-total-modern">
                 <span>Total Amount:</span>
                 <span>RM {(selectedOrder.total || 0).toFixed(2)}</span>
               </div>
 
-              <div className="modal-actions">
+              <div className="modal-actions-modern">
                 <button 
-                  className="btn btn-secondary"
+                  className="action-btn-modern btn-secondary"
                   onClick={() => setShowOrderDetails(false)}
                 >
                   Close
                 </button>
                 {selectedOrder.status !== 'completed' && (
                   <button 
-                    className="btn btn-primary"
+                    className="action-btn-modern btn-primary"
                     onClick={() => handleCompleteOrder(selectedOrder)}
                   >
                     Complete Order
