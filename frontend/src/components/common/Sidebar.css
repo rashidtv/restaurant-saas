@@ -255,11 +255,11 @@
   text-overflow: ellipsis;
 }
 
-/* Desktop Styles */
+/* Desktop Styles - FIXED: Keep position relative for proper layout */
 @media (min-width: 769px) {
   .sidebar-modern {
     transform: translateX(0);
-    position: fixed;
+    position: relative; /* Keep as relative for proper flex layout */
     height: 100vh;
   }
   
@@ -340,20 +340,4 @@
   body.sidebar-open {
     overflow: hidden;
   }
-}
-
-.sidebar-modern {
-  width: 280px;
-  background: #1e293b;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Ensure full viewport height */
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 1000;
-  transform: translateX(-100%);
-  transition: transform 0.3s ease;
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
 }
