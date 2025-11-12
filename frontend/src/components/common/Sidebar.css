@@ -220,7 +220,8 @@
 .user-avatar {
   width: 36px;
   height: 36px;
-  background: #334155;
+  background: #334155; /* Changed to solid dark color - no gradient */
+  color: #cbd5e1; /* Lighter text color for better contrast */
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -228,6 +229,8 @@
   font-size: 1rem;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   flex-shrink: 0;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .user-info {
