@@ -9,6 +9,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [showPayment, setShowPayment] = useState(false);
   const [tableNumber, setTableNumber] = useState(currentTable || '');
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   
   // Table detection
   useEffect(() => {
@@ -351,6 +352,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     } else {
       setCart([...cart, cartItem]);
     }
+
+    // Auto-open cart on mobile when adding items
+    if (isMobile) {
+      setCartOpen(true);
+    }
   };
 
   const removeFromCart = (id) => {
@@ -370,6 +376,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const sst = subtotal * 0.08;
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Toggle cart for mobile
+  const toggleCart = () => {
+    setCartOpen(!cartOpen);
+  };
+
+  // Close cart when proceeding to payment
+  const handleProceedToPayment = () => {
+    if (cart.length === 0) return;
+    setShowPayment(true);
+    setCartOpen(false);
+  };
 
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
@@ -402,6 +420,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       console.log('✅ Order placed successfully:', result);
       
       setCart([]);
+      setCartOpen(false);
       setOrderSuccess(true);
       setTimeout(() => setOrderSuccess(false), 5000);
       
@@ -411,11 +430,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       console.error('❌ Order failed:', error);
       alert('Failed to place order: ' + error.message);
     }
-  };
-
-  const handleProceedToPayment = () => {
-    if (cart.length === 0) return;
-    setShowPayment(true);
   };
 
   const truncateText = (text, maxLength = 20) => {
@@ -545,7 +559,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
 
           {/* Modern Cart Sidebar */}
-          <div className="cart-sidebar-modern">
+          <div className={`cart-sidebar-modern ${cartOpen ? 'cart-open' : ''}`}>
             <div className="cart-header-modern">
               <div className="cart-title-section-modern">
                 <h3 className="cart-title-modern">Your Order</h3>
@@ -633,6 +647,28 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             )}
           </div>
         </div>
+      )}
+
+      {/* Mobile Cart Toggle Button */}
+      {isMobile && (
+        <button 
+          className="cart-toggle-btn-modern"
+          onClick={toggleCart}
+        >
+          🛒
+          {itemCount > 0 && (
+            <span className="cart-badge-modern" style={{
+              position: 'absolute',
+              top: '-5px',
+              right: '-5px',
+              fontSize: '0.7rem',
+              minWidth: '20px',
+              height: '20px'
+            }}>
+              {itemCount}
+            </span>
+          )}
+        </button>
       )}
     </div>
   );
