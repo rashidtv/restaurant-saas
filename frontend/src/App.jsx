@@ -561,24 +561,24 @@ socketInstance.on('tableUpdated', (updatedTable) => {
   }
 
   // For menu route (customer-facing view)
-  if (isMenuRoute) {
-    return (
-      <div className="app-container">
-        <main className="main-content">
-          <DigitalMenu 
-            cart={cart} 
-            setCart={setCart}
-            onCreateOrder={handleCustomerOrder}
-            isMobile={isMobile}
-            menu={menu}
-            apiConnected={apiConnected}
-            currentTable={currentTable}
-            isCustomerView={true}
-          />
-        </main>
-      </div>
-    );
-  }
+ if (isMenuRoute) {
+  return (
+    <div className="app-container">
+      <main className="main-content">
+        <DigitalMenu 
+          cart={cart} 
+          setCart={setCart}
+          onCreateOrder={handleCustomerOrder}
+          isMobile={isMobile}
+          menu={menu}
+          apiConnected={apiConnected}
+          currentTable={currentTable}
+          isCustomerView={true}
+        />
+      </main>
+    </div>
+  );
+}
 
   // Staff/admin view
   return (
@@ -641,17 +641,17 @@ socketInstance.on('tableUpdated', (updatedTable) => {
             <QRGenerator tables={tables} isMobile={isMobile} />
           )}
           {currentPage === 'menu' && (
-            <DigitalMenu 
-              cart={cart} 
-              setCart={setCart}
-              onCreateOrder={createNewOrder}
-              isMobile={isMobile}
-              menu={menu}
-              apiConnected={apiConnected}
-              currentTable={null}
-              isCustomerView={false}
-            />
-          )}
+  <DigitalMenu 
+    cart={cart} 
+    setCart={setCart}
+    onCreateOrder={isCustomerView ? handleCustomerOrder : createNewOrder}
+    isMobile={isMobile}
+    menu={menu}
+    apiConnected={apiConnected}
+    currentTable={currentTable}
+    isCustomerView={isCustomerView}
+  />
+)}
           {currentPage === 'kitchen' && (
             <KitchenDisplay 
               orders={orders} 
