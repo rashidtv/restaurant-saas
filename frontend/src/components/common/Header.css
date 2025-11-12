@@ -30,13 +30,13 @@
   display: none;
   flex-direction: column;
   justify-content: space-between;
-  width: 32px;
-  height: 24px;
+  width: 36px; /* Increased size */
+  height: 28px; /* Increased size */
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 8px;
+  padding: 0.75rem; /* More padding for easier tapping */
+  border-radius: 10px;
   transition: all 0.3s ease;
 }
 
@@ -47,9 +47,9 @@
 
 .menu-bar-modern {
   width: 100%;
-  height: 3px;
+  height: 4px; /* Thicker bars */
   background: linear-gradient(135deg, #667eea, #764ba2);
-  border-radius: 2px;
+  border-radius: 3px;
   transition: all 0.3s ease;
   transform-origin: center;
 }
@@ -59,7 +59,7 @@
 }
 
 .mobile-menu-btn-modern.active .menu-bar-modern:nth-child(1) {
-  transform: rotate(45deg) translate(6px, 6px);
+  transform: rotate(45deg) translate(8px, 8px); /* Adjusted for larger size */
 }
 
 .mobile-menu-btn-modern.active .menu-bar-modern:nth-child(2) {
@@ -67,7 +67,7 @@
 }
 
 .mobile-menu-btn-modern.active .menu-bar-modern:nth-child(3) {
-  transform: rotate(-45deg) translate(6px, -6px);
+  transform: rotate(-45deg) translate(8px, -8px); /* Adjusted for larger size */
 }
 
 .logo-modern {
@@ -118,84 +118,6 @@
   display: flex;
   align-items: center;
   gap: 1.5rem;
-}
-
-/* Notification Bell */
-.notification-bell-modern {
-  position: relative;
-  cursor: pointer;
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
-}
-
-.notification-bell-modern:hover {
-  background: rgba(102, 126, 234, 0.1);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15);
-}
-
-.bell-icon-modern {
-  font-size: 1.5rem;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-  transition: transform 0.3s ease;
-}
-
-.notification-bell-modern:hover .bell-icon-modern {
-  transform: scale(1.1) rotate(15deg);
-}
-
-.notification-badge-modern {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 0.7rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
-  border: 2px solid white;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-/* Currency Display */
-.currency-display-modern {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
-  padding: 0.75rem 1.25rem;
-  border-radius: 16px;
-  font-weight: 700;
-  color: #374151;
-  border: 1px solid rgba(102, 126, 234, 0.2);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-}
-
-.currency-display-modern:hover {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
-}
-
-.currency-icon-modern {
-  font-size: 1.25rem;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
 /* User Profile */
@@ -313,6 +235,13 @@
   
   .mobile-menu-btn-modern {
     display: flex;
+    width: 40px; /* Even larger on mobile */
+    height: 32px;
+    padding: 0.85rem; /* More padding for mobile tapping */
+  }
+  
+  .menu-bar-modern {
+    height: 4px; /* Consistent thickness */
   }
   
   .logo-icon-modern {
@@ -328,33 +257,7 @@
   }
   
   .header-actions-modern {
-    gap: 0.75rem;
-  }
-  
-  .notification-bell-modern {
-    padding: 0.6rem;
-  }
-  
-  .bell-icon-modern {
-    font-size: 1.25rem;
-  }
-  
-  .notification-badge-modern {
-    width: 18px;
-    height: 18px;
-    font-size: 0.65rem;
-    top: 6px;
-    right: 6px;
-  }
-  
-  .currency-display-modern {
-    padding: 0.6rem 1rem;
-    font-size: 0.875rem;
-    gap: 0.5rem;
-  }
-  
-  .currency-icon-modern {
-    font-size: 1.1rem;
+    gap: 1rem;
   }
   
   .user-profile-modern {
@@ -398,10 +301,12 @@
   }
   
   .header-actions-modern {
-    gap: 0.5rem;
+    gap: 0.75rem;
   }
   
-  .currency-display-modern {
-    display: none;
+  .mobile-menu-btn-modern {
+    width: 38px;
+    height: 30px;
+    padding: 0.8rem;
   }
 }

@@ -1,9 +1,7 @@
 import React from 'react';
 import './Header.css';
 
-const Header = ({ notifications, isMobile, toggleSidebar, apiConnected }) => {
-  const unreadCount = notifications.filter(n => !n.read).length;
-
+const Header = ({ isMobile, toggleSidebar, apiConnected }) => {
   return (
     <header className="header-modern">
       <div className="header-content-modern">
@@ -30,31 +28,15 @@ const Header = ({ notifications, isMobile, toggleSidebar, apiConnected }) => {
           </div>
         </div>
         
-        {/* Header Actions */}
+        {/* Header Actions - Simplified */}
         <div className="header-actions-modern">
-          {/* Connection Status */}
+          {/* Connection Status Only */}
           <div className={`connection-status-modern ${apiConnected ? 'connected' : 'disconnected'}`}>
             <div className="status-dot-modern"></div>
             <span>{apiConnected ? 'Live' : 'Offline'}</span>
           </div>
           
-          {/* Notification Bell */}
-          <div className="notification-bell-modern">
-            <span className="bell-icon-modern">🔔</span>
-            {unreadCount > 0 && (
-              <span className="notification-badge-modern">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </div>
-          
-          {/* Currency Display */}
-          <div className="currency-display-modern">
-            <span className="currency-icon-modern">💵</span>
-            <span>MYR</span>
-          </div>
-          
-          {/* User Profile */}
+          {/* User Profile Only */}
           <div className="user-profile-modern">
             <div className="user-avatar-modern">RM</div>
             {!isMobile && (
