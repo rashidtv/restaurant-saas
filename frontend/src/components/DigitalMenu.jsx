@@ -36,6 +36,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
       if (detectedTable) {
         setTableNumber(detectedTable);
+        setSelectedTable(detectedTable);
         console.log('🎯 Table number set to:', detectedTable);
       } else {
         console.log('❌ No table number found in URL');
@@ -63,6 +64,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     if (tableFromUrl) {
       console.log('DigitalMenu - Table from URL params:', tableFromUrl);
       setSelectedTable(tableFromUrl);
+      setTableNumber(tableFromUrl);
     }
   }, []);
 
@@ -71,43 +73,52 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     console.log('DigitalMenu - Menu data received:', menu);
   }, [menu]);
 
-  // Modern Menu Item Card Component
-  const MenuItemCard = ({ item, onAddToCart, isMobile }) => (
-    <div className="menu-item-card-modern">
-      <div className="menu-item-image-modern">
-        <span className="item-emoji">{item.image || '🍽️'}</span>
-      </div>
-      <div className="menu-item-content">
-        <div className="menu-item-header-modern">
-          <h3 className="menu-item-name-modern">{item.name}</h3>
-          <div className="menu-item-price-modern">RM {item.price.toFixed(2)}</div>
+  // FIXED: Modern Menu Item Card Component with proper data handling
+  const MenuItemCard = ({ item, onAddToCart, isMobile }) => {
+    // Ensure we have the actual item data - FIXED DATA MAPPING
+    const itemName = item.name || 'Unknown Item';
+    const itemPrice = item.price || 0;
+    const itemDescription = item.description || 'Delicious menu item';
+    const prepTime = item.prepTime || item.preparationTime || 15;
+    const itemCategory = item.category || 'uncategorized';
+    
+    return (
+      <div className="menu-item-card-modern">
+        <div className="menu-item-image-modern">
+          <span className="item-emoji-modern">{item.image || '🍽️'}</span>
         </div>
-        <p className="menu-item-description-modern">
-          {isMobile ? `${item.description?.substring(0, 60)}...` : item.description}
-        </p>
-        <div className="menu-item-tags-modern">
-          <span className="tag-prep-time">⏱️ {item.prepTime || 15}m</span>
-          {item.spicy && item.spicy !== "Mild" && (
-            <span className={`tag-spicy tag-${item.spicy?.toLowerCase()}`}>
-              🌶️ {item.spicy}
-            </span>
-          )}
-          {item.popular && (
-            <span className="tag-popular">
-              ⭐ Popular
-            </span>
-          )}
+        <div className="menu-item-content-modern">
+          <div className="menu-item-header-modern">
+            <h3 className="menu-item-name-modern">{itemName}</h3>
+            <div className="menu-item-price-modern">RM {itemPrice.toFixed(2)}</div>
+          </div>
+          <p className="menu-item-desc-modern">
+            {isMobile ? `${itemDescription.substring(0, 60)}...` : itemDescription}
+          </p>
+          <div className="menu-item-tags-modern">
+            <span className="tag-modern tag-prep-modern">⏱️ {prepTime}m</span>
+            {item.spicy && item.spicy !== "Mild" && (
+              <span className="tag-modern tag-spicy-modern">
+                🌶️ {item.spicy}
+              </span>
+            )}
+            {item.popular && (
+              <span className="tag-modern tag-popular-modern">
+                ⭐ Popular
+              </span>
+            )}
+          </div>
+          <button 
+            className="add-to-cart-btn-modern"
+            onClick={() => onAddToCart(item)}
+          >
+            <span className="btn-icon-modern">+</span>
+            Add to Cart
+          </button>
         </div>
-        <button 
-          className="add-to-cart-btn-modern"
-          onClick={() => onAddToCart(item)}
-        >
-          <span className="btn-icon">+</span>
-          Add to Cart
-        </button>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Modern Payment Page Component
   const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
@@ -134,7 +145,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <p className="success-message-modern">
               Thank you for your payment. Your order is being prepared.
             </p>
-            <div className="success-animation"></div>
             <button className="continue-btn-modern" onClick={onPaymentSuccess}>
               Continue Shopping
             </button>
@@ -167,6 +177,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               
               <div className="items-list-modern">
                 {orderDetails.items.map((item, index) => {
+                  // FIXED: Use actual item names from cart
                   const itemName = item.name || 'Unknown Item';
                   const displayName = isMobile ? truncateText(itemName, 15) : itemName;
                   const itemPrice = item.price || 0;
@@ -312,9 +323,25 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
   const filteredItems = getFilteredItems();
 
+  // FIXED: addToCart function - preserve item names properly
   const addToCart = (item) => {
     console.log('DigitalMenu - Adding to cart:', item);
+    
+    // Create cart item with ALL necessary data - FIXED DATA MAPPING
+    const cartItem = {
+      id: item._id || item.id,
+      _id: item._id || item.id,
+      name: item.name, // 🎯 CRITICAL: Save the actual name
+      price: item.price,
+      quantity: 1,
+      category: item.category,
+      description: item.description,
+      // Include all original item data to avoid mapping issues
+      ...item
+    };
+
     const existingItem = cart.find(cartItem => cartItem.id === item.id);
+    
     if (existingItem) {
       setCart(cart.map(cartItem =>
         cartItem.id === item.id
@@ -322,7 +349,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           : cartItem
       ));
     } else {
-      setCart([...cart, { ...item, quantity: 1 }]);
+      setCart([...cart, cartItem]);
     }
   };
 
@@ -344,56 +371,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Enhanced table detection
-  useEffect(() => {
-    const detectTableFromURL = () => {
-      console.log('🔍 DigitalMenu - Scanning URL for table number...');
-      
-      let detectedTable = null;
-
-      if (window.location.hash) {
-        const hash = window.location.hash;
-        
-        if (hash.includes('?')) {
-          const hashParams = new URLSearchParams(hash.split('?')[1]);
-          if (hashParams.has('table')) {
-            detectedTable = hashParams.get('table');
-          }
-        }
-        
-        const hashParts = hash.split('/');
-        const tableIndex = hashParts.findIndex(part => part === 'table');
-        if (tableIndex !== -1 && hashParts[tableIndex + 1]) {
-          detectedTable = hashParts[tableIndex + 1];
-        }
-      }
-
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('table')) {
-        detectedTable = urlParams.get('table');
-      }
-
-      if (detectedTable) {
-        setTableNumber(detectedTable);
-        setSelectedTable(detectedTable);
-      }
-    };
-
-    if (isCustomerView) {
-      detectTableFromURL();
-      const timeoutId = setTimeout(detectTableFromURL, 500);
-      
-      window.addEventListener('hashchange', detectTableFromURL);
-      window.addEventListener('popstate', detectTableFromURL);
-      
-      return () => {
-        clearTimeout(timeoutId);
-        window.removeEventListener('hashchange', detectTableFromURL);
-        window.removeEventListener('popstate', detectTableFromURL);
-      };
-    }
-  }, [isCustomerView]);
-
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -410,10 +387,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     console.log('🛒 Placing order for table:', finalTableNumber);
 
     try {
+      // FIXED: Use cart items directly since they now contain proper names
       const orderData = cart.map(item => ({
         menuItemId: item._id || item.id,
         _id: item._id || item.id,
-        name: item.name,
+        name: item.name, // 🎯 Now we have the actual name
         price: item.price,
         quantity: item.quantity,
         category: item.category
@@ -446,15 +424,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   };
 
   return (
-    <div className="page-modern">
+    <div className="digital-menu-modern">
       {/* Modern Header Section */}
-      <div className="page-header-modern">
+      <div className="menu-header-modern">
         <div className="menu-header-content-modern">
-          <div className="menu-header-info-modern">
-            <h2 className="page-title-modern">
+          <div className="menu-title-section-modern">
+            <h2 className="menu-title-modern">
               {isCustomerView ? '🍛 FlavorFlow' : 'Menu Management'}
             </h2>
-            <p className="page-subtitle-modern">
+            <p className="menu-subtitle-modern">
               {isCustomerView && currentTable 
                 ? `Table ${currentTable} • Ready to order`
                 : selectedTable === 'Takeaway' 
@@ -502,7 +480,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <PaymentPage 
           orderDetails={{
             table: selectedTable,
-            items: cart,
+            items: cart, // 🎯 Now cart has proper names
             subtotal,
             serviceTax,
             sst,
@@ -524,7 +502,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               {menuCategories.map(category => (
                 <button
                   key={category.id}
-                  className={`category-button-modern ${activeCategory === category.id ? 'active' : ''}`}
+                  className={`category-btn-modern ${activeCategory === category.id ? 'active' : ''}`}
                   onClick={() => setActiveCategory(category.id)}
                 >
                   <span className="category-name-modern">
@@ -539,10 +517,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           {/* Modern Menu Items Container */}
           <div className="menu-items-container-modern">
             {filteredItems.length === 0 ? (
-              <div className="empty-menu-state-modern">
-                <div className="empty-menu-icon-modern">🍽️</div>
-                <h3>No Menu Items Available</h3>
-                <p>Menu items will appear here once loaded</p>
+              <div className="empty-menu-modern">
+                <div className="empty-icon-modern">🍽️</div>
+                <h3 className="empty-title-modern">No Menu Items Available</h3>
+                <p className="empty-subtitle-modern">Menu items will appear here once loaded</p>
               </div>
             ) : (
               <div className="menu-section-modern">
@@ -552,7 +530,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   </h3>
                   <span className="items-count-modern">{filteredItems.length} items</span>
                 </div>
-                <div className="menu-items-grid-modern">
+                <div className="menu-grid-modern">
                   {filteredItems.map(item => (
                     <MenuItemCard 
                       key={item._id || item.id} 
@@ -569,9 +547,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           {/* Modern Cart Sidebar */}
           <div className="cart-sidebar-modern">
             <div className="cart-header-modern">
-              <div className="cart-title-section">
+              <div className="cart-title-section-modern">
                 <h3 className="cart-title-modern">Your Order</h3>
-                <div className="cart-summary-modern">
+                <div className="cart-subtitle-modern">
                   {orderType === 'dine-in' && selectedTable ? `Table ${selectedTable}` : 'Takeaway'}
                 </div>
               </div>
@@ -580,9 +558,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
             {cart.length === 0 ? (
               <div className="empty-cart-modern">
-                <div className="empty-cart-icon-modern">🛒</div>
-                <p className="empty-cart-text-modern">Your cart is empty</p>
-                <p className="empty-cart-subtext-modern">Add items from the menu to get started</p>
+                <div className="empty-icon-modern">🛒</div>
+                <p className="empty-title-modern">Your cart is empty</p>
+                <p className="empty-subtitle-modern">Add items from the menu to get started</p>
               </div>
             ) : (
               <>
