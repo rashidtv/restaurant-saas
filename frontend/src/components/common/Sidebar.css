@@ -1,4 +1,4 @@
-/* Modern Sidebar Styles - Single Dark Color */
+/* Modern Sidebar Styles - Pure Dark Color */
 .sidebar-modern {
   width: 280px;
   background: #1e293b;
@@ -63,9 +63,8 @@
 .logo-title {
   font-size: 1.25rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #60a5fa, #a78bfa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #60a5fa; /* Solid blue color - no purple gradient */
+  margin: 0;
 }
 
 .logo-subtitle {
@@ -128,9 +127,9 @@
 }
 
 .nav-button-modern.active {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(167, 139, 250, 0.2));
+  background: rgba(96, 165, 250, 0.15); /* Solid blue overlay - no purple */
   color: white;
-  border-left: 3px solid #60a5fa;
+  border-left: 3px solid #60a5fa; /* Solid blue border */
 }
 
 .nav-button-content {
@@ -175,7 +174,7 @@
 }
 
 .nav-badge-modern {
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: #dc2626; /* Solid red - no gradient */
   color: white;
   padding: 0.25rem 0.5rem;
   border-radius: 12px;
@@ -183,22 +182,19 @@
   font-weight: 700;
   min-width: 20px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
   flex-shrink: 0;
   margin-left: 0.5rem;
 }
 
 .nav-badge-modern.badge-new {
-  background: linear-gradient(135deg, #10b981, #059669);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  background: #059669; /* Solid green - no gradient */
 }
 
 .active-indicator {
   width: 6px;
   height: 6px;
-  background: #60a5fa;
+  background: #60a5fa; /* Solid blue */
   border-radius: 50%;
-  box-shadow: 0 0 10px #60a5fa;
   flex-shrink: 0;
   margin-left: 0.5rem;
 }
@@ -220,8 +216,8 @@
 .user-avatar {
   width: 36px;
   height: 36px;
-  background: #334155; /* Changed to solid dark color - no gradient */
-  color: #cbd5e1; /* Lighter text color for better contrast */
+  background: #334155; /* Solid dark color */
+  color: #cbd5e1; /* Light text for contrast */
   border-radius: 8px;
   display: flex;
   align-items: center;
