@@ -81,7 +81,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const itemPrice = item.price || 0;
     const itemDescription = item.description || 'Delicious menu item';
     const prepTime = item.prepTime || item.preparationTime || 15;
-    const itemCategory = item.category || 'uncategorized';
     
     return (
       <div className="menu-item-card-modern">
@@ -382,6 +381,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCartOpen(!cartOpen);
   };
 
+  // Close cart when clicking overlay
+  const handleCartClose = () => {
+    setCartOpen(false);
+  };
+
   // Close cart when proceeding to payment
   const handleProceedToPayment = () => {
     if (cart.length === 0) return;
@@ -649,6 +653,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         </div>
       )}
 
+      {/* Mobile Cart Overlay */}
+      {isMobile && cartOpen && (
+        <div 
+          className="cart-overlay active"
+          onClick={handleCartClose}
+        />
+      )}
+
       {/* Mobile Cart Toggle Button */}
       {isMobile && (
         <button 
@@ -657,13 +669,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         >
           🛒
           {itemCount > 0 && (
-            <span className="cart-badge-modern" style={{
+            <span style={{
               position: 'absolute',
-              top: '-5px',
-              right: '-5px',
-              fontSize: '0.7rem',
-              minWidth: '20px',
-              height: '20px'
+              top: '-2px',
+              right: '-2px',
+              background: '#ef4444',
+              color: 'white',
+              borderRadius: '50%',
+              width: '24px',
+              height: '24px',
+              fontSize: '0.75rem',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '2px solid white'
             }}>
               {itemCount}
             </span>
