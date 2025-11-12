@@ -30,13 +30,13 @@
   display: none;
   flex-direction: column;
   justify-content: space-between;
-  width: 36px; /* Increased size */
-  height: 28px; /* Increased size */
+  width: 44px; /* Bigger size */
+  height: 36px; /* Bigger size */
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 0.75rem; /* More padding for easier tapping */
-  border-radius: 10px;
+  padding: 1rem; /* More padding for easier tapping */
+  border-radius: 12px;
   transition: all 0.3s ease;
 }
 
@@ -59,7 +59,7 @@
 }
 
 .mobile-menu-btn-modern.active .menu-bar-modern:nth-child(1) {
-  transform: rotate(45deg) translate(8px, 8px); /* Adjusted for larger size */
+  transform: rotate(45deg) translate(10px, 10px); /* Adjusted for larger size */
 }
 
 .mobile-menu-btn-modern.active .menu-bar-modern:nth-child(2) {
@@ -67,7 +67,7 @@
 }
 
 .mobile-menu-btn-modern.active .menu-bar-modern:nth-child(3) {
-  transform: rotate(-45deg) translate(8px, -8px); /* Adjusted for larger size */
+  transform: rotate(-45deg) translate(10px, -10px); /* Adjusted for larger size */
 }
 
 .logo-modern {
@@ -235,9 +235,9 @@
   
   .mobile-menu-btn-modern {
     display: flex;
-    width: 40px; /* Even larger on mobile */
-    height: 32px;
-    padding: 0.85rem; /* More padding for mobile tapping */
+    width: 48px; /* Even larger on mobile */
+    height: 40px;
+    padding: 1.1rem; /* More padding for mobile tapping */
   }
   
   .menu-bar-modern {
@@ -305,8 +305,8 @@
   }
   
   .mobile-menu-btn-modern {
-    width: 38px;
-    height: 30px;
-    padding: 0.8rem;
+    width: 46px;
+    height: 38px;
+    padding: 1rem;
   }
 }

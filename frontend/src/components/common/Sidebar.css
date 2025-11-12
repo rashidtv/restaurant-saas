@@ -1,7 +1,7 @@
 /* Modern Sidebar Styles - Single Dark Color */
 .sidebar-modern {
   width: 280px;
-  background: linear-gradient(180deg, #1e293b 0%, #1e293b 100%);
+  background: #1e293b;
   color: white;
   display: flex;
   flex-direction: column;
@@ -203,102 +203,11 @@
   margin-left: 0.5rem;
 }
 
-/* Stats Section */
-.sidebar-stats-modern {
-  padding: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
-  flex-shrink: 0;
-}
-
-.stats-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.stats-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.stats-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  color: #10b981;
-  font-weight: 600;
-}
-
-.online-dot {
-  width: 6px;
-  height: 6px;
-  background: #10b981;
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.stat-card-modern {
-  background: rgba(255, 255, 255, 0.05);
-  padding: 0.75rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
-}
-
-.stat-card-modern:hover {
-  background: rgba(255, 255, 255, 0.08);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.stat-icon-modern {
-  font-size: 1rem;
-  margin-bottom: 0.5rem;
-  opacity: 0.8;
-  text-align: center;
-}
-
-.stat-content-modern {
-  text-align: center;
-}
-
-.stat-value-modern {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: white;
-  line-height: 1;
-  margin-bottom: 0.25rem;
-}
-
-.stat-label-modern {
-  font-size: 0.7rem;
-  color: #94a3b8;
-  font-weight: 500;
-  line-height: 1;
-}
-
-/* Footer */
+/* Footer - Pure Dark */
 .sidebar-footer-modern {
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.3);
+  background: #1e293b;
   flex-shrink: 0;
 }
 
@@ -311,7 +220,7 @@
 .user-avatar {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  background: #334155;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -368,10 +277,6 @@
   }
   
   .nav-description {
-    display: none;
-  }
-  
-  .sidebar-stats-modern {
     display: none;
   }
   

@@ -54,12 +54,6 @@ const Sidebar = ({ currentPage, onNavigate, sidebarOpen, isMobile, orders, table
     }
   ];
 
-  const activeOrders = orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length;
-  const occupiedTables = tables.filter(t => t.status === 'occupied').length;
-  const totalTables = tables.length;
-  const needsCleaning = tables.filter(t => t.status === 'needs_cleaning').length;
-  const pendingOrders = orders.filter(o => o.status === 'pending').length;
-
   return (
     <>
       {/* Mobile Overlay */}
@@ -121,52 +115,7 @@ const Sidebar = ({ currentPage, onNavigate, sidebarOpen, isMobile, orders, table
             </div>
           </nav>
 
-          {/* Quick Stats - Hidden on mobile when too many items */}
-          {!isMobile && (
-            <div className="sidebar-stats-modern">
-              <div className="stats-header">
-                <span className="stats-title">Quick Stats</span>
-                <div className="stats-indicator">
-                  <div className="online-dot"></div>
-                  <span>Live</span>
-                </div>
-              </div>
-              
-              <div className="stats-grid">
-                <div className="stat-card-modern">
-                  <div className="stat-icon-modern">📦</div>
-                  <div className="stat-content-modern">
-                    <div className="stat-value-modern">{activeOrders}</div>
-                    <div className="stat-label-modern">Active Orders</div>
-                  </div>
-                </div>
-                
-                <div className="stat-card-modern">
-                  <div className="stat-icon-modern">🪑</div>
-                  <div className="stat-content-modern">
-                    <div className="stat-value-modern">{occupiedTables}/{totalTables}</div>
-                    <div className="stat-label-modern">Tables Occupied</div>
-                  </div>
-                </div>
-                
-                <div className="stat-card-modern">
-                  <div className="stat-icon-modern">🧹</div>
-                  <div className="stat-content-modern">
-                    <div className="stat-value-modern">{needsCleaning}</div>
-                    <div className="stat-label-modern">Need Cleaning</div>
-                  </div>
-                </div>
-                
-                <div className="stat-card-modern">
-                  <div className="stat-icon-modern">⏱️</div>
-                  <div className="stat-content-modern">
-                    <div className="stat-value-modern">{pendingOrders}</div>
-                    <div className="stat-label-modern">Pending</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Quick Stats REMOVED - Already in Dashboard */}
         </div>
 
         {/* Footer */}
