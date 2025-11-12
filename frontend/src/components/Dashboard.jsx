@@ -124,31 +124,32 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
     : [];
 
   return (
-    <div className="dashboard">
-      <div className="page-header">
+    <div className="dashboard-modern">
+      {/* Modern Page Header */}
+      <div className="page-header-modern">
         <div>
-          <h2 className="page-title">Restaurant Dashboard</h2>
-          <p className="page-subtitle">Real-time overview of your restaurant operations</p>
+          <h2 className="page-title-modern">Restaurant Dashboard</h2>
+          <p className="page-subtitle-modern">Real-time overview of your restaurant operations</p>
           {!apiConnected && (
-            <div className="offline-badge">⚠️ Offline Mode</div>
+            <div className="offline-badge-modern">⚠️ Offline Mode - Data may be limited</div>
           )}
         </div>
-        <div className="menu-controls">
-          <div className="currency-display">
-            <span className="currency-icon">📊</span>
+        <div className="menu-controls-modern">
+          <div className="currency-display-modern">
+            <span className="currency-icon-modern">📊</span>
             Live Data
           </div>
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="dashboard-stats">
-        <div className="stat-card revenue-card">
-          <div className="stat-icon">💰</div>
-          <div className="stat-content">
-            <div className="stat-value">RM {totalRevenue.toFixed(2)}</div>
-            <div className="stat-label">Total Revenue</div>
-            <div className="stat-subtext">
+      {/* Modern Key Metrics */}
+      <div className="dashboard-stats-modern">
+        <div className="stat-card-modern revenue-card">
+          <div className="stat-icon-modern">💰</div>
+          <div className="stat-content-modern">
+            <div className="stat-value-modern">RM {totalRevenue.toFixed(2)}</div>
+            <div className="stat-label-modern">Total Revenue</div>
+            <div className="stat-subtext-modern">
               Today: RM {todayRevenue().toFixed(2)}
               <br />
               Paid Orders: {paidOrders.length}
@@ -156,12 +157,12 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
           </div>
         </div>
         
-        <div className="stat-card orders-card">
-          <div className="stat-icon">📦</div>
-          <div className="stat-content">
-            <div className="stat-value">{orders?.length || 0}</div>
-            <div className="stat-label">Total Orders</div>
-            <div className="stat-subtext">
+        <div className="stat-card-modern orders-card">
+          <div className="stat-icon-modern">📦</div>
+          <div className="stat-content-modern">
+            <div className="stat-value-modern">{orders?.length || 0}</div>
+            <div className="stat-label-modern">Total Orders</div>
+            <div className="stat-subtext-modern">
               Today: {todayOrders.length}
               <br />
               Active: {activeOrders.length}
@@ -169,12 +170,12 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
           </div>
         </div>
         
-        <div className="stat-card tables-card">
-          <div className="stat-icon">🪑</div>
-          <div className="stat-content">
-            <div className="stat-value">{occupiedTables.length}/{tables?.length || 0}</div>
-            <div className="stat-label">Tables Occupied</div>
-            <div className="stat-subtext">
+        <div className="stat-card-modern tables-card">
+          <div className="stat-icon-modern">🪑</div>
+          <div className="stat-content-modern">
+            <div className="stat-value-modern">{occupiedTables.length}/{tables?.length || 0}</div>
+            <div className="stat-label-modern">Tables Occupied</div>
+            <div className="stat-subtext-modern">
               {availableTables.length} available
               <br />
               {tablesNeedingCleaning.length} need cleaning
@@ -182,12 +183,12 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
           </div>
         </div>
         
-        <div className="stat-card activity-card">
-          <div className="stat-icon">🔔</div>
-          <div className="stat-content">
-            <div className="stat-value">{unreadNotifications.length}</div>
-            <div className="stat-label">Notifications</div>
-            <div className="stat-subtext">
+        <div className="stat-card-modern activity-card">
+          <div className="stat-icon-modern">🔔</div>
+          <div className="stat-content-modern">
+            <div className="stat-value-modern">{unreadNotifications.length}</div>
+            <div className="stat-label-modern">Notifications</div>
+            <div className="stat-subtext-modern">
               {activeOrders.length} active orders
               <br />
               {paidOrders.length} paid orders
@@ -196,105 +197,105 @@ const Dashboard = ({ orders, tables, payments, notifications, onNotificationRead
         </div>
       </div>
 
-      {/* Order Status Overview */}
-      <div className="dashboard-charts">
-        <div className="chart-card">
-          <h3 className="chart-title">Order Status Overview</h3>
-          <div className="order-status-grid">
-            <div className="status-item pending">
-              <div className="status-count">{pendingOrders.length}</div>
-              <div className="status-label">Pending</div>
+      {/* Modern Order Status Overview */}
+      <div className="dashboard-charts-modern">
+        <div className="chart-card-modern">
+          <h3 className="chart-title-modern">Order Status Overview</h3>
+          <div className="order-status-grid-modern">
+            <div className="status-item-modern pending">
+              <div className="status-count-modern">{pendingOrders.length}</div>
+              <div className="status-label-modern">Pending</div>
             </div>
-            <div className="status-item preparing">
-              <div className="status-count">{preparingOrders.length}</div>
-              <div className="status-label">Preparing</div>
+            <div className="status-item-modern preparing">
+              <div className="status-count-modern">{preparingOrders.length}</div>
+              <div className="status-label-modern">Preparing</div>
             </div>
-            <div className="status-item ready">
-              <div className="status-count">{readyOrders.length}</div>
-              <div className="status-label">Ready</div>
+            <div className="status-item-modern ready">
+              <div className="status-count-modern">{readyOrders.length}</div>
+              <div className="status-label-modern">Ready</div>
             </div>
-            <div className="status-item completed">
-              <div className="status-count">
+            <div className="status-item-modern completed">
+              <div className="status-count-modern">
                 {orders?.filter(o => o.status === 'completed').length || 0}
               </div>
-              <div className="status-label">Completed</div>
+              <div className="status-label-modern">Completed</div>
             </div>
           </div>
-          <div className="payment-status">
-            <div className="payment-status-item paid">
+          <div className="payment-status-modern">
+            <div className="payment-status-item-modern paid">
               <strong>Paid Orders:</strong> {paidOrders.length}
             </div>
-            <div className="payment-status-item unpaid">
+            <div className="payment-status-item-modern unpaid">
               <strong>Unpaid Orders:</strong> {orders?.filter(o => o.paymentStatus !== 'paid').length || 0}
             </div>
           </div>
         </div>
         
-        <div className="chart-card">
-          <h3 className="chart-title">Table Status</h3>
-          <div className="table-status-grid">
-            <div className="table-status available">
-              <div className="status-count">{availableTables.length}</div>
-              <div className="status-label">Available</div>
+        <div className="chart-card-modern">
+          <h3 className="chart-title-modern">Table Status</h3>
+          <div className="table-status-grid-modern">
+            <div className="table-status-modern available">
+              <div className="status-count-modern">{availableTables.length}</div>
+              <div className="status-label-modern">Available</div>
             </div>
-            <div className="table-status occupied">
-              <div className="status-count">{occupiedTables.length}</div>
-              <div className="status-label">Occupied</div>
+            <div className="table-status-modern occupied">
+              <div className="status-count-modern">{occupiedTables.length}</div>
+              <div className="status-label-modern">Occupied</div>
             </div>
-            <div className="table-status cleaning">
-              <div className="status-count">{tablesNeedingCleaning.length}</div>
-              <div className="status-label">Needs Cleaning</div>
+            <div className="table-status-modern cleaning">
+              <div className="status-count-modern">{tablesNeedingCleaning.length}</div>
+              <div className="status-label-modern">Needs Cleaning</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="dashboard-charts">
-        <div className="chart-card">
-          <h3 className="chart-title">Recent Orders</h3>
-          <div className="recent-orders">
+      {/* Modern Recent Activity */}
+      <div className="dashboard-charts-modern">
+        <div className="chart-card-modern">
+          <h3 className="chart-title-modern">Recent Orders</h3>
+          <div className="recent-orders-modern">
             {orders && orders.slice(0, 5).map(order => (
-              <div key={order._id || order.id} className="order-item">
-                <div className="order-info">
-                  <div className="order-number">{order.orderNumber || `ORD-${order._id?.slice(-6)}`}</div>
-                  <div className="order-table">Table {order.tableId || order.table}</div>
-                  <div className={`payment-status ${order.paymentStatus === 'paid' ? 'paid' : 'unpaid'}`}>
+              <div key={order._id || order.id} className="order-item-modern">
+                <div className="order-info-modern">
+                  <div className="order-number-modern">{order.orderNumber || `ORD-${order._id?.slice(-6)}`}</div>
+                  <div className="order-table-modern">Table {order.tableId || order.table}</div>
+                  <div className={`payment-status-badge ${order.paymentStatus === 'paid' ? 'paid' : 'unpaid'}`}>
                     {order.paymentStatus === 'paid' ? '✅ Paid' : '⏳ Unpaid'}
                   </div>
                 </div>
-                <div className="order-status">
-                  <span className={`status-badge ${order.status}`}>
+                <div className="order-status-modern">
+                  <span className={`status-badge-modern ${order.status}`}>
                     {order.status}
                   </span>
                 </div>
-                <div className="order-amount">
+                <div className="order-amount-modern">
                   RM {(order.total || 0).toFixed(2)}
                 </div>
               </div>
             ))}
             {(!orders || orders.length === 0) && (
-              <div className="no-data">No orders yet</div>
+              <div className="no-data-modern">No orders yet</div>
             )}
           </div>
         </div>
         
-        <div className="chart-card">
-          <h3 className="chart-title">Recent Notifications</h3>
-          <div className="notifications-list">
+        <div className="chart-card-modern">
+          <h3 className="chart-title-modern">Recent Notifications</h3>
+          <div className="notifications-list-modern">
             {notifications && notifications.slice(0, 5).map(notification => (
               <div 
                 key={notification.id} 
-                className={`notification-item ${notification.read ? '' : 'unread'}`}
+                className={`notification-item-modern ${notification.read ? '' : 'unread'}`}
                 onClick={() => onNotificationRead(notification.id)}
               >
-                <div className="notification-message">{notification.message}</div>
-                <div className="notification-time">{notification.time}</div>
-                <div className="notification-type">{notification.type}</div>
+                <div className="notification-message-modern">{notification.message}</div>
+                <div className="notification-time-modern">{notification.time}</div>
+                <div className="notification-type-modern">{notification.type}</div>
               </div>
             ))}
             {(!notifications || notifications.length === 0) && (
-              <div className="no-data">No notifications</div>
+              <div className="no-data-modern">No notifications</div>
             )}
           </div>
         </div>
