@@ -26,7 +26,7 @@ const Sidebar = ({ currentPage, onNavigate, sidebarOpen, isMobile, orders, table
     },
     { 
       id: 'menu', 
-      label: 'Menu',  // Changed from 'Digital Menu'
+      label: 'Menu',
       icon: '🍽️', 
       badge: null,
       description: 'Menu management'
@@ -57,116 +57,130 @@ const Sidebar = ({ currentPage, onNavigate, sidebarOpen, isMobile, orders, table
   const activeOrders = orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length;
   const occupiedTables = tables.filter(t => t.status === 'occupied').length;
   const totalTables = tables.length;
+  const needsCleaning = tables.filter(t => t.status === 'needs_cleaning').length;
+  const pendingOrders = orders.filter(o => o.status === 'pending').length;
 
   return (
-    <div className={`sidebar-modern ${sidebarOpen ? 'open' : ''}`}>
-      {/* Sidebar Header */}
-      <div className="sidebar-header-modern">
-        <div className="sidebar-logo">
-          <div className="logo-icon">🍛</div>
-          <div className="logo-text">
-            <span className="logo-title">FlavorFlow</span>
-            <span className="logo-subtitle">Restaurant POS</span>
+    <>
+      {/* Mobile Overlay */}
+      {isMobile && sidebarOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => onNavigate(currentPage)} // Close sidebar on overlay click
+        />
+      )}
+      
+      <div className={`sidebar-modern ${sidebarOpen ? 'open' : ''} ${isMobile ? 'mobile' : ''}`}>
+        {/* Sidebar Header */}
+        <div className="sidebar-header-modern">
+          <div className="sidebar-logo">
+            <div className="logo-icon">🍛</div>
+            <div className="logo-text">
+              <span className="logo-title">FlavorFlow</span>
+              <span className="logo-subtitle">Restaurant POS</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Navigation */}
-      <nav className="sidebar-nav-modern">
-        <div className="nav-section">
-          <span className="nav-section-label">Navigation</span>
-          {navigationItems.map(item => (
-            <button
-              key={item.id}
-              className={`nav-button-modern ${currentPage === item.id ? 'active' : ''}`}
-              onClick={() => onNavigate(item.id)}
-            >
-              <div className="nav-button-content">
-                <span className="nav-icon-modern">{item.icon}</span>
-                <div className="nav-text-modern">
-                  <span className="nav-label-modern">{item.label}</span>
-                  {!isMobile && (
-                    <span className="nav-description">{item.description}</span>
+        {/* Navigation - Scrollable Area */}
+        <div className="sidebar-scrollable">
+          <nav className="sidebar-nav-modern">
+            <div className="nav-section">
+              <span className="nav-section-label">Navigation</span>
+              {navigationItems.map(item => (
+                <button
+                  key={item.id}
+                  className={`nav-button-modern ${currentPage === item.id ? 'active' : ''}`}
+                  onClick={() => onNavigate(item.id)}
+                >
+                  <div className="nav-button-content">
+                    <span className="nav-icon-modern">{item.icon}</span>
+                    <div className="nav-text-modern">
+                      <span className="nav-label-modern">
+                        {isMobile ? item.label.split(' ')[0] : item.label}
+                      </span>
+                      {!isMobile && (
+                        <span className="nav-description">{item.description}</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Badge */}
+                  {item.badge && (
+                    <span className={`nav-badge-modern ${typeof item.badge === 'string' ? 'badge-new' : ''}`}>
+                      {item.badge}
+                    </span>
                   )}
+                  
+                  {/* Active Indicator */}
+                  {currentPage === item.id && (
+                    <div className="active-indicator"></div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* Quick Stats - Hidden on mobile when too many items */}
+          {!isMobile && (
+            <div className="sidebar-stats-modern">
+              <div className="stats-header">
+                <span className="stats-title">Quick Stats</span>
+                <div className="stats-indicator">
+                  <div className="online-dot"></div>
+                  <span>Live</span>
                 </div>
               </div>
               
-              {/* Badge */}
-              {item.badge && (
-                <span className={`nav-badge-modern ${typeof item.badge === 'string' ? 'badge-new' : ''}`}>
-                  {item.badge}
-                </span>
-              )}
-              
-              {/* Active Indicator */}
-              {currentPage === item.id && (
-                <div className="active-indicator"></div>
-              )}
-            </button>
-          ))}
+              <div className="stats-grid">
+                <div className="stat-card-modern">
+                  <div className="stat-icon-modern">📦</div>
+                  <div className="stat-content-modern">
+                    <div className="stat-value-modern">{activeOrders}</div>
+                    <div className="stat-label-modern">Active Orders</div>
+                  </div>
+                </div>
+                
+                <div className="stat-card-modern">
+                  <div className="stat-icon-modern">🪑</div>
+                  <div className="stat-content-modern">
+                    <div className="stat-value-modern">{occupiedTables}/{totalTables}</div>
+                    <div className="stat-label-modern">Tables Occupied</div>
+                  </div>
+                </div>
+                
+                <div className="stat-card-modern">
+                  <div className="stat-icon-modern">🧹</div>
+                  <div className="stat-content-modern">
+                    <div className="stat-value-modern">{needsCleaning}</div>
+                    <div className="stat-label-modern">Need Cleaning</div>
+                  </div>
+                </div>
+                
+                <div className="stat-card-modern">
+                  <div className="stat-icon-modern">⏱️</div>
+                  <div className="stat-content-modern">
+                    <div className="stat-value-modern">{pendingOrders}</div>
+                    <div className="stat-label-modern">Pending</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </nav>
 
-      {/* Quick Stats */}
-      <div className="sidebar-stats-modern">
-        <div className="stats-header">
-          <span className="stats-title">Quick Stats</span>
-          <div className="stats-indicator">
-            <div className="online-dot"></div>
-            <span>Live</span>
-          </div>
-        </div>
-        
-        <div className="stats-grid">
-          <div className="stat-card-modern">
-            <div className="stat-icon-modern">📦</div>
-            <div className="stat-content-modern">
-              <div className="stat-value-modern">{activeOrders}</div>
-              <div className="stat-label-modern">Active Orders</div>
-            </div>
-          </div>
-          
-          <div className="stat-card-modern">
-            <div className="stat-icon-modern">🪑</div>
-            <div className="stat-content-modern">
-              <div className="stat-value-modern">{occupiedTables}/{totalTables}</div>
-              <div className="stat-label-modern">Tables Occupied</div>
-            </div>
-          </div>
-          
-          <div className="stat-card-modern">
-            <div className="stat-icon-modern">🧹</div>
-            <div className="stat-content-modern">
-              <div className="stat-value-modern">
-                {tables.filter(t => t.status === 'needs_cleaning').length}
-              </div>
-              <div className="stat-label-modern">Need Cleaning</div>
-            </div>
-          </div>
-          
-          <div className="stat-card-modern">
-            <div className="stat-icon-modern">⏱️</div>
-            <div className="stat-content-modern">
-              <div className="stat-value-modern">
-                {orders.filter(o => o.status === 'pending').length}
-              </div>
-              <div className="stat-label-modern">Pending</div>
+        {/* Footer */}
+        <div className="sidebar-footer-modern">
+          <div className="user-profile">
+            <div className="user-avatar">👨‍💼</div>
+            <div className="user-info">
+              <span className="user-name">Restaurant Staff</span>
+              <span className="user-role">Administrator</span>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <div className="sidebar-footer-modern">
-        <div className="user-profile">
-          <div className="user-avatar">👨‍💼</div>
-          <div className="user-info">
-            <span className="user-name">Restaurant Staff</span>
-            <span className="user-role">Administrator</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   );
 };
 
