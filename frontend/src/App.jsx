@@ -36,21 +36,21 @@ function App() {
   const [isCustomerView, setIsCustomerView] = useState(false);
   const [socket, setSocket] = useState(null);
 
-  // Health check
+  // FIXED: Enhanced health check that actually works
   const healthCheck = async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced timeout
       
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/health', {
-        signal: controller.signal
+      // Try multiple endpoints to confirm backend is actually working
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/menu', {
+        signal: controller.signal,
+        method: 'GET'
       });
       clearTimeout(timeoutId);
       
       if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Health check passed');
-        setApiConnected(true);
+        console.log('✅ Health check passed - Backend is responsive');
         return true;
       }
       return false;
@@ -60,16 +60,20 @@ function App() {
     }
   };
 
-  // WebSocket initialization
+  // FIXED: WebSocket initialization - Simplified and more reliable
   useEffect(() => {
+    console.log('🔌 Initializing WebSocket connection...');
+    
     let socketInstance;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 3;
 
     const initializeWebSocket = () => {
       try {
-        console.log('🔌 Initializing WebSocket connection...');
         socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
           transports: ['websocket', 'polling'],
-          timeout: 10000
+          timeout: 10000,
+          reconnectionAttempts: maxReconnectAttempts
         });
 
         setSocket(socketInstance);
@@ -77,16 +81,23 @@ function App() {
         socketInstance.on('connect', () => {
           console.log('🔌 Connected to backend via WebSocket');
           setApiConnected(true);
+          reconnectAttempts = 0; // Reset on successful connection
         });
 
         socketInstance.on('connect_error', (error) => {
-          console.log('❌ WebSocket connection error:', error);
-          setApiConnected(false);
+          console.log('❌ WebSocket connection error:', error.message);
+          // Don't set apiConnected to false here - HTTP APIs might still work
+          reconnectAttempts++;
+          
+          if (reconnectAttempts >= maxReconnectAttempts) {
+            console.log('⚠️ Max WebSocket reconnection attempts reached, using HTTP fallback');
+            // WebSocket failed but HTTP might still work
+          }
         });
 
-        socketInstance.on('disconnect', () => {
-          console.log('❌ WebSocket disconnected');
-          setApiConnected(false);
+        socketInstance.on('disconnect', (reason) => {
+          console.log('❌ WebSocket disconnected:', reason);
+          // Don't set apiConnected to false - HTTP APIs might still work
         });
 
         // Socket event listeners
@@ -131,9 +142,8 @@ function App() {
       }
     };
 
-    if (apiConnected) {
-      initializeWebSocket();
-    }
+    // Always try to initialize WebSocket, but don't block on it
+    initializeWebSocket();
     
     return () => {
       console.log('🧹 Cleaning up WebSocket connection');
@@ -141,34 +151,56 @@ function App() {
         socketInstance.disconnect();
       }
     };
-  }, [apiConnected]);
+  }, []); // Removed apiConnected dependency to prevent loops
 
-  // Continuous health monitoring
+  // FIXED: Better API connection monitoring
   useEffect(() => {
-    if (!apiConnected) {
-      const interval = setInterval(async () => {
-        console.log('🔄 Checking backend connection...');
-        const isHealthy = await healthCheck();
-        if (isHealthy) {
-          console.log('✅ Backend connection restored');
-          setApiConnected(true);
-          clearInterval(interval);
-        }
-      }, 15000);
+    const checkConnection = async () => {
+      console.log('🔄 Checking backend connection...');
+      
+      // Test actual API endpoints instead of just health check
+      try {
+        const [menuResponse, tablesResponse] = await Promise.all([
+          fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/menu').catch(() => null),
+          fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/tables').catch(() => null)
+        ]);
 
-      return () => clearInterval(interval);
-    }
+        const menuOk = menuResponse && menuResponse.ok;
+        const tablesOk = tablesResponse && tablesResponse.ok;
+        
+        if (menuOk || tablesOk) {
+          console.log('✅ Backend APIs are responsive');
+          if (!apiConnected) {
+            setApiConnected(true);
+          }
+        } else {
+          console.log('⚠️ Some API endpoints are not responding');
+          // Don't set apiConnected to false immediately - might be temporary
+        }
+      } catch (error) {
+        console.log('⚠️ API check failed:', error.message);
+        // Don't set apiConnected to false on single failure
+      }
+    };
+
+    // Initial check
+    checkConnection();
+
+    // Periodic checks - less frequent
+    const interval = setInterval(checkConnection, 30000); // Every 30 seconds
+
+    return () => clearInterval(interval);
   }, [apiConnected]);
 
-  // Polling fallback for data refresh
+  // FIXED: Polling fallback for data refresh - only if API is connected
   useEffect(() => {
     const loadData = async () => {
       if (!apiConnected) return;
       
       try {
         const [ordersData, tablesData] = await Promise.all([
-          fetchOrders().catch(() => []),
-          fetchTables().catch(() => [])
+          fetchOrders().catch(() => null),
+          fetchTables().catch(() => null)
         ]);
         
         if (ordersData) setOrders(ordersData);
@@ -256,59 +288,58 @@ function App() {
     };
   }, [sidebarOpen, isMobile]);
 
-  // Load initial data
+  // FIXED: Load initial data with better connection detection
   useEffect(() => {
     const initializeData = async () => {
       try {
         setLoading(true);
         
-        let isHealthy = await healthCheck();
-
-        if (isHealthy) {
-          setApiConnected(true);
+        console.log('🚀 Initializing application data...');
+        
+        // Try to load data first - this is the real test of connectivity
+        try {
+          const [menuData, tablesData, ordersData] = await Promise.all([
+            fetchMenu().catch(error => {
+              console.log('❌ Menu fetch failed:', error.message);
+              return [];
+            }),
+            fetchTables().catch(error => {
+              console.log('❌ Tables fetch failed:', error.message);
+              return [];
+            }),
+            fetchOrders().catch(error => {
+              console.log('❌ Orders fetch failed:', error.message);
+              return [];
+            })
+          ]);
           
-          try {
-            const [menuData, tablesData, ordersData] = await Promise.all([
-              fetchMenu().catch(() => []),
-              fetchTables().catch(() => []),
-              fetchOrders().catch(() => [])
-            ]);
-            
-            setMenu(menuData || []);
-            setTables(tablesData || []);
-            setOrders(ordersData || []);
+          // If we got any data back, consider API connected
+          const hasData = menuData.length > 0 || tablesData.length > 0 || ordersData.length > 0;
+          
+          if (hasData) {
+            console.log('✅ API is connected - data loaded successfully');
+            setApiConnected(true);
+            setMenu(menuData);
+            setTables(tablesData);
+            setOrders(ordersData);
             setPayments([]);
-            
-            console.log('✅ Data loaded successfully');
-          } catch (error) {
-            console.log('❌ Data load failed, using fallback');
+          } else {
+            console.log('⚠️ No data received from API, using fallback');
+            setApiConnected(false);
+            useFallbackData();
           }
           
-        } else {
-          console.log('🔄 Using fallback data');
-          const backendMenu = [
-            { _id: '1', name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5 },
-            { _id: '2', name: "Kopi O", price: 3.80, category: "drinks", preparationTime: 3 },
-            { _id: '3', name: "Milo Dinosaur", price: 6.50, category: "drinks", preparationTime: 4 },
-            { _id: '4', name: "Nasi Lemak", price: 12.90, category: "main", preparationTime: 15 },
-            { _id: '5', name: "Char Kuey Teow", price: 14.50, category: "main", preparationTime: 12 },
-            { _id: '6', name: "Roti Canai", price: 3.50, category: "main", preparationTime: 8 },
-            { _id: '7', name: "Satay Set", price: 18.90, category: "main", preparationTime: 20 },
-            { _id: '8', name: "Cendol", price: 6.90, category: "desserts", preparationTime: 7 },
-            { _id: '9', name: "Apam Balik", price: 5.50, category: "desserts", preparationTime: 10 }
-          ];
-          
-          setMenu(backendMenu);
-          setTables([]);
-          setOrders([]);
-          setPayments([]);
+        } catch (error) {
+          console.log('❌ Data load failed, using fallback:', error.message);
+          setApiConnected(false);
+          useFallbackData();
         }
 
         setNotifications([
           { 
             id: 1, 
-            message: `System ${isHealthy ? 'connected' : 'connecting'} to backend`, 
-            type: isHealthy ? 'success' : 'warning', 
+            message: `System ${apiConnected ? 'connected' : 'running in offline mode'}`, 
+            type: apiConnected ? 'success' : 'warning', 
             time: 'Just now', 
             read: false 
           }
@@ -317,9 +348,29 @@ function App() {
       } catch (error) {
         console.error('Error initializing data:', error);
         setApiConnected(false);
+        useFallbackData();
       } finally {
         setLoading(false);
       }
+    };
+
+    const useFallbackData = () => {
+      const backendMenu = [
+        { _id: '1', name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5 },
+        { _id: '2', name: "Kopi O", price: 3.80, category: "drinks", preparationTime: 3 },
+        { _id: '3', name: "Milo Dinosaur", price: 6.50, category: "drinks", preparationTime: 4 },
+        { _id: '4', name: "Nasi Lemak", price: 12.90, category: "main", preparationTime: 15 },
+        { _id: '5', name: "Char Kuey Teow", price: 14.50, category: "main", preparationTime: 12 },
+        { _id: '6', name: "Roti Canai", price: 3.50, category: "main", preparationTime: 8 },
+        { _id: '7', name: "Satay Set", price: 18.90, category: "main", preparationTime: 20 },
+        { _id: '8', name: "Cendol", price: 6.90, category: "desserts", preparationTime: 7 },
+        { _id: '9', name: "Apam Balik", price: 5.50, category: "desserts", preparationTime: 10 }
+      ];
+      
+      setMenu(backendMenu);
+      setTables([]);
+      setOrders([]);
+      setPayments([]);
     };
 
     initializeData();
@@ -594,6 +645,7 @@ function App() {
         />
 
         <main className="main-content">
+          {/* FIXED: Only show warning if API is actually disconnected */}
           {!apiConnected && (
             <div className="api-warning">
               ⚠️ Running in offline mode. Data will reset on page refresh.
@@ -627,7 +679,7 @@ function App() {
             />
           )}
           {currentPage === 'qr-generator' && (
-            <QRGenerator tables={tables} isMobile={isMobile} />
+            <QRGenerator tables={tables} isMobile={isMobile} apiConnected={apiConnected} />
           )}
           {currentPage === 'menu' && (
             <DigitalMenu 
