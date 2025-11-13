@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import './DigitalMenu.css';
 
@@ -92,12 +92,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const [recentlyAdded, setRecentlyAdded] = useState(null);
     const [searchInput, setSearchInput] = useState('');
 
-    // Use ref to track cart state
+    // FIX: Use ref to track cart state with animation protection
     const localCartOpenRef = useRef(false);
+    const cartStateRef = useRef({
+      isOpen: false,
+      isAnimating: false
+    });
 
     // FIX: Keep ref in sync with state
     useEffect(() => {
       localCartOpenRef.current = localCartOpen;
+      cartStateRef.current.isOpen = localCartOpen;
     }, [localCartOpen]);
 
     // Food category emojis and colors
@@ -109,6 +114,82 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       'beverages': { emoji: '🥤', color: '#3b82f6', name: 'Beverages' },
       'specials': { emoji: '⭐', color: '#8b5cf6', name: 'Specials' }
     };
+
+    // FIX: Stable cart toggle with animation protection
+    const handleCartToggle = useCallback((open) => {
+      if (cartStateRef.current.isAnimating) return;
+      
+      cartStateRef.current.isAnimating = true;
+      console.log('🛒 Cart toggle:', open);
+      
+      setLocalCartOpen(open);
+      
+      // Reset animation flag
+      setTimeout(() => {
+        cartStateRef.current.isAnimating = false;
+      }, 400);
+    }, []);
+
+    // FIX: Explicit close handler
+    const handleCloseCart = useCallback(() => {
+      console.log('🛒 Closing cart explicitly');
+      handleCartToggle(false);
+    }, [handleCartToggle]);
+
+    // FIX: Prevent accidental closes
+    const handleCartClick = useCallback((e) => {
+      e.stopPropagation();
+    }, []);
+
+    // FIX: Overlay click handler
+    const handleOverlayClick = useCallback(() => {
+      handleCloseCart();
+    }, [handleCloseCart]);
+
+    // FIX: Improved search handler with stable ref management
+    const handleSearchFocus = useCallback((e) => {
+      // Ensure the input stays focused
+      if (e.target) {
+        setTimeout(() => {
+          e.target.focus();
+          e.target.setSelectionRange(e.target.value.length, e.target.value.length);
+        }, 50);
+      }
+    }, []);
+
+    // FIX: Search change handler that maintains focus
+    const handleSearchChange = useCallback((e) => {
+      const value = e.target.value;
+      setSearchInput(value);
+      setSearchTerm(value);
+      
+      // Maintain focus without causing re-renders that dismiss keyboard
+      requestAnimationFrame(() => {
+        if (e.target) {
+          e.target.focus();
+        }
+      });
+    }, []);
+
+    // FIX: Toggle search with proper focus management
+    const handleSearchToggle = useCallback(() => {
+      setShowSearch(prev => {
+        const newState = !prev;
+        if (newState) {
+          // Focus search input when opening
+          setTimeout(() => {
+            if (searchInputRef.current) {
+              searchInputRef.current.focus();
+              searchInputRef.current.setSelectionRange(
+                searchInputRef.current.value.length, 
+                searchInputRef.current.value.length
+              );
+            }
+          }, 100);
+        }
+        return newState;
+      });
+    }, []);
 
     // Add to cart with animation
     const addToCart = (item) => {
@@ -143,7 +224,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       setTimeout(() => setRecentlyAdded(null), 2000);
       
       if (isMobile) {
-        setLocalCartOpen(true);
+        handleCartToggle(true);
       }
     };
 
@@ -183,7 +264,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         
         const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
         setCart([]);
-        setLocalCartOpen(false);
+        handleCloseCart();
         setShowOrderConfirmation(true);
         
         console.log('✅ Order result:', result);
@@ -191,39 +272,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         console.error('❌ Order failed:', error);
         alert('Order failed: ' + error.message);
       }
-    };
-
-    // FIX: Improved search handler that doesn't interfere with keyboard
-    const handleSearchChange = (e) => {
-      const value = e.target.value;
-      setSearchInput(value);
-      setSearchTerm(value);
-      
-      // FIX: Prevent any re-renders that might dismiss keyboard
-      // This keeps the input focused
-      e.target.focus();
-    };
-
-    // FIX: Proper search input focus management
-    const handleSearchFocus = (e) => {
-      // Ensure the input stays focused
-      setTimeout(() => {
-        if (e.target) {
-          e.target.focus();
-        }
-      }, 100);
-    };
-
-    // FIX: Cart toggle with proper state management
-    const handleCartToggle = (open) => {
-      console.log('🛒 Cart toggle:', open);
-      setLocalCartOpen(open);
-    };
-
-    // FIX: Close cart only when explicitly requested
-    const handleCloseCart = () => {
-      console.log('🛒 Closing cart explicitly');
-      setLocalCartOpen(false);
     };
 
     // Get categories from menu
@@ -252,6 +300,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <button 
               className="add-btn"
               onClick={() => addToCart(item)}
+              type="button"
             >
               <span className="add-icon">+</span>
             </button>
@@ -287,6 +336,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <button 
             className="continue-shopping-btn"
             onClick={() => setShowOrderConfirmation(false)}
+            type="button"
           >
             Continue Shopping
           </button>
@@ -317,20 +367,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               <div className="action-buttons">
                 <button 
                   className="search-btn"
-                  onClick={() => {
-                    setShowSearch(!showSearch);
-                    // FIX: Focus search input when search is opened
-                    setTimeout(() => {
-                      const searchInput = document.querySelector('.search-input');
-                      if (searchInput) searchInput.focus();
-                    }, 100);
-                  }}
+                  onClick={handleSearchToggle}
+                  type="button"
                 >
                   🔍
                 </button>
                 <button 
                   className="cart-indicator"
                   onClick={() => handleCartToggle(true)}
+                  type="button"
                 >
                   <span className="cart-icon">🛒</span>
                   {cart.length > 0 && (
@@ -344,7 +389,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* Search Bar */}
+        {/* Search Bar - FIXED: Stable keyboard input */}
         {showSearch && (
           <div className="search-section">
             <div className="search-container">
@@ -356,19 +401,29 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 onChange={handleSearchChange}
                 onFocus={handleSearchFocus}
                 className="search-input"
-                // FIX: Important attributes to prevent keyboard dismissal
+                // FIX: Critical attributes for mobile keyboard stability
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
+                inputMode="text"
+                enterKeyHint="search"
+                // FIX: Prevent any default behaviors that might dismiss keyboard
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
               />
               <button 
                 className="clear-search"
                 onClick={() => {
                   setSearchInput('');
                   setSearchTerm('');
-                  searchInputRef.current?.focus();
+                  // FIX: Maintain focus after clear
+                  setTimeout(() => {
+                    searchInputRef.current?.focus();
+                  }, 50);
                 }}
+                type="button"
               >
                 ✕
               </button>
@@ -387,6 +442,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   className={`category-card ${activeCategory === category ? 'active' : ''}`}
                   onClick={() => setActiveCategory(category)}
                   style={{ '--category-color': config.color }}
+                  type="button"
                 >
                   <div className="category-emoji">{config.emoji}</div>
                   <span className="category-name">{config.name}</span>
@@ -426,7 +482,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         </main>
 
         {/* Cart Sidebar - FIXED: Stable cart that doesn't auto-close */}
-        <div className={`premium-cart-sidebar ${localCartOpen ? 'open' : ''}`}>
+        <div 
+          className={`premium-cart-sidebar ${localCartOpen ? 'open' : ''}`}
+          onClick={handleCartClick} // FIX: Prevent close when clicking inside
+        >
           <div className="cart-header">
             <div className="cart-title-section">
               <h3>Your Order</h3>
@@ -435,6 +494,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <button 
               className="close-cart"
               onClick={handleCloseCart}
+              type="button"
             >
               ✕
             </button>
@@ -462,6 +522,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                             <button 
                               className="qty-btn minus"
                               onClick={() => updateQuantity(item.id, -1)}
+                              type="button"
                             >
                               −
                             </button>
@@ -469,6 +530,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                             <button 
                               className="qty-btn plus"
                               onClick={() => updateQuantity(item.id, 1)}
+                              type="button"
                             >
                               +
                             </button>
@@ -476,6 +538,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                           <button 
                             className="remove-item"
                             onClick={() => removeFromCart(item.id)}
+                            type="button"
                           >
                             🗑️
                           </button>
@@ -506,6 +569,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 <button 
                   className="checkout-button"
                   onClick={handlePlaceOrder}
+                  type="button"
                 >
                   <span className="checkout-text">Place Order</span>
                   <span className="checkout-price">RM {total.toFixed(2)}</span>
@@ -520,6 +584,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <button 
             className="mobile-cart-fab"
             onClick={() => handleCartToggle(true)}
+            type="button"
           >
             <span className="fab-icon">🛒</span>
             <span className="fab-count">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
@@ -531,7 +596,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         {localCartOpen && (
           <div 
             className="cart-overlay"
-            onClick={handleCloseCart}
+            onClick={handleOverlayClick}
           />
         )}
 
@@ -566,7 +631,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <p className="success-message-modern">
               Thank you for your payment. Your order is being prepared.
             </p>
-            <button className="continue-btn-modern" onClick={onPaymentSuccess}>
+            <button className="continue-btn-modern" onClick={onPaymentSuccess} type="button">
               Continue Shopping
             </button>
           </div>
@@ -577,7 +642,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     return (
       <div className="payment-container-modern">
         <div className="payment-header-modern">
-          <button className="back-btn-modern" onClick={onBack}>
+          <button className="back-btn-modern" onClick={onBack} type="button">
             <span className="back-arrow">←</span>
             Back to Menu
           </button>
@@ -687,6 +752,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               className={`pay-now-btn-modern ${paymentStatus === 'processing' ? 'processing' : ''}`}
               onClick={handlePayment}
               disabled={paymentStatus === 'processing'}
+              type="button"
             >
               {paymentStatus === 'processing' ? (
                 <>
@@ -739,6 +805,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <button 
             className="add-to-cart-btn-modern"
             onClick={() => onAddToCart(item)}
+            type="button"
           >
             <span className="btn-icon-modern">+</span>
             Add to Cart
@@ -986,6 +1053,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                       key={category.id}
                       className={`category-btn-modern ${activeCategory === category.id ? 'active' : ''}`}
                       onClick={() => setActiveCategory(category.id)}
+                      type="button"
                     >
                       <span className="category-name-modern">
                         {category.name}
@@ -1059,6 +1127,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                             <button 
                               className="quantity-btn-modern"
                               onClick={() => updateQuantity(item.id, -1)}
+                              type="button"
                             >
                               −
                             </button>
@@ -1066,12 +1135,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                             <button 
                               className="quantity-btn-modern"
                               onClick={() => updateQuantity(item.id, 1)}
+                              type="button"
                             >
                               +
                             </button>
                             <button 
                               className="remove-btn-modern"
                               onClick={() => removeFromCart(item.id)}
+                              type="button"
                             >
                               ×
                             </button>
@@ -1102,11 +1173,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                     </div>
 
                     <div className="cart-actions-modern">
-                      <button className="checkout-btn-modern" onClick={handleProceedToPayment}>
+                      <button className="checkout-btn-modern" onClick={handleProceedToPayment} type="button">
                         <span className="checkout-icon-modern">💳</span>
                         {isMobile ? `Pay RM ${total.toFixed(2)}` : `Proceed to Payment`}
                       </button>
-                      <button className="place-order-btn-modern" onClick={handlePlaceOrder}>
+                      <button className="place-order-btn-modern" onClick={handlePlaceOrder} type="button">
                         <span className="order-icon-modern">📦</span>
                         Place Order Only
                       </button>
@@ -1130,6 +1201,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <button 
               className="cart-toggle-btn-modern"
               onClick={toggleCart}
+              type="button"
             >
               🛒
               {itemCount > 0 && (
