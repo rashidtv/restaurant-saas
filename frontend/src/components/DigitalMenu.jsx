@@ -10,6 +10,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [tableNumber, setTableNumber] = useState(currentTable || '');
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
   
   // Table detection
   useEffect(() => {
@@ -74,24 +76,35 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     console.log('DigitalMenu - Menu data received:', menu);
   }, [menu]);
 
-  // FIXED: Customer View Component - USING MAIN CART STATE
-  const CustomerMenuView = () => {
+  // PREMIUM CUSTOMER VIEW COMPONENT
+  const PremiumCustomerView = () => {
     const [localCartOpen, setLocalCartOpen] = useState(false);
+    const [showOrderConfirmation, setShowOrderConfirmation] = useState(false);
+    const [recentlyAdded, setRecentlyAdded] = useState(null);
 
-    // FIXED: Use the main cart state instead of local state
+    // Food category emojis and colors
+    const categoryConfig = {
+      'all': { emoji: '🍽️', color: '#6366f1', name: 'All Items' },
+      'appetizers': { emoji: '🥗', color: '#10b981', name: 'Appetizers' },
+      'main-course': { emoji: '🍛', color: '#f59e0b', name: 'Main Course' },
+      'desserts': { emoji: '🍰', color: '#ec4899', name: 'Desserts' },
+      'beverages': { emoji: '🥤', color: '#3b82f6', name: 'Beverages' },
+      'specials': { emoji: '⭐', color: '#8b5cf6', name: 'Specials' }
+    };
+
+    // Add to cart with animation
     const addToCart = (item) => {
       console.log('🛒 Adding to cart:', item);
       
-      // FIXED: Use same cart structure as admin view
       const cartItem = {
         id: item._id || item.id,
         _id: item._id || item.id,
-        name: item.name, // 🎯 CRITICAL: Ensure name is preserved
+        name: item.name,
         price: item.price,
         quantity: 1,
         category: item.category,
         description: item.description,
-        // Include all original item data
+        image: item.image,
         ...item
       };
 
@@ -106,6 +119,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       } else {
         setCart([...cart, cartItem]);
       }
+
+      // Show added animation
+      setRecentlyAdded(item.id);
+      setTimeout(() => setRecentlyAdded(null), 2000);
       
       if (isMobile) setLocalCartOpen(true);
     };
@@ -122,9 +139,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       ).filter(item => item.quantity > 0));
     };
 
-    // FIXED: Use main cart for calculations
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const total = subtotal * 1.14;
+    const tax = subtotal * 0.14;
+    const total = subtotal + tax;
 
     const handlePlaceOrder = async () => {
       if (cart.length === 0) {
@@ -133,11 +150,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }
 
       try {
-        // FIXED: Use same order data structure as admin view
         const orderData = cart.map(item => ({
           menuItemId: item._id || item.id,
           _id: item._id || item.id,
-          name: item.name, // 🎯 CRITICAL: Ensure name is passed to kitchen
+          name: item.name,
           price: item.price,
           quantity: item.quantity,
           category: item.category
@@ -148,7 +164,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
         setCart([]);
         setLocalCartOpen(false);
-        alert('Order placed successfully! 🎉');
+        setShowOrderConfirmation(true);
         
         console.log('✅ Order result:', result);
       } catch (error) {
@@ -157,171 +173,304 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }
     };
 
+    // Get categories from menu
     const categories = ['all', ...new Set(menu.map(item => item.category).filter(Boolean))];
-    const filteredItems = activeCategory === 'all' 
-      ? menu 
-      : menu.filter(item => item.category === activeCategory);
+    
+    // Filter items based on active category and search
+    const filteredItems = menu.filter(item => {
+      const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           item.description.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
 
-    return (
-      <div className="customer-view-modern">
-        {/* Header */}
-        <div className="customer-header-modern">
-          <div className="header-content-modern">
-            <div className="restaurant-info-modern">
-              <h1 className="restaurant-name-modern">🍛 FlavorFlow</h1>
-              <p className="table-info-modern">Table {selectedTable || 'Unknown'}</p>
+    // Menu Item Card Component
+    const PremiumMenuItem = ({ item }) => {
+      const isRecentlyAdded = recentlyAdded === item.id;
+      
+      return (
+        <div className={`premium-menu-item ${isRecentlyAdded ? 'item-added' : ''}`}>
+          <div className="item-image-container">
+            <div className="item-image" style={{ background: categoryConfig[item.category]?.color || '#6366f1' }}>
+              <span className="item-emoji">{item.image || '🍽️'}</span>
+              {item.popular && <div className="popular-badge">🔥 Popular</div>}
+              {item.spicy && <div className="spicy-badge">🌶️ Spicy</div>}
             </div>
             <button 
-              className="cart-toggle-modern" 
-              onClick={() => setLocalCartOpen(!localCartOpen)}
+              className="add-btn"
+              onClick={() => addToCart(item)}
             >
-              <span className="cart-icon-modern">🛒</span>
-              {cart.length > 0 && (
-                <span className="cart-badge-modern">
-                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
-                </span>
-              )}
+              <span className="add-icon">+</span>
             </button>
           </div>
+          
+          <div className="item-content">
+            <div className="item-header">
+              <h3 className="item-name">{item.name}</h3>
+              <div className="item-price">RM {item.price}</div>
+            </div>
+            <p className="item-description">{item.description}</p>
+            <div className="item-meta">
+              <span className="prep-time">⏱️ {item.prepTime || 15} min</span>
+              {item.calories && <span className="calories">🔥 {item.calories} cal</span>}
+            </div>
+          </div>
         </div>
+      );
+    };
+
+    // Order Confirmation Component
+    const OrderConfirmation = () => (
+      <div className="order-confirmation-overlay">
+        <div className="order-confirmation">
+          <div className="confirmation-icon">🎉</div>
+          <h2>Order Confirmed!</h2>
+          <p>Your order has been placed successfully and is being prepared.</p>
+          <div className="order-details">
+            <p><strong>Table:</strong> {selectedTable}</p>
+            <p><strong>Items:</strong> {cart.reduce((sum, item) => sum + item.quantity, 0)}</p>
+            <p><strong>Total:</strong> RM {total.toFixed(2)}</p>
+          </div>
+          <button 
+            className="continue-shopping-btn"
+            onClick={() => setShowOrderConfirmation(false)}
+          >
+            Continue Shopping
+          </button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="premium-customer-view">
+        {/* Header */}
+        <header className="premium-header">
+          <div className="header-background"></div>
+          <div className="header-content">
+            <div className="restaurant-info">
+              <div className="restaurant-logo">🍛</div>
+              <div className="restaurant-text">
+                <h1 className="restaurant-name">FlavorFlow</h1>
+                <p className="restaurant-tagline">Authentic Flavors • Premium Experience</p>
+              </div>
+            </div>
+            
+            <div className="header-actions">
+              <div className="table-info">
+                <span className="table-label">Table</span>
+                <span className="table-number">{selectedTable || '--'}</span>
+              </div>
+              
+              <div className="action-buttons">
+                <button 
+                  className="search-btn"
+                  onClick={() => setShowSearch(!showSearch)}
+                >
+                  🔍
+                </button>
+                <button 
+                  className="cart-indicator"
+                  onClick={() => setLocalCartOpen(true)}
+                >
+                  <span className="cart-icon">🛒</span>
+                  {cart.length > 0 && (
+                    <span className="cart-count">
+                      {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Search Bar */}
+        {showSearch && (
+          <div className="search-section">
+            <div className="search-container">
+              <input
+                type="text"
+                placeholder="Search for dishes, ingredients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+              <button 
+                className="clear-search"
+                onClick={() => setSearchTerm('')}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Categories */}
-        <div className="categories-scroll-modern">
-          <div className="categories-container-modern">
-            {categories.map(category => (
-              <button
-                key={category}
-                className={`category-btn-modern ${activeCategory === category ? 'active' : ''}`}
-                onClick={() => setActiveCategory(category)}
-              >
-                <span className="category-emoji-modern">
-                  {category === 'all' ? '🍽️' : 
-                   category === 'appetizers' ? '🥗' :
-                   category === 'main-course' ? '🍛' :
-                   category === 'desserts' ? '🍰' : '🥤'}
-                </span>
-                <span className="category-name-modern">
-                  {category === 'all' ? 'All' : category}
-                </span>
-              </button>
-            ))}
+        <section className="categories-section">
+          <div className="categories-scroll">
+            {categories.map(category => {
+              const config = categoryConfig[category] || { emoji: '🍽️', color: '#6366f1', name: category };
+              return (
+                <button
+                  key={category}
+                  className={`category-card ${activeCategory === category ? 'active' : ''}`}
+                  onClick={() => setActiveCategory(category)}
+                  style={{ '--category-color': config.color }}
+                >
+                  <div className="category-emoji">{config.emoji}</div>
+                  <span className="category-name">{config.name}</span>
+                  <div className="category-count">
+                    {category === 'all' ? menu.length : menu.filter(item => item.category === category).length}
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        </div>
+        </section>
 
         {/* Menu Items */}
-        <div className="menu-container-modern">
-          <div className="menu-grid-modern">
-            {filteredItems.map(item => (
-              <div key={item.id} className="menu-item-card-modern">
-                <div className="item-image-modern">
-                  <span className="item-emoji-modern">{item.image || '🍽️'}</span>
-                </div>
-                <div className="item-content-modern">
-                  <div className="item-header-modern">
-                    <h3 className="item-name-modern">{item.name}</h3>
-                    <div className="item-price-modern">RM {item.price}</div>
-                  </div>
-                  <p className="item-description-modern">{item.description}</p>
-                  <div className="item-tags-modern">
-                    <span className="tag-modern prep-time-modern">
-                      ⏱️ {item.prepTime || 15}m
-                    </span>
-                    {item.spicy && (
-                      <span className="tag-modern spicy-modern">
-                        🌶️ {item.spicy}
-                      </span>
-                    )}
-                  </div>
-                  <button 
-                    className="add-to-cart-btn-modern"
-                    onClick={() => addToCart(item)}
-                  >
-                    Add to Cart
-                  </button>
-                </div>
-              </div>
-            ))}
+        <main className="menu-main">
+          <div className="menu-header">
+            <h2 className="section-title">
+              {activeCategory === 'all' ? 'Our Menu' : categoryConfig[activeCategory]?.name}
+            </h2>
+            <p className="section-subtitle">
+              {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} available
+            </p>
           </div>
-        </div>
+
+          {filteredItems.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">🍽️</div>
+              <h3>No items found</h3>
+              <p>Try adjusting your search or category filter</p>
+            </div>
+          ) : (
+            <div className="premium-menu-grid">
+              {filteredItems.map(item => (
+                <PremiumMenuItem key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </main>
 
         {/* Cart Sidebar */}
-        <div className={`cart-sidebar-modern ${localCartOpen ? 'open' : ''}`}>
-          <div className="cart-header-modern">
-            <h3>Your Order</h3>
+        <div className={`premium-cart-sidebar ${localCartOpen ? 'open' : ''}`}>
+          <div className="cart-header">
+            <div className="cart-title-section">
+              <h3>Your Order</h3>
+              <p>Table {selectedTable}</p>
+            </div>
             <button 
-              className="close-cart-modern"
+              className="close-cart"
               onClick={() => setLocalCartOpen(false)}
             >
               ✕
             </button>
           </div>
-          
-          <div className="cart-items-modern">
+
+          <div className="cart-content">
             {cart.length === 0 ? (
-              <div className="empty-cart-modern">
-                <div className="empty-icon-modern">🛒</div>
-                <p>Your cart is empty</p>
-                <p>Add items from the menu</p>
+              <div className="empty-cart-state">
+                <div className="empty-cart-icon">🛒</div>
+                <h4>Your cart is empty</h4>
+                <p>Add delicious items from our menu</p>
               </div>
             ) : (
-              cart.map(item => (
-                <div key={item.id} className="cart-item-modern">
-                  <div className="cart-item-info-modern">
-                    <span className="cart-item-name-modern">{item.name}</span>
-                    <span className="cart-item-price-modern">RM {item.price}</span>
+              <>
+                <div className="cart-items">
+                  {cart.map(item => (
+                    <div key={item.id} className="cart-item">
+                      <div className="item-details">
+                        <div className="item-main">
+                          <h4 className="item-title">{item.name}</h4>
+                          <p className="item-price">RM {item.price}</p>
+                        </div>
+                        <div className="item-controls">
+                          <div className="quantity-controls">
+                            <button 
+                              className="qty-btn minus"
+                              onClick={() => updateQuantity(item.id, -1)}
+                            >
+                              −
+                            </button>
+                            <span className="quantity">{item.quantity}</span>
+                            <button 
+                              className="qty-btn plus"
+                              onClick={() => updateQuantity(item.id, 1)}
+                            >
+                              +
+                            </button>
+                          </div>
+                          <button 
+                            className="remove-item"
+                            onClick={() => removeFromCart(item.id)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                      <div className="item-total">
+                        RM {(item.price * item.quantity).toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="cart-summary">
+                  <div className="summary-line">
+                    <span>Subtotal</span>
+                    <span>RM {subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="cart-controls-modern">
-                    <button onClick={() => updateQuantity(item.id, -1)}>-</button>
-                    <span className="quantity-modern">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, 1)}>+</button>
-                    <button 
-                      className="remove-btn-modern"
-                      onClick={() => removeFromCart(item.id)}
-                    >
-                      ×
-                    </button>
+                  <div className="summary-line">
+                    <span>Tax & Service</span>
+                    <span>RM {tax.toFixed(2)}</span>
+                  </div>
+                  <div className="total-line">
+                    <span>Total</span>
+                    <span className="total-amount">RM {total.toFixed(2)}</span>
                   </div>
                 </div>
-              ))
+
+                <button 
+                  className="checkout-button"
+                  onClick={handlePlaceOrder}
+                >
+                  <span className="checkout-text">Place Order</span>
+                  <span className="checkout-price">RM {total.toFixed(2)}</span>
+                </button>
+              </>
             )}
           </div>
-
-          {cart.length > 0 && (
-            <div className="cart-footer-modern">
-              <div className="cart-total-modern">
-                <div className="total-line-modern">
-                  <span>Subtotal</span>
-                  <span>RM {subtotal.toFixed(2)}</span>
-                </div>
-                <div className="total-line-modern">
-                  <span>Tax (14%)</span>
-                  <span>RM {(subtotal * 0.14).toFixed(2)}</span>
-                </div>
-                <div className="grand-total-modern">
-                  <span>Total</span>
-                  <span>RM {total.toFixed(2)}</span>
-                </div>
-              </div>
-              <button 
-                className="checkout-btn-modern"
-                onClick={handlePlaceOrder}
-              >
-                Place Order • RM {total.toFixed(2)}
-              </button>
-            </div>
-          )}
         </div>
+
+        {/* Mobile Cart FAB */}
+        {isMobile && cart.length > 0 && !localCartOpen && (
+          <button 
+            className="mobile-cart-fab"
+            onClick={() => setLocalCartOpen(true)}
+          >
+            <span className="fab-icon">🛒</span>
+            <span className="fab-count">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
+            <span className="fab-text">View Order</span>
+          </button>
+        )}
 
         {/* Overlay */}
         {localCartOpen && (
           <div 
-            className="cart-overlay-modern" 
+            className="cart-overlay"
             onClick={() => setLocalCartOpen(false)}
           />
         )}
+
+        {/* Order Confirmation */}
+        {showOrderConfirmation && <OrderConfirmation />}
       </div>
     );
   };
+
+  // KEEP ALL EXISTING ADMIN FUNCTIONALITY
 
   // Modern Payment Page Component
   const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
@@ -485,7 +634,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Modern Menu Item Card Component
+  // Modern Menu Item Card Component for Admin
   const MenuItemCard = ({ item, onAddToCart, isMobile }) => {
     const itemName = item.name || 'Unknown Item';
     const itemPrice = item.price || 0;
@@ -656,7 +805,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       const orderData = cart.map(item => ({
         menuItemId: item._id || item.id,
         _id: item._id || item.id,
-        name: item.name, // 🎯 CRITICAL: Ensure name is passed
+        name: item.name,
         price: item.price,
         quantity: item.quantity,
         category: item.category
@@ -688,7 +837,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   return (
     <div className="digital-menu-modern">
       {isCustomerView ? (
-        <CustomerMenuView />
+        <PremiumCustomerView />
       ) : (
         <>
           {/* Modern Header Section */}
