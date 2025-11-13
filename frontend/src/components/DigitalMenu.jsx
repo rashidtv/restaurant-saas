@@ -25,35 +25,104 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     cartOpenRef.current = cartOpen;
   }, [cartOpen]);
 
-  // Table detection - SIMPLIFIED
+  // FIX 1: Restore QR table detection functionality
   useEffect(() => {
-    if (isCustomerView && !selectedTable) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const tableFromUrl = urlParams.get('table') || currentTable;
-      if (tableFromUrl) {
-        setSelectedTable(tableFromUrl);
-      }
-    }
-  }, [isCustomerView, selectedTable, currentTable]);
+    const detectTableFromURL = () => {
+      console.log('🔍 Scanning URL for table number...');
+      
+      const url = new URL(window.location.href);
+      const hash = window.location.hash;
+      const searchParams = url.searchParams;
+      
+      let detectedTable = null;
 
-  // FIX: Stable search handlers
+      if (searchParams.has('table')) {
+        detectedTable = searchParams.get('table');
+        console.log('✅ Table detected from search params:', detectedTable);
+      }
+      
+      if (hash.includes('?')) {
+        const hashParams = new URLSearchParams(hash.split('?')[1]);
+        if (hashParams.has('table')) {
+          detectedTable = hashParams.get('table');
+          console.log('✅ Table detected from hash params:', detectedTable);
+        }
+      }
+
+      if (detectedTable) {
+        setTableNumber(detectedTable);
+        setSelectedTable(detectedTable);
+        console.log('🎯 Table number set to:', detectedTable);
+      } else {
+        console.log('❌ No table number found in URL');
+      }
+    };
+
+    if (isCustomerView) {
+      detectTableFromURL();
+      setTimeout(detectTableFromURL, 1000);
+      
+      window.addEventListener('hashchange', detectTableFromURL);
+      window.addEventListener('popstate', detectTableFromURL);
+      
+      return () => {
+        window.removeEventListener('hashchange', detectTableFromURL);
+        window.removeEventListener('popstate', detectTableFromURL);
+      };
+    }
+  }, [isCustomerView]);
+
+  // Get table from URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tableFromUrl = urlParams.get('table');
+    if (tableFromUrl) {
+      console.log('DigitalMenu - Table from URL params:', tableFromUrl);
+      setSelectedTable(tableFromUrl);
+      setTableNumber(tableFromUrl);
+    }
+  }, []);
+
+  // FIX: Stable search handlers - PREVENT KEYBOARD DISMISSAL
   const handleSearchToggle = () => {
     setShowSearch(prev => !prev);
     if (!showSearch) {
+      // Use setTimeout to ensure the input is rendered before focusing
       setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 100);
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+          // FIX 2: Prevent any re-renders that might dismiss keyboard
+          searchInputRef.current.setSelectionRange(
+            searchInputRef.current.value.length, 
+            searchInputRef.current.value.length
+          );
+        }
+      }, 150);
     }
   };
 
+  // FIX 2: Critical fix for keyboard dismissal during typing
   const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
+    const value = e.target.value;
+    setSearchTerm(value);
+    
+    // CRITICAL FIX: Maintain focus without causing re-renders that dismiss keyboard
+    // Use requestAnimationFrame to ensure focus is maintained after state update
+    requestAnimationFrame(() => {
+      if (e.target) {
+        e.target.focus();
+        e.target.setSelectionRange(value.length, value.length);
+      }
+    });
   };
 
   const clearSearch = () => {
     setSearchTerm('');
     setTimeout(() => {
-      searchInputRef.current?.focus();
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        searchInputRef.current.setSelectionRange(0, 0);
+      }
     }, 50);
   };
 
@@ -73,7 +142,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     e.stopPropagation();
   };
 
-  // Add to cart function
+  // Add to cart function - FIX 3: Don't auto-open cart on mobile when adding items
   const addToCart = (item) => {
     console.log('🛒 Adding to cart:', item);
     
@@ -99,10 +168,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       setCart([...cart, cartItem]);
     }
 
-    // Auto-open cart on mobile when adding items
-    if (isMobile) {
-      handleCartToggle(true);
-    }
+    // FIX 3: REMOVED auto-opening cart on mobile
+    // Cart will only open when user explicitly clicks cart button
   };
 
   const removeFromCart = (id) => {
@@ -174,9 +241,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     'specials': { emoji: '⭐', color: '#8b5cf6', name: 'Specials' }
   };
 
-  // PREMIUM CUSTOMER VIEW - SIMPLIFIED
+  // PREMIUM CUSTOMER VIEW
   const PremiumCustomerView = () => {
     const [recentlyAdded, setRecentlyAdded] = useState(null);
+    const [tableNumber, setTableNumber] = useState('');
 
     const handleItemAdd = (item) => {
       addToCart(item);
@@ -226,7 +294,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* Search Bar - FIXED */}
+        {/* Search Bar - FIXED: Keyboard won't dismiss during typing */}
         {showSearch && (
           <div className="search-section">
             <div className="search-container">
@@ -237,10 +305,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 value={searchTerm}
                 onChange={handleSearchChange}
                 className="search-input"
+                // FIX 2: Critical attributes to prevent keyboard dismissal
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
+                inputMode="search"
+                enterKeyHint="search"
+                // Prevent any default behaviors that might dismiss keyboard
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
               />
               <button 
                 className="clear-search"
@@ -325,7 +400,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </main>
 
-        {/* Cart Sidebar - FIXED: Stable implementation */}
+        {/* Cart Sidebar - FIXED: Only opens when user explicitly clicks cart button */}
         <div 
           className={`premium-cart-sidebar ${cartOpen ? 'open' : ''}`}
           onClick={handleCartClick}
@@ -423,7 +498,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </div>
 
-        {/* Mobile Cart FAB */}
+        {/* Mobile Cart FAB - FIX 3: Only shows when cart has items AND cart is closed */}
         {isMobile && cart.length > 0 && !cartOpen && (
           <button 
             className="mobile-cart-fab"
@@ -465,7 +540,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // ADMIN VIEW - SIMPLIFIED
+  // ADMIN VIEW
   const AdminView = () => {
     return (
       <div className="digital-menu-modern">
