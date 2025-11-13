@@ -11,7 +11,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   
-  // Table detection - KEEP EXISTING FUNCTIONALITY
+  // Table detection
   useEffect(() => {
     const detectTableFromURL = () => {
       console.log('🔍 Scanning URL for table number...');
@@ -58,7 +58,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView]);
 
-  // Get table from URL parameters - KEEP EXISTING
+  // Get table from URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const tableFromUrl = urlParams.get('table');
@@ -69,66 +69,90 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, []);
 
-  // DEBUG: Log menu data - KEEP EXISTING
+  // DEBUG: Log menu data
   useEffect(() => {
     console.log('DigitalMenu - Menu data received:', menu);
   }, [menu]);
 
-  // NEW: Simplified Customer View Component
+  // FIXED: Customer View Component - USING MAIN CART STATE
   const CustomerMenuView = () => {
-    const [localCart, setLocalCart] = useState([]);
     const [localCartOpen, setLocalCartOpen] = useState(false);
 
+    // FIXED: Use the main cart state instead of local state
     const addToCart = (item) => {
-      const existingItem = localCart.find(cartItem => cartItem.id === item.id);
+      console.log('🛒 Adding to cart:', item);
+      
+      // FIXED: Use same cart structure as admin view
+      const cartItem = {
+        id: item._id || item.id,
+        _id: item._id || item.id,
+        name: item.name, // 🎯 CRITICAL: Ensure name is preserved
+        price: item.price,
+        quantity: 1,
+        category: item.category,
+        description: item.description,
+        // Include all original item data
+        ...item
+      };
+
+      const existingItem = cart.find(cartItem => cartItem.id === item.id);
       
       if (existingItem) {
-        setLocalCart(localCart.map(cartItem =>
+        setCart(cart.map(cartItem =>
           cartItem.id === item.id
             ? { ...cartItem, quantity: cartItem.quantity + 1 }
             : cartItem
         ));
       } else {
-        setLocalCart([...localCart, { ...item, quantity: 1 }]);
+        setCart([...cart, cartItem]);
       }
       
       if (isMobile) setLocalCartOpen(true);
     };
 
     const removeFromCart = (id) => {
-      setLocalCart(localCart.filter(item => item.id !== id));
+      setCart(cart.filter(item => item.id !== id));
     };
 
     const updateQuantity = (id, change) => {
-      setLocalCart(localCart.map(item =>
+      setCart(cart.map(item =>
         item.id === id
           ? { ...item, quantity: Math.max(0, item.quantity + change) }
           : item
       ).filter(item => item.quantity > 0));
     };
 
-    const subtotal = localCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // FIXED: Use main cart for calculations
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const total = subtotal * 1.14;
 
     const handlePlaceOrder = async () => {
-      if (localCart.length === 0) {
+      if (cart.length === 0) {
         alert('Your cart is empty');
         return;
       }
 
       try {
-        const orderData = localCart.map(item => ({
-          menuItemId: item.id,
-          name: item.name,
+        // FIXED: Use same order data structure as admin view
+        const orderData = cart.map(item => ({
+          menuItemId: item._id || item.id,
+          _id: item._id || item.id,
+          name: item.name, // 🎯 CRITICAL: Ensure name is passed to kitchen
           price: item.price,
-          quantity: item.quantity
+          quantity: item.quantity,
+          category: item.category
         }));
 
-        await onCreateOrder(selectedTable, orderData, 'dine-in');
-        setLocalCart([]);
+        console.log('📦 Placing order with items:', orderData);
+        
+        const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
+        setCart([]);
         setLocalCartOpen(false);
         alert('Order placed successfully! 🎉');
+        
+        console.log('✅ Order result:', result);
       } catch (error) {
+        console.error('❌ Order failed:', error);
         alert('Order failed: ' + error.message);
       }
     };
@@ -152,9 +176,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               onClick={() => setLocalCartOpen(!localCartOpen)}
             >
               <span className="cart-icon-modern">🛒</span>
-              {localCart.length > 0 && (
+              {cart.length > 0 && (
                 <span className="cart-badge-modern">
-                  {localCart.reduce((sum, item) => sum + item.quantity, 0)}
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
                 </span>
               )}
             </button>
@@ -233,14 +257,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
           
           <div className="cart-items-modern">
-            {localCart.length === 0 ? (
+            {cart.length === 0 ? (
               <div className="empty-cart-modern">
                 <div className="empty-icon-modern">🛒</div>
                 <p>Your cart is empty</p>
                 <p>Add items from the menu</p>
               </div>
             ) : (
-              localCart.map(item => (
+              cart.map(item => (
                 <div key={item.id} className="cart-item-modern">
                   <div className="cart-item-info-modern">
                     <span className="cart-item-name-modern">{item.name}</span>
@@ -262,7 +286,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             )}
           </div>
 
-          {localCart.length > 0 && (
+          {cart.length > 0 && (
             <div className="cart-footer-modern">
               <div className="cart-total-modern">
                 <div className="total-line-modern">
@@ -299,9 +323,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // KEEP ALL EXISTING ADMIN FUNCTIONALITY BELOW
-
-  // Modern Payment Page Component - KEEP EXISTING
+  // Modern Payment Page Component
   const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
     const [paymentMethod, setPaymentMethod] = useState('qr');
     const [paymentStatus, setPaymentStatus] = useState('pending');
@@ -463,7 +485,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // FIXED: Modern Menu Item Card Component - KEEP EXISTING
+  // Modern Menu Item Card Component
   const MenuItemCard = ({ item, onAddToCart, isMobile }) => {
     const itemName = item.name || 'Unknown Item';
     const itemPrice = item.price || 0;
@@ -508,10 +530,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Use ONLY the menu from props (API data) - KEEP EXISTING
+  // Use ONLY the menu from props (API data)
   const displayMenu = menu || [];
 
-  // Create categories from actual menu data - KEEP EXISTING
+  // Create categories from actual menu data
   const getMenuCategories = () => {
     if (!displayMenu || displayMenu.length === 0) {
       return [
@@ -535,7 +557,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
   const menuCategories = getMenuCategories();
 
-  // Filter items based on active category - KEEP EXISTING
+  // Filter items based on active category
   const getFilteredItems = () => {
     if (!displayMenu || displayMenu.length === 0) return [];
     
@@ -548,7 +570,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
   const filteredItems = getFilteredItems();
 
-  // FIXED: addToCart function - preserve item names properly - KEEP EXISTING
+  // addToCart function - preserve item names properly
   const addToCart = (item) => {
     console.log('DigitalMenu - Adding to cart:', item);
     
@@ -598,17 +620,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Toggle cart for mobile - KEEP EXISTING
+  // Toggle cart for mobile
   const toggleCart = () => {
     setCartOpen(!cartOpen);
   };
 
-  // Close cart when clicking overlay - KEEP EXISTING
+  // Close cart when clicking overlay
   const handleCartClose = () => {
     setCartOpen(false);
   };
 
-  // Close cart when proceeding to payment - KEEP EXISTING
+  // Close cart when proceeding to payment
   const handleProceedToPayment = () => {
     if (cart.length === 0) return;
     setShowPayment(true);
@@ -634,7 +656,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       const orderData = cart.map(item => ({
         menuItemId: item._id || item.id,
         _id: item._id || item.id,
-        name: item.name,
+        name: item.name, // 🎯 CRITICAL: Ensure name is passed
         price: item.price,
         quantity: item.quantity,
         category: item.category
@@ -662,28 +684,26 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
-  // MAIN RENDER - Use new Customer View for QR scanning, keep admin view as is
+  // MAIN RENDER
   return (
     <div className="digital-menu-modern">
       {isCustomerView ? (
         <CustomerMenuView />
       ) : (
         <>
-          {/* Modern Header Section - KEEP EXISTING ADMIN VIEW */}
+          {/* Modern Header Section */}
           <div className="menu-header-modern">
             <div className="menu-header-content-modern">
               <div className="menu-title-section-modern">
                 <h2 className="menu-title-modern">
-                  {isCustomerView ? '🍛 FlavorFlow' : 'Menu Management'}
+                  Menu Management
                 </h2>
                 <p className="menu-subtitle-modern">
-                  {isCustomerView && currentTable 
-                    ? `Table ${currentTable} • Ready to order`
-                    : selectedTable === 'Takeaway' 
-                      ? 'Takeaway Order' 
-                      : selectedTable 
-                        ? `Table ${selectedTable} • Staff View`
-                        : 'Select a table to begin'
+                  {selectedTable === 'Takeaway' 
+                    ? 'Takeaway Order' 
+                    : selectedTable 
+                      ? `Table ${selectedTable} • Staff View`
+                      : 'Select a table to begin'
                   }
                 </p>
               </div>
