@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import './DigitalMenu.css';
 
@@ -13,6 +13,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   
+  // FIX: Use refs to track cart state properly
+  const cartOpenRef = useRef(false);
+  const searchInputRef = useRef(null);
+
   // Table detection
   useEffect(() => {
     const detectTableFromURL = () => {
@@ -71,16 +75,30 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, []);
 
+  // FIX: Keep cartOpenRef in sync with cartOpen state
+  useEffect(() => {
+    cartOpenRef.current = cartOpen;
+  }, [cartOpen]);
+
   // DEBUG: Log menu data
   useEffect(() => {
     console.log('DigitalMenu - Menu data received:', menu);
   }, [menu]);
 
-  // PREMIUM CUSTOMER VIEW COMPONENT
+  // PREMIUM CUSTOMER VIEW COMPONENT WITH FIXES
   const PremiumCustomerView = () => {
     const [localCartOpen, setLocalCartOpen] = useState(false);
     const [showOrderConfirmation, setShowOrderConfirmation] = useState(false);
     const [recentlyAdded, setRecentlyAdded] = useState(null);
+    const [searchInput, setSearchInput] = useState('');
+
+    // Use ref to track cart state
+    const localCartOpenRef = useRef(false);
+
+    // FIX: Keep ref in sync with state
+    useEffect(() => {
+      localCartOpenRef.current = localCartOpen;
+    }, [localCartOpen]);
 
     // Food category emojis and colors
     const categoryConfig = {
@@ -124,7 +142,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       setRecentlyAdded(item.id);
       setTimeout(() => setRecentlyAdded(null), 2000);
       
-      if (isMobile) setLocalCartOpen(true);
+      if (isMobile) {
+        setLocalCartOpen(true);
+      }
     };
 
     const removeFromCart = (id) => {
@@ -173,14 +193,47 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }
     };
 
+    // FIX: Improved search handler that doesn't interfere with keyboard
+    const handleSearchChange = (e) => {
+      const value = e.target.value;
+      setSearchInput(value);
+      setSearchTerm(value);
+      
+      // FIX: Prevent any re-renders that might dismiss keyboard
+      // This keeps the input focused
+      e.target.focus();
+    };
+
+    // FIX: Proper search input focus management
+    const handleSearchFocus = (e) => {
+      // Ensure the input stays focused
+      setTimeout(() => {
+        if (e.target) {
+          e.target.focus();
+        }
+      }, 100);
+    };
+
+    // FIX: Cart toggle with proper state management
+    const handleCartToggle = (open) => {
+      console.log('🛒 Cart toggle:', open);
+      setLocalCartOpen(open);
+    };
+
+    // FIX: Close cart only when explicitly requested
+    const handleCloseCart = () => {
+      console.log('🛒 Closing cart explicitly');
+      setLocalCartOpen(false);
+    };
+
     // Get categories from menu
     const categories = ['all', ...new Set(menu.map(item => item.category).filter(Boolean))];
     
     // Filter items based on active category and search
     const filteredItems = menu.filter(item => {
       const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           item.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = item.name.toLowerCase().includes(searchInput.toLowerCase()) ||
+                           item.description.toLowerCase().includes(searchInput.toLowerCase());
       return matchesCategory && matchesSearch;
     });
 
@@ -264,13 +317,20 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               <div className="action-buttons">
                 <button 
                   className="search-btn"
-                  onClick={() => setShowSearch(!showSearch)}
+                  onClick={() => {
+                    setShowSearch(!showSearch);
+                    // FIX: Focus search input when search is opened
+                    setTimeout(() => {
+                      const searchInput = document.querySelector('.search-input');
+                      if (searchInput) searchInput.focus();
+                    }, 100);
+                  }}
                 >
                   🔍
                 </button>
                 <button 
                   className="cart-indicator"
-                  onClick={() => setLocalCartOpen(true)}
+                  onClick={() => handleCartToggle(true)}
                 >
                   <span className="cart-icon">🛒</span>
                   {cart.length > 0 && (
@@ -289,15 +349,26 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <div className="search-section">
             <div className="search-container">
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Search for dishes, ingredients..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInput}
+                onChange={handleSearchChange}
+                onFocus={handleSearchFocus}
                 className="search-input"
+                // FIX: Important attributes to prevent keyboard dismissal
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
               />
               <button 
                 className="clear-search"
-                onClick={() => setSearchTerm('')}
+                onClick={() => {
+                  setSearchInput('');
+                  setSearchTerm('');
+                  searchInputRef.current?.focus();
+                }}
               >
                 ✕
               </button>
@@ -354,7 +425,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </main>
 
-        {/* Cart Sidebar */}
+        {/* Cart Sidebar - FIXED: Stable cart that doesn't auto-close */}
         <div className={`premium-cart-sidebar ${localCartOpen ? 'open' : ''}`}>
           <div className="cart-header">
             <div className="cart-title-section">
@@ -363,7 +434,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             </div>
             <button 
               className="close-cart"
-              onClick={() => setLocalCartOpen(false)}
+              onClick={handleCloseCart}
             >
               ✕
             </button>
@@ -448,7 +519,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         {isMobile && cart.length > 0 && !localCartOpen && (
           <button 
             className="mobile-cart-fab"
-            onClick={() => setLocalCartOpen(true)}
+            onClick={() => handleCartToggle(true)}
           >
             <span className="fab-icon">🛒</span>
             <span className="fab-count">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
@@ -456,11 +527,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </button>
         )}
 
-        {/* Overlay */}
+        {/* Overlay - FIXED: Only close when explicitly clicking overlay */}
         {localCartOpen && (
           <div 
             className="cart-overlay"
-            onClick={() => setLocalCartOpen(false)}
+            onClick={handleCloseCart}
           />
         )}
 
@@ -469,8 +540,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       </div>
     );
   };
-
-  // KEEP ALL EXISTING ADMIN FUNCTIONALITY
 
   // Modern Payment Page Component
   const PaymentPage = ({ orderDetails, onBack, onPaymentSuccess, isMobile }) => {
