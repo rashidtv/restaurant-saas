@@ -13,8 +13,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   
-  // Simple ref for search input
-  const searchInputRef = useRef(null);
+  // CRITICAL FIX: Use a ref to track cart items for stable deletion
+  const cartRef = useRef(cart);
+  
+  // Keep ref in sync with cart
+  useEffect(() => {
+    cartRef.current = cart;
+  }, [cart]);
 
   // Table detection
   useEffect(() => {
@@ -79,51 +84,113 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     console.log('DigitalMenu - Menu data received:', menu);
   }, [menu]);
 
-  // FIX 1: SIMPLE SEARCH HANDLERS - No keyboard dismissal
-  const handleSearchToggle = () => {
-    const newShowSearch = !showSearch;
-    setShowSearch(newShowSearch);
-    
-    if (newShowSearch) {
+  // FIX 1: ULTIMATE KEYBOARD STABILITY - Separate Search Component
+  const SearchComponent = () => {
+    const searchInputRef = useRef(null);
+    const [localSearchTerm, setLocalSearchTerm] = useState('');
+
+    useEffect(() => {
+      if (showSearch && searchInputRef.current) {
+        // Use setTimeout to ensure the input is rendered
+        setTimeout(() => {
+          searchInputRef.current.focus();
+        }, 150);
+      }
+    }, [showSearch]);
+
+    const handleSearchChange = (e) => {
+      const value = e.target.value;
+      setLocalSearchTerm(value);
+      setSearchTerm(value);
+    };
+
+    const handleClearSearch = () => {
+      setLocalSearchTerm('');
+      setSearchTerm('');
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
         }
-      }, 100);
+      }, 50);
+    };
+
+    if (!showSearch) return null;
+
+    return (
+      <div className="search-section">
+        <div className="search-container">
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search for dishes, ingredients..."
+            value={localSearchTerm}
+            onChange={handleSearchChange}
+            className="search-input"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
+            // Critical for mobile keyboard stability
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          />
+          <button 
+            className="clear-search"
+            onClick={handleClearSearch}
+            type="button"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const handleSearchToggle = () => {
+    setShowSearch(!showSearch);
+  };
+
+  // FIX 2: BULLETPROOF DELETE FUNCTION
+  const removeFromCart = React.useCallback((itemId) => {
+    console.log('🔄 DELETE: Removing item ID:', itemId);
+    console.log('📦 Current cart:', cartRef.current);
+    
+    // Use the ref to get the current cart state to avoid stale closures
+    const currentCart = cartRef.current;
+    const itemToRemove = currentCart.find(item => item.id === itemId);
+    
+    if (!itemToRemove) {
+      console.log('❌ Item not found in cart');
+      return;
     }
-  };
 
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
-  };
+    console.log('🗑️ Removing item:', itemToRemove.name);
+    
+    // Create a new array without the specific item
+    const updatedCart = currentCart.filter(item => {
+      const shouldKeep = item.id !== itemId;
+      console.log(`🔍 ${item.id} === ${itemId}? ${!shouldKeep} - ${shouldKeep ? 'KEEP' : 'REMOVE'}`);
+      return shouldKeep;
+    });
+    
+    console.log('✅ New cart after removal:', updatedCart);
+    setCart(updatedCart);
+    
+    // Cart stays open - don't close it
+  }, [setCart]);
 
-  const clearSearch = () => {
-    setSearchTerm('');
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  };
-
-  // FIX 2: SIMPLE DELETE FUNCTION - Only removes specific item
-  const removeFromCart = (itemId) => {
-    console.log('🗑️ Removing item:', itemId);
-    const newCart = cart.filter(item => item.id !== itemId);
-    setCart(newCart);
-    // Cart stays open after deletion
-  };
-
-  const updateQuantity = (id, change) => {
-    const newCart = cart.map(item =>
+  const updateQuantity = React.useCallback((id, change) => {
+    const updatedCart = cartRef.current.map(item =>
       item.id === id
         ? { ...item, quantity: Math.max(0, item.quantity + change) }
         : item
     ).filter(item => item.quantity > 0);
     
-    setCart(newCart);
-  };
+    setCart(updatedCart);
+  }, [setCart]);
 
   // Add to cart function
-  const addToCart = (item) => {
+  const addToCart = React.useCallback((item) => {
     console.log('🛒 Adding to cart:', item);
     
     const cartItem = {
@@ -137,22 +204,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       ...item
     };
 
-    const existingItem = cart.find(cartItem => cartItem.id === item.id);
+    const existingItem = cartRef.current.find(cartItem => cartItem.id === item.id);
     
     if (existingItem) {
-      setCart(cart.map(cartItem =>
+      const updatedCart = cartRef.current.map(cartItem =>
         cartItem.id === item.id
           ? { ...cartItem, quantity: cartItem.quantity + 1 }
           : cartItem
-      ));
+      );
+      setCart(updatedCart);
     } else {
-      setCart([...cart, cartItem]);
+      setCart([...cartRef.current, cartItem]);
     }
 
     if (isMobile) {
       setCartOpen(true);
     }
-  };
+  }, [isMobile, setCart]);
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -161,17 +229,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = subtotal + serviceTax + sst;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Toggle cart for mobile
+  // Cart handlers
   const toggleCart = () => {
     setCartOpen(!cartOpen);
   };
 
-  // Close cart when clicking overlay
   const handleCartClose = () => {
     setCartOpen(false);
   };
 
-  // Close cart when proceeding to payment
   const handleProceedToPayment = () => {
     if (cart.length === 0) return;
     setShowPayment(true);
@@ -225,7 +291,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const [localCartOpen, setLocalCartOpen] = useState(false);
     const [showOrderConfirmation, setShowOrderConfirmation] = useState(false);
     const [recentlyAdded, setRecentlyAdded] = useState(null);
-    const [searchInput, setSearchInput] = useState('');
 
     // Food category emojis and colors
     const categoryConfig = {
@@ -237,7 +302,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       'specials': { emoji: '⭐', color: '#8b5cf6', name: 'Specials' }
     };
 
-    // Add to cart with animation
     const handleItemAdd = (item) => {
       addToCart(item);
       setRecentlyAdded(item.id);
@@ -274,7 +338,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }
     };
 
-    // Cart handlers
     const handleCartToggle = (open) => {
       console.log('🛒 Cart toggle:', open);
       setLocalCartOpen(open);
@@ -295,8 +358,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     // Filter items based on active category and search
     const filteredItems = menu.filter(item => {
       const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
-      const matchesSearch = item.name.toLowerCase().includes(searchInput.toLowerCase()) ||
-                           item.description.toLowerCase().includes(searchInput.toLowerCase());
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           item.description.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesCategory && matchesSearch;
     });
 
@@ -409,39 +472,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* FIX 1: SEARCH BAR - No keyboard dismissal */}
-        {showSearch && (
-          <div className="search-section">
-            <div className="search-container">
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search for dishes, ingredients..."
-                value={searchInput}
-                onChange={(e) => {
-                  setSearchInput(e.target.value);
-                  setSearchTerm(e.target.value);
-                }}
-                className="search-input"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-              />
-              <button 
-                className="clear-search"
-                onClick={() => {
-                  setSearchInput('');
-                  setSearchTerm('');
-                  searchInputRef.current?.focus();
-                }}
-                type="button"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        )}
+        {/* FIX 1: SEPARATE SEARCH COMPONENT - No keyboard dismissal */}
+        <SearchComponent />
 
         {/* Categories */}
         <section className="categories-section">
@@ -493,7 +525,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </main>
 
-        {/* Cart Sidebar - FIX 2: Proper delete and stays open */}
+        {/* Cart Sidebar - FIX 2: PROPER DELETE FUNCTIONALITY */}
         <div 
           className={`premium-cart-sidebar ${localCartOpen ? 'open' : ''}`}
           onClick={handleCartClick}
@@ -547,10 +579,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                               +
                             </button>
                           </div>
+                          {/* FIX 2: PROPER DELETE BUTTON */}
                           <button 
                             className="remove-item"
                             onClick={(e) => {
                               e.stopPropagation();
+                              console.log('🗑️ DELETE BUTTON CLICKED for:', item.name);
                               removeFromCart(item.id);
                             }}
                             type="button"
@@ -1137,7 +1171,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
   // MAIN RENDER
   return (
-    <div className="digitalMenu">
+    <div className="digital-menu-modern">
       {isCustomerView ? <PremiumCustomerView /> : <AdminView />}
     </div>
   );
