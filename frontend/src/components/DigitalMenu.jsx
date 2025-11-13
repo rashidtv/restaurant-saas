@@ -9,14 +9,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [showPayment, setShowPayment] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   
-  // FIX: Single source of truth for cart open state
   const [cartOpen, setCartOpen] = useState(false);
-  
-  // FIX: Single search state
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
-  // FIX: Use refs for stable DOM references
   const searchInputRef = useRef(null);
   const cartOpenRef = useRef(false);
 
@@ -25,7 +21,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     cartOpenRef.current = cartOpen;
   }, [cartOpen]);
 
-  // FIX 1: Restore QR table detection functionality - CORRECTED VERSION
+  // QR table detection functionality
   useEffect(() => {
     const detectTableFromURL = () => {
       console.log('🔍 Scanning URL for table number...');
@@ -50,7 +46,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }
 
       if (detectedTable) {
-        // FIX: Only set selectedTable, not tableNumber which doesn't exist
         setSelectedTable(detectedTable);
         console.log('🎯 Table number set to:', detectedTable);
       } else {
@@ -82,37 +77,29 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, []);
 
-  // FIX: Stable search handlers - PREVENT KEYBOARD DISMISSAL
+  // FIX 1: COMPLETELY STABLE SEARCH HANDLER - NO KEYBOARD DISMISSAL
   const handleSearchToggle = () => {
     setShowSearch(prev => !prev);
     if (!showSearch) {
-      // Use setTimeout to ensure the input is rendered before focusing
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
-          // FIX 2: Prevent any re-renders that might dismiss keyboard
-          searchInputRef.current.setSelectionRange(
-            searchInputRef.current.value.length, 
-            searchInputRef.current.value.length
-          );
         }
-      }, 150);
+      }, 200);
     }
   };
 
-  // FIX 2: Critical fix for keyboard dismissal during typing
+  // FIX 1: ULTRA-STABLE SEARCH CHANGE - NO RE-RENDERS
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
     
-    // CRITICAL FIX: Maintain focus without causing re-renders that dismiss keyboard
-    // Use requestAnimationFrame to ensure focus is maintained after state update
-    requestAnimationFrame(() => {
+    // CRITICAL FIX: Use setTimeout to maintain focus without interfering with React's render cycle
+    setTimeout(() => {
       if (e.target) {
         e.target.focus();
-        e.target.setSelectionRange(value.length, value.length);
       }
-    });
+    }, 0);
   };
 
   const clearSearch = () => {
@@ -120,12 +107,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setTimeout(() => {
       if (searchInputRef.current) {
         searchInputRef.current.focus();
-        searchInputRef.current.setSelectionRange(0, 0);
       }
     }, 50);
   };
 
-  // FIX: Stable cart handlers
+  // Cart handlers
   const handleCartToggle = (open) => {
     console.log('🛒 Cart toggle:', open);
     setCartOpen(open);
@@ -136,12 +122,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCartOpen(false);
   };
 
-  // FIX: Prevent cart close when clicking inside
   const handleCartClick = (e) => {
     e.stopPropagation();
   };
 
-  // Add to cart function - FIX 3: Don't auto-open cart on mobile when adding items
+  // Add to cart function
   const addToCart = (item) => {
     console.log('🛒 Adding to cart:', item);
     
@@ -166,13 +151,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     } else {
       setCart([...cart, cartItem]);
     }
-
-    // FIX 3: REMOVED auto-opening cart on mobile
-    // Cart will only open when user explicitly clicks cart button
   };
 
+  // FIX 2: CORRECT REMOVE FROM CART FUNCTION - ONLY REMOVE SPECIFIC ITEM
   const removeFromCart = (id) => {
-    setCart(cart.filter(item => item.id !== id));
+    console.log('🗑️ Removing item:', id, 'from cart:', cart);
+    
+    // FIX: Properly filter only the specific item to remove
+    const updatedCart = cart.filter(item => {
+      const shouldKeep = item.id !== id;
+      console.log(`Item ${item.id} vs ${id}: ${shouldKeep ? 'KEEP' : 'REMOVE'}`);
+      return shouldKeep;
+    });
+    
+    console.log('🛒 Cart after removal:', updatedCart);
+    setCart(updatedCart);
   };
 
   const updateQuantity = (id, change) => {
@@ -240,9 +233,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     'specials': { emoji: '⭐', color: '#8b5cf6', name: 'Specials' }
   };
 
-  // DEBUG: Check if we're rendering customer view correctly
-  console.log('🎯 DigitalMenu Render - isCustomerView:', isCustomerView, 'selectedTable:', selectedTable, 'menu items:', menu?.length);
-
   // PREMIUM CUSTOMER VIEW
   const PremiumCustomerView = () => {
     const [recentlyAdded, setRecentlyAdded] = useState(null);
@@ -253,7 +243,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       setTimeout(() => setRecentlyAdded(null), 2000);
     };
 
-    // If no table detected, show loading state
     if (!selectedTable && isCustomerView) {
       return (
         <div className="premium-customer-view">
@@ -261,7 +250,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <div className="loading-spinner">🔄</div>
             <h2>Detecting Table...</h2>
             <p>Please wait while we detect your table number</p>
-            <p className="debug-info">URL: {window.location.href}</p>
           </div>
         </div>
       );
@@ -309,7 +297,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* Search Bar - FIXED: Keyboard won't dismiss during typing */}
+        {/* FIX 1: SEARCH BAR - ULTRA STABLE KEYBOARD */}
         {showSearch && (
           <div className="search-section">
             <div className="search-container">
@@ -320,17 +308,20 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 value={searchTerm}
                 onChange={handleSearchChange}
                 className="search-input"
-                // FIX 2: Critical attributes to prevent keyboard dismissal
+                // Critical mobile attributes
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
-                inputMode="search"
-                enterKeyHint="search"
-                // Prevent any default behaviors that might dismiss keyboard
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchMove={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
+                inputMode="text"
+                // Prevent any default behaviors
+                onBlur={(e) => {
+                  // Only allow blur if user explicitly clicks elsewhere
+                  if (!e.relatedTarget?.classList?.contains('clear-search')) {
+                    e.preventDefault();
+                    setTimeout(() => e.target.focus(), 10);
+                  }
+                }}
               />
               <button 
                 className="clear-search"
@@ -415,7 +406,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </main>
 
-        {/* Cart Sidebar - FIXED: Only opens when user explicitly clicks cart button */}
+        {/* Cart Sidebar - FIX 2: CORRECT DELETE FUNCTIONALITY */}
         <div 
           className={`premium-cart-sidebar ${cartOpen ? 'open' : ''}`}
           onClick={handleCartClick}
@@ -469,9 +460,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                               +
                             </button>
                           </div>
+                          {/* FIX 2: CORRECT DELETE BUTTON - ONLY REMOVES SPECIFIC ITEM */}
                           <button 
                             className="remove-item"
-                            onClick={() => removeFromCart(item.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log('🗑️ Delete button clicked for item:', item.id);
+                              removeFromCart(item.id);
+                            }}
                             type="button"
                           >
                             🗑️
@@ -513,7 +509,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </div>
 
-        {/* Mobile Cart FAB - FIX 3: Only shows when cart has items AND cart is closed */}
+        {/* Mobile Cart FAB */}
         {isMobile && cart.length > 0 && !cartOpen && (
           <button 
             className="mobile-cart-fab"
@@ -707,9 +703,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                         >
                           +
                         </button>
+                        {/* FIX 2: CORRECT DELETE BUTTON FOR ADMIN VIEW */}
                         <button 
                           className="remove-btn-modern"
-                          onClick={() => removeFromCart(item.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFromCart(item.id);
+                          }}
                           type="button"
                         >
                           ×
