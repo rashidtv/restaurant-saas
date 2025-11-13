@@ -2540,3 +2540,30 @@
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+/* Ensure cart stays open and search maintains focus */
+.premium-cart-sidebar.open {
+  transform: translateX(0) !important;
+  pointer-events: auto !important;
+}
+
+.search-input:focus {
+  transform: none !important;
+  outline: none !important;
+}
+
+/* Prevent body scroll when cart is open */
+body.cart-open {
+  overflow: hidden;
+}
+
+/* Mobile keyboard fixes */
+@media (max-width: 768px) {
+  .search-input {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+    transform: none !important;
+  }
+  
+  .premium-cart-sidebar {
+    z-index: 10000 !important; /* Ensure it's above everything */
+  }
+}
