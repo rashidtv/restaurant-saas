@@ -13,10 +13,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   
-  // FIX: Use refs to track cart state properly
-  const cartOpenRef = useRef(false);
+  // Simple ref for search input
   const searchInputRef = useRef(null);
-  const isComposingRef = useRef(false); // For IME input methods
 
   // Table detection
   useEffect(() => {
@@ -76,15 +74,151 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, []);
 
-  // FIX: Keep cartOpenRef in sync with cartOpen state
-  useEffect(() => {
-    cartOpenRef.current = cartOpen;
-  }, [cartOpen]);
-
   // DEBUG: Log menu data
   useEffect(() => {
     console.log('DigitalMenu - Menu data received:', menu);
   }, [menu]);
+
+  // FIX 1: SIMPLE SEARCH HANDLERS - No keyboard dismissal
+  const handleSearchToggle = () => {
+    const newShowSearch = !showSearch;
+    setShowSearch(newShowSearch);
+    
+    if (newShowSearch) {
+      setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      }, 100);
+    }
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  };
+
+  // FIX 2: SIMPLE DELETE FUNCTION - Only removes specific item
+  const removeFromCart = (itemId) => {
+    console.log('🗑️ Removing item:', itemId);
+    const newCart = cart.filter(item => item.id !== itemId);
+    setCart(newCart);
+    // Cart stays open after deletion
+  };
+
+  const updateQuantity = (id, change) => {
+    const newCart = cart.map(item =>
+      item.id === id
+        ? { ...item, quantity: Math.max(0, item.quantity + change) }
+        : item
+    ).filter(item => item.quantity > 0);
+    
+    setCart(newCart);
+  };
+
+  // Add to cart function
+  const addToCart = (item) => {
+    console.log('🛒 Adding to cart:', item);
+    
+    const cartItem = {
+      id: item._id || item.id,
+      _id: item._id || item.id,
+      name: item.name,
+      price: item.price,
+      quantity: 1,
+      category: item.category,
+      description: item.description,
+      ...item
+    };
+
+    const existingItem = cart.find(cartItem => cartItem.id === item.id);
+    
+    if (existingItem) {
+      setCart(cart.map(cartItem =>
+        cartItem.id === item.id
+          ? { ...cartItem, quantity: cartItem.quantity + 1 }
+          : cartItem
+      ));
+    } else {
+      setCart([...cart, cartItem]);
+    }
+
+    if (isMobile) {
+      setCartOpen(true);
+    }
+  };
+
+  // Calculate totals
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const serviceTax = subtotal * 0.06;
+  const sst = subtotal * 0.08;
+  const total = subtotal + serviceTax + sst;
+  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Toggle cart for mobile
+  const toggleCart = () => {
+    setCartOpen(!cartOpen);
+  };
+
+  // Close cart when clicking overlay
+  const handleCartClose = () => {
+    setCartOpen(false);
+  };
+
+  // Close cart when proceeding to payment
+  const handleProceedToPayment = () => {
+    if (cart.length === 0) return;
+    setShowPayment(true);
+    setCartOpen(false);
+  };
+
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) {
+      alert('Your cart is empty. Please add some items first.');
+      return;
+    }
+
+    const finalTableNumber = tableNumber || selectedTable;
+    
+    if (!finalTableNumber && isCustomerView) {
+      alert('Table number not detected. Please scan the QR code again or contact staff.');
+      return;
+    }
+
+    console.log('🛒 Placing order for table:', finalTableNumber);
+
+    try {
+      const orderData = cart.map(item => ({
+        menuItemId: item._id || item.id,
+        _id: item._id || item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        category: item.category
+      }));
+
+      const result = await onCreateOrder(finalTableNumber, orderData, 'dine-in');
+      
+      console.log('✅ Order placed successfully:', result);
+      
+      setCart([]);
+      setCartOpen(false);
+      setOrderSuccess(true);
+      setTimeout(() => setOrderSuccess(false), 5000);
+      
+      alert(`Order placed successfully! Your order number is: ${result.orderNumber}`);
+      
+    } catch (error) {
+      console.error('❌ Order failed:', error);
+      alert('Failed to place order: ' + error.message);
+    }
+  };
 
   // PREMIUM CUSTOMER VIEW COMPONENT WITH FIXES
   const PremiumCustomerView = () => {
@@ -92,14 +226,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const [showOrderConfirmation, setShowOrderConfirmation] = useState(false);
     const [recentlyAdded, setRecentlyAdded] = useState(null);
     const [searchInput, setSearchInput] = useState('');
-
-    // Use ref to track cart state
-    const localCartOpenRef = useRef(false);
-
-    // FIX: Keep ref in sync with state
-    useEffect(() => {
-      localCartOpenRef.current = localCartOpen;
-    }, [localCartOpen]);
 
     // Food category emojis and colors
     const categoryConfig = {
@@ -111,114 +237,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       'specials': { emoji: '⭐', color: '#8b5cf6', name: 'Specials' }
     };
 
-    // FIX 1: ULTIMATE KEYBOARD STABILITY
-    const handleSearchToggle = () => {
-      setShowSearch(!showSearch);
-      if (!showSearch) {
-        setTimeout(() => {
-          if (searchInputRef.current) {
-            searchInputRef.current.focus();
-          }
-        }, 300);
-      }
-    };
-
-    // CRITICAL FIX: Handle IME composition (for Chinese/Japanese/Korean input)
-    const handleCompositionStart = () => {
-      isComposingRef.current = true;
-    };
-
-    const handleCompositionEnd = () => {
-      isComposingRef.current = false;
-    };
-
-    const handleSearchChange = (e) => {
-      const value = e.target.value;
-      setSearchInput(value);
-      setSearchTerm(value);
-      
-      // Don't update state during IME composition
-      if (!isComposingRef.current) {
-        setSearchTerm(value);
-      }
-    };
-
-    const clearSearch = () => {
-      setSearchInput('');
-      setSearchTerm('');
-      setTimeout(() => {
-        if (searchInputRef.current) {
-          searchInputRef.current.focus();
-        }
-      }, 50);
-    };
-
     // Add to cart with animation
-    const addToCart = (item) => {
-      console.log('🛒 Adding to cart:', item);
-      
-      const cartItem = {
-        id: item._id || item.id,
-        _id: item._id || item.id,
-        name: item.name,
-        price: item.price,
-        quantity: 1,
-        category: item.category,
-        description: item.description,
-        image: item.image,
-        ...item
-      };
-
-      const existingItem = cart.find(cartItem => cartItem.id === item.id);
-      
-      if (existingItem) {
-        setCart(cart.map(cartItem =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + 1 }
-            : cartItem
-        ));
-      } else {
-        setCart([...cart, cartItem]);
-      }
-
-      // Show added animation
+    const handleItemAdd = (item) => {
+      addToCart(item);
       setRecentlyAdded(item.id);
       setTimeout(() => setRecentlyAdded(null), 2000);
-      
-      if (isMobile) {
-        setLocalCartOpen(true);
-      }
     };
 
-    // FIX 2: BULLETPROOF DELETE FUNCTION
-    const removeFromCart = (itemId) => {
-      console.log('🔄 Removing item ID:', itemId);
-      console.log('📦 Current cart before removal:', cart);
-      
-      // Create a completely new array with only the items we want to keep
-      const updatedCart = cart.filter(item => {
-        const shouldKeep = item.id !== itemId;
-        console.log(`🔍 Checking item ${item.id} vs ${itemId}: ${shouldKeep ? 'KEEP' : 'REMOVE'}`);
-        return shouldKeep;
-      });
-      
-      console.log('✅ Cart after removal:', updatedCart);
-      setCart(updatedCart);
-    };
-
-    const updateQuantity = (id, change) => {
-      setCart(cart.map(item =>
-        item.id === id
-          ? { ...item, quantity: Math.max(0, item.quantity + change) }
-          : item
-      ).filter(item => item.quantity > 0));
-    };
-
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const tax = subtotal * 0.14;
-    const total = subtotal + tax;
-
-    const handlePlaceOrder = async () => {
+    const handlePlaceOrderCustomer = async () => {
       if (cart.length === 0) {
         alert('Your cart is empty');
         return;
@@ -248,19 +274,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }
     };
 
-    // FIX: Stable cart toggle
+    // Cart handlers
     const handleCartToggle = (open) => {
       console.log('🛒 Cart toggle:', open);
       setLocalCartOpen(open);
     };
 
-    // FIX: Close cart only when explicitly requested
     const handleCloseCart = () => {
       console.log('🛒 Closing cart explicitly');
       setLocalCartOpen(false);
     };
 
-    // FIX: Prevent cart close when clicking inside
     const handleCartClick = (e) => {
       e.stopPropagation();
     };
@@ -276,6 +300,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       return matchesCategory && matchesSearch;
     });
 
+    // Calculate totals for customer view
+    const customerSubtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const customerTax = customerSubtotal * 0.14;
+    const customerTotal = customerSubtotal + customerTax;
+
     // Menu Item Card Component
     const PremiumMenuItem = ({ item }) => {
       const isRecentlyAdded = recentlyAdded === item.id;
@@ -290,7 +319,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             </div>
             <button 
               className="add-btn"
-              onClick={() => addToCart(item)}
+              onClick={() => handleItemAdd(item)}
               type="button"
             >
               <span className="add-icon">+</span>
@@ -322,7 +351,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <div className="order-details">
             <p><strong>Table:</strong> {selectedTable}</p>
             <p><strong>Items:</strong> {cart.reduce((sum, item) => sum + item.quantity, 0)}</p>
-            <p><strong>Total:</strong> RM {total.toFixed(2)}</p>
+            <p><strong>Total:</strong> RM {customerTotal.toFixed(2)}</p>
           </div>
           <button 
             className="continue-shopping-btn"
@@ -380,7 +409,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* FIX 1: ULTIMATE SEARCH BAR - KEYBOARD WILL NOT DISMISS */}
+        {/* FIX 1: SEARCH BAR - No keyboard dismissal */}
         {showSearch && (
           <div className="search-section">
             <div className="search-container">
@@ -389,32 +418,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 type="text"
                 placeholder="Search for dishes, ingredients..."
                 value={searchInput}
-                onChange={handleSearchChange}
-                onCompositionStart={handleCompositionStart}
-                onCompositionEnd={handleCompositionEnd}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  setSearchTerm(e.target.value);
+                }}
                 className="search-input"
-                // Critical mobile attributes
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck="false"
-                inputMode="search"
-                enterKeyHint="search"
-                // Prevent any re-renders that might affect focus
-                onBlur={(e) => {
-                  // Only allow blur if user explicitly wants to close
-                  if (showSearch) {
-                    setTimeout(() => {
-                      if (searchInputRef.current) {
-                        searchInputRef.current.focus();
-                      }
-                    }, 10);
-                  }
-                }}
               />
               <button 
                 className="clear-search"
-                onClick={clearSearch}
+                onClick={() => {
+                  setSearchInput('');
+                  setSearchTerm('');
+                  searchInputRef.current?.focus();
+                }}
                 type="button"
               >
                 ✕
@@ -473,7 +493,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </main>
 
-        {/* Cart Sidebar - FIX 2: PROPER DELETE FUNCTIONALITY */}
+        {/* Cart Sidebar - FIX 2: Proper delete and stays open */}
         <div 
           className={`premium-cart-sidebar ${localCartOpen ? 'open' : ''}`}
           onClick={handleCartClick}
@@ -502,8 +522,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             ) : (
               <>
                 <div className="cart-items">
-                  {cart.map((item, index) => (
-                    <div key={`${item.id}-${index}`} className="cart-item">
+                  {cart.map(item => (
+                    <div key={item.id} className="cart-item">
                       <div className="item-details">
                         <div className="item-main">
                           <h4 className="item-title">{item.name}</h4>
@@ -527,13 +547,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                               +
                             </button>
                           </div>
-                          {/* FIX 2: PROPER DELETE BUTTON */}
                           <button 
                             className="remove-item"
                             onClick={(e) => {
                               e.stopPropagation();
-                              e.preventDefault();
-                              console.log('🗑️ Deleting specific item:', item.id, item.name);
                               removeFromCart(item.id);
                             }}
                             type="button"
@@ -552,25 +569,25 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 <div className="cart-summary">
                   <div className="summary-line">
                     <span>Subtotal</span>
-                    <span>RM {subtotal.toFixed(2)}</span>
+                    <span>RM {customerSubtotal.toFixed(2)}</span>
                   </div>
                   <div className="summary-line">
                     <span>Tax & Service</span>
-                    <span>RM {tax.toFixed(2)}</span>
+                    <span>RM {customerTax.toFixed(2)}</span>
                   </div>
                   <div className="total-line">
                     <span>Total</span>
-                    <span className="total-amount">RM {total.toFixed(2)}</span>
+                    <span className="total-amount">RM {customerTotal.toFixed(2)}</span>
                   </div>
                 </div>
 
                 <button 
                   className="checkout-button"
-                  onClick={handlePlaceOrder}
+                  onClick={handlePlaceOrderCustomer}
                   type="button"
                 >
                   <span className="checkout-text">Place Order</span>
-                  <span className="checkout-price">RM {total.toFixed(2)}</span>
+                  <span className="checkout-price">RM {customerTotal.toFixed(2)}</span>
                 </button>
               </>
             )}
@@ -853,395 +870,275 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
   const filteredItems = getFilteredItems();
 
-  // addToCart function - preserve item names properly
-  const addToCart = (item) => {
-    console.log('DigitalMenu - Adding to cart:', item);
-    
-    const cartItem = {
-      id: item._id || item.id,
-      _id: item._id || item.id,
-      name: item.name,
-      price: item.price,
-      quantity: 1,
-      category: item.category,
-      description: item.description,
-      ...item
-    };
-
-    const existingItem = cart.find(cartItem => cartItem.id === item.id);
-    
-    if (existingItem) {
-      setCart(cart.map(cartItem =>
-        cartItem.id === item.id
-          ? { ...cartItem, quantity: cartItem.quantity + 1 }
-          : cartItem
-      ));
-    } else {
-      setCart([...cart, cartItem]);
-    }
-
-    if (isMobile) {
-      setCartOpen(true);
-    }
-  };
-
-  // FIX 2: BULLETPROOF DELETE FUNCTION FOR ADMIN VIEW TOO
-  const removeFromCart = (itemId) => {
-    console.log('🔄 ADMIN - Removing item ID:', itemId);
-    console.log('📦 ADMIN - Current cart before removal:', cart);
-    
-    const updatedCart = cart.filter(item => {
-      const shouldKeep = item.id !== itemId;
-      console.log(`🔍 ADMIN - Checking item ${item.id} vs ${itemId}: ${shouldKeep ? 'KEEP' : 'REMOVE'}`);
-      return shouldKeep;
-    });
-    
-    console.log('✅ ADMIN - Cart after removal:', updatedCart);
-    setCart(updatedCart);
-  };
-
-  const updateQuantity = (id, change) => {
-    setCart(cart.map(item =>
-      item.id === id
-        ? { ...item, quantity: Math.max(0, item.quantity + change) }
-        : item
-    ).filter(item => item.quantity > 0));
-  };
-
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const serviceTax = subtotal * 0.06;
-  const sst = subtotal * 0.08;
-  const total = subtotal + serviceTax + sst;
-  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  // Toggle cart for mobile
-  const toggleCart = () => {
-    setCartOpen(!cartOpen);
-  };
-
-  // Close cart when clicking overlay
-  const handleCartClose = () => {
-    setCartOpen(false);
-  };
-
-  // Close cart when proceeding to payment
-  const handleProceedToPayment = () => {
-    if (cart.length === 0) return;
-    setShowPayment(true);
-    setCartOpen(false);
-  };
-
-  const handlePlaceOrder = async () => {
-    if (cart.length === 0) {
-      alert('Your cart is empty. Please add some items first.');
-      return;
-    }
-
-    const finalTableNumber = tableNumber || selectedTable;
-    
-    if (!finalTableNumber && isCustomerView) {
-      alert('Table number not detected. Please scan the QR code again or contact staff.');
-      return;
-    }
-
-    console.log('🛒 Placing order for table:', finalTableNumber);
-
-    try {
-      const orderData = cart.map(item => ({
-        menuItemId: item._id || item.id,
-        _id: item._id || item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        category: item.category
-      }));
-
-      const result = await onCreateOrder(finalTableNumber, orderData, 'dine-in');
-      
-      console.log('✅ Order placed successfully:', result);
-      
-      setCart([]);
-      setCartOpen(false);
-      setOrderSuccess(true);
-      setTimeout(() => setOrderSuccess(false), 5000);
-      
-      alert(`Order placed successfully! Your order number is: ${result.orderNumber}`);
-      
-    } catch (error) {
-      console.error('❌ Order failed:', error);
-      alert('Failed to place order: ' + error.message);
-    }
-  };
-
   const truncateText = (text, maxLength = 20) => {
     if (!text || typeof text !== 'string') return 'Unknown Item';
     return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
-  // MAIN RENDER
-  return (
-    <div className="digital-menu-modern">
-      {isCustomerView ? (
-        <PremiumCustomerView />
-      ) : (
-        <>
-          {/* Modern Header Section */}
-          <div className="menu-header-modern">
-            <div className="menu-header-content-modern">
-              <div className="menu-title-section-modern">
-                <h2 className="menu-title-modern">
-                  Menu Management
-                </h2>
-                <p className="menu-subtitle-modern">
-                  {selectedTable === 'Takeaway' 
-                    ? 'Takeaway Order' 
-                    : selectedTable 
-                      ? `Table ${selectedTable} • Staff View`
-                      : 'Select a table to begin'
-                  }
-                </p>
+  // ADMIN VIEW
+  const AdminView = () => {
+    return (
+      <div className="digital-menu-modern">
+        <div className="menu-header-modern">
+          <div className="menu-header-content-modern">
+            <div className="menu-title-section-modern">
+              <h2 className="menu-title-modern">
+                Menu Management
+              </h2>
+              <p className="menu-subtitle-modern">
+                {selectedTable === 'Takeaway' 
+                  ? 'Takeaway Order' 
+                  : selectedTable 
+                    ? `Table ${selectedTable} • Staff View`
+                    : 'Select a table to begin'
+                }
+              </p>
+            </div>
+            
+            <div className="menu-controls-modern">
+              <div className="control-group-modern">
+                <label className="control-label-modern">Order Type</label>
+                <select 
+                  value={orderType}
+                  onChange={(e) => setOrderType(e.target.value)}
+                  className="control-select-modern"
+                >
+                  <option value="dine-in">🍽️ Dine In</option>
+                  <option value="takeaway">🥡 Takeaway</option>
+                </select>
               </div>
               
-              <div className="menu-controls-modern">
+              {orderType === 'dine-in' && (
                 <div className="control-group-modern">
-                  <label className="control-label-modern">Order Type</label>
+                  <label className="control-label-modern">Table Number</label>
                   <select 
-                    value={orderType}
-                    onChange={(e) => setOrderType(e.target.value)}
+                    value={selectedTable}
+                    onChange={(e) => setSelectedTable(e.target.value)}
                     className="control-select-modern"
                   >
-                    <option value="dine-in">🍽️ Dine In</option>
-                    <option value="takeaway">🥡 Takeaway</option>
+                    <option value="">Select Table</option>
+                    {['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08'].map(table => (
+                      <option key={table} value={table}>Table {table}</option>
+                    ))}
                   </select>
                 </div>
-                
-                {orderType === 'dine-in' && (
-                  <div className="control-group-modern">
-                    <label className="control-label-modern">Table Number</label>
-                    <select 
-                      value={selectedTable}
-                      onChange={(e) => setSelectedTable(e.target.value)}
-                      className="control-select-modern"
-                    >
-                      <option value="">Select Table</option>
-                      {['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T08'].map(table => (
-                        <option key={table} value={table}>Table {table}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
+        </div>
 
-          {showPayment ? (
-            <PaymentPage 
-              orderDetails={{
-                table: selectedTable,
-                items: cart,
-                subtotal,
-                serviceTax,
-                sst,
-                total,
-                orderType
-              }}
-              onBack={() => setShowPayment(false)}
-              onPaymentSuccess={() => {
-                handlePlaceOrder();
-              }}
-              isMobile={isMobile}
-            />
-          ) : (
-            <div className="menu-layout-modern">
-              {/* Modern Categories Sidebar */}
-              <div className="categories-sidebar-modern">
-                <h3 className="categories-title-modern">Categories</h3>
-                <div className="categories-list-modern">
-                  {menuCategories.map(category => (
-                    <button
-                      key={category.id}
-                      className={`category-btn-modern ${activeCategory === category.id ? 'active' : ''}`}
-                      onClick={() => setActiveCategory(category.id)}
-                      type="button"
-                    >
-                      <span className="category-name-modern">
-                        {category.name}
-                      </span>
-                      <span className="category-count-modern">{category.count}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Modern Menu Items Container */}
-              <div className="menu-items-container-modern">
-                {filteredItems.length === 0 ? (
-                  <div className="empty-menu-modern">
-                    <div className="empty-icon-modern">🍽️</div>
-                    <h3 className="empty-title-modern">No Menu Items Available</h3>
-                    <p className="empty-subtitle-modern">Menu items will appear here once loaded</p>
-                  </div>
-                ) : (
-                  <div className="menu-section-modern">
-                    <div className="section-header-modern">
-                      <h3 className="section-title-modern">
-                        {activeCategory === 'all' ? 'All Menu Items' : menuCategories.find(c => c.id === activeCategory)?.name}
-                      </h3>
-                      <span className="items-count-modern">{filteredItems.length} items</span>
-                    </div>
-                    <div className="menu-grid-modern">
-                      {filteredItems.map(item => (
-                        <MenuItemCard 
-                          key={item._id || item.id} 
-                          item={item} 
-                          onAddToCart={addToCart}
-                          isMobile={isMobile}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Modern Cart Sidebar */}
-              <div className={`cart-sidebar-modern ${cartOpen ? 'cart-open' : ''}`}>
-                <div className="cart-header-modern">
-                  <div className="cart-title-section-modern">
-                    <h3 className="cart-title-modern">Your Order</h3>
-                    <div className="cart-subtitle-modern">
-                      {orderType === 'dine-in' && selectedTable ? `Table ${selectedTable}` : 'Takeaway'}
-                    </div>
-                  </div>
-                  <div className="cart-badge-modern">{itemCount}</div>
-                </div>
-
-                {cart.length === 0 ? (
-                  <div className="empty-cart-modern">
-                    <div className="empty-icon-modern">🛒</div>
-                    <p className="empty-title-modern">Your cart is empty</p>
-                    <p className="empty-subtitle-modern">Add items from the menu to get started</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="cart-items-modern">
-                      {cart.map((item, index) => (
-                        <div key={`${item.id}-${index}`} className="cart-item-modern">
-                          <div className="cart-item-info-modern">
-                            <div className="cart-item-name-modern">
-                              {truncateText(item.name, isMobile ? 25 : 35)}
-                            </div>
-                            <div className="cart-item-price-modern">RM {item.price.toFixed(2)}</div>
-                          </div>
-                          <div className="cart-item-controls-modern">
-                            <button 
-                              className="quantity-btn-modern"
-                              onClick={() => updateQuantity(item.id, -1)}
-                              type="button"
-                            >
-                              −
-                            </button>
-                            <span className="quantity-display-modern">{item.quantity}</span>
-                            <button 
-                              className="quantity-btn-modern"
-                              onClick={() => updateQuantity(item.id, 1)}
-                              type="button"
-                            >
-                              +
-                            </button>
-                            <button 
-                              className="remove-btn-modern"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                console.log('🗑️ ADMIN - Deleting item:', item.id);
-                                removeFromCart(item.id);
-                              }}
-                              type="button"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="cart-total-modern">
-                      <div className="total-line-modern">
-                        <span>Subtotal</span>
-                        <span>RM {subtotal.toFixed(2)}</span>
-                      </div>
-                      <div className="total-line-modern">
-                        <span>Service Tax (6%)</span>
-                        <span>RM {serviceTax.toFixed(2)}</span>
-                      </div>
-                      <div className="total-line-modern">
-                        <span>SST (8%)</span>
-                        <span>RM {sst.toFixed(2)}</span>
-                      </div>
-                      <div className="grand-total-modern">
-                        <span>Total Amount</span>
-                        <span className="grand-total-amount-modern">
-                          RM {total.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="cart-actions-modern">
-                      <button className="checkout-btn-modern" onClick={handleProceedToPayment} type="button">
-                        <span className="checkout-icon-modern">💳</span>
-                        {isMobile ? `Pay RM ${total.toFixed(2)}` : `Proceed to Payment`}
-                      </button>
-                      <button className="place-order-btn-modern" onClick={handlePlaceOrder} type="button">
-                        <span className="order-icon-modern">📦</span>
-                        Place Order Only
-                      </button>
-                    </div>
-                  </>
-                )}
+        {showPayment ? (
+          <PaymentPage 
+            orderDetails={{
+              table: selectedTable,
+              items: cart,
+              subtotal,
+              serviceTax,
+              sst,
+              total,
+              orderType
+            }}
+            onBack={() => setShowPayment(false)}
+            onPaymentSuccess={() => {
+              handlePlaceOrder();
+            }}
+            isMobile={isMobile}
+          />
+        ) : (
+          <div className="menu-layout-modern">
+            {/* Modern Categories Sidebar */}
+            <div className="categories-sidebar-modern">
+              <h3 className="categories-title-modern">Categories</h3>
+              <div className="categories-list-modern">
+                {menuCategories.map(category => (
+                  <button
+                    key={category.id}
+                    className={`category-btn-modern ${activeCategory === category.id ? 'active' : ''}`}
+                    onClick={() => setActiveCategory(category.id)}
+                    type="button"
+                  >
+                    <span className="category-name-modern">
+                      {category.name}
+                    </span>
+                    <span className="category-count-modern">{category.count}</span>
+                  </button>
+                ))}
               </div>
             </div>
-          )}
 
-          {/* Mobile Cart Overlay */}
-          {isMobile && cartOpen && (
-            <div 
-              className="cart-overlay active"
-              onClick={handleCartClose}
-            />
-          )}
-
-          {/* Mobile Cart Toggle Button */}
-          {isMobile && (
-            <button 
-              className="cart-toggle-btn-modern"
-              onClick={toggleCart}
-              type="button"
-            >
-              🛒
-              {itemCount > 0 && (
-                <span style={{
-                  position: 'absolute',
-                  top: '-2px',
-                  right: '-2px',
-                  background: '#ef4444',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: '24px',
-                  height: '24px',
-                  fontSize: '0.75rem',
-                  fontWeight: '700',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '2px solid white'
-                }}>
-                  {itemCount}
-                </span>
+            {/* Modern Menu Items Container */}
+            <div className="menu-items-container-modern">
+              {filteredItems.length === 0 ? (
+                <div className="empty-menu-modern">
+                  <div className="empty-icon-modern">🍽️</div>
+                  <h3 className="empty-title-modern">No Menu Items Available</h3>
+                  <p className="empty-subtitle-modern">Menu items will appear here once loaded</p>
+                </div>
+              ) : (
+                <div className="menu-section-modern">
+                  <div className="section-header-modern">
+                    <h3 className="section-title-modern">
+                      {activeCategory === 'all' ? 'All Menu Items' : menuCategories.find(c => c.id === activeCategory)?.name}
+                    </h3>
+                    <span className="items-count-modern">{filteredItems.length} items</span>
+                  </div>
+                  <div className="menu-grid-modern">
+                    {filteredItems.map(item => (
+                      <MenuItemCard 
+                        key={item._id || item.id} 
+                        item={item} 
+                        onAddToCart={addToCart}
+                        isMobile={isMobile}
+                      />
+                    ))}
+                  </div>
+                </div>
               )}
-            </button>
-          )}
-        </>
-      )}
+            </div>
+
+            {/* Modern Cart Sidebar */}
+            <div className={`cart-sidebar-modern ${cartOpen ? 'cart-open' : ''}`}>
+              <div className="cart-header-modern">
+                <div className="cart-title-section-modern">
+                  <h3 className="cart-title-modern">Your Order</h3>
+                  <div className="cart-subtitle-modern">
+                    {orderType === 'dine-in' && selectedTable ? `Table ${selectedTable}` : 'Takeaway'}
+                  </div>
+                </div>
+                <div className="cart-badge-modern">{itemCount}</div>
+              </div>
+
+              {cart.length === 0 ? (
+                <div className="empty-cart-modern">
+                  <div className="empty-icon-modern">🛒</div>
+                  <p className="empty-title-modern">Your cart is empty</p>
+                  <p className="empty-subtitle-modern">Add items from the menu to get started</p>
+                </div>
+              ) : (
+                <>
+                  <div className="cart-items-modern">
+                    {cart.map(item => (
+                      <div key={item.id} className="cart-item-modern">
+                        <div className="cart-item-info-modern">
+                          <div className="cart-item-name-modern">
+                            {truncateText(item.name, isMobile ? 25 : 35)}
+                          </div>
+                          <div className="cart-item-price-modern">RM {item.price.toFixed(2)}</div>
+                        </div>
+                        <div className="cart-item-controls-modern">
+                          <button 
+                            className="quantity-btn-modern"
+                            onClick={() => updateQuantity(item.id, -1)}
+                            type="button"
+                          >
+                            −
+                          </button>
+                          <span className="quantity-display-modern">{item.quantity}</span>
+                          <button 
+                            className="quantity-btn-modern"
+                            onClick={() => updateQuantity(item.id, 1)}
+                            type="button"
+                          >
+                            +
+                          </button>
+                          <button 
+                            className="remove-btn-modern"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFromCart(item.id);
+                            }}
+                            type="button"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="cart-total-modern">
+                    <div className="total-line-modern">
+                      <span>Subtotal</span>
+                      <span>RM {subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="total-line-modern">
+                      <span>Service Tax (6%)</span>
+                      <span>RM {serviceTax.toFixed(2)}</span>
+                    </div>
+                    <div className="total-line-modern">
+                      <span>SST (8%)</span>
+                      <span>RM {sst.toFixed(2)}</span>
+                    </div>
+                    <div className="grand-total-modern">
+                      <span>Total Amount</span>
+                      <span className="grand-total-amount-modern">
+                        RM {total.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="cart-actions-modern">
+                    <button className="checkout-btn-modern" onClick={handleProceedToPayment} type="button">
+                      <span className="checkout-icon-modern">💳</span>
+                      {isMobile ? `Pay RM ${total.toFixed(2)}` : `Proceed to Payment`}
+                    </button>
+                    <button className="place-order-btn-modern" onClick={handlePlaceOrder} type="button">
+                      <span className="order-icon-modern">📦</span>
+                      Place Order Only
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Cart Overlay */}
+        {isMobile && cartOpen && (
+          <div 
+            className="cart-overlay active"
+            onClick={handleCartClose}
+          />
+        )}
+
+        {/* Mobile Cart Toggle Button */}
+        {isMobile && (
+          <button 
+            className="cart-toggle-btn-modern"
+            onClick={toggleCart}
+            type="button"
+          >
+            🛒
+            {itemCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-2px',
+                right: '-2px',
+                background: '#ef4444',
+                color: 'white',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                fontSize: '0.75rem',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid white'
+              }}>
+                {itemCount}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // MAIN RENDER
+  return (
+    <div className="digitalMenu">
+      {isCustomerView ? <PremiumCustomerView /> : <AdminView />}
     </div>
   );
 };
