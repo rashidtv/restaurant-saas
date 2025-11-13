@@ -1158,3 +1158,349 @@
     display: none !important;
   }
 }
+
+/* NEW CUSTOMER VIEW STYLES */
+.customer-view-modern {
+  min-height: 100vh;
+  background: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.customer-header-modern {
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content-modern {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.restaurant-name-modern {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a202c;
+  margin: 0;
+}
+
+.table-info-modern {
+  color: #718096;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.cart-toggle-modern {
+  background: #059669;
+  color: white;
+  border: none;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+}
+
+.cart-badge-modern {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #dc2626;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.categories-scroll-modern {
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-x: auto;
+}
+
+.categories-container-modern {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.category-btn-modern {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: white;
+  color: #4a5568;
+  cursor: pointer;
+  min-width: 80px;
+  white-space: nowrap;
+}
+
+.category-btn-modern.active {
+  background: #059669;
+  color: white;
+  border-color: #059669;
+}
+
+.category-emoji-modern {
+  font-size: 1.25rem;
+}
+
+.category-name-modern {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.menu-container-modern {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.menu-grid-modern {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.menu-item-card-modern {
+  background: white;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.item-image-modern {
+  height: 160px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-emoji-modern {
+  font-size: 3rem;
+}
+
+.item-content-modern {
+  padding: 1.5rem;
+}
+
+.item-header-modern {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.item-name-modern {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1a202c;
+  margin: 0;
+  flex: 1;
+}
+
+.item-price-modern {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #059669;
+  margin-left: 0.5rem;
+}
+
+.item-description-modern {
+  color: #718096;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+.item-tags-modern {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tag-modern {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.prep-time-modern {
+  background: #ebf8ff;
+  color: #3182ce;
+}
+
+.spicy-modern {
+  background: #fed7d7;
+  color: #e53e3e;
+}
+
+.add-to-cart-btn-modern {
+  width: 100%;
+  padding: 0.75rem;
+  background: #059669;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cart-sidebar-modern {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+
+.cart-sidebar-modern.open {
+  transform: translateX(0);
+}
+
+.cart-header-modern {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.close-cart-modern {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #718096;
+}
+
+.cart-items-modern {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.cart-item-modern {
+  padding: 1rem;
+  border-bottom: 1px solid #f7fafc;
+}
+
+.cart-item-info-modern {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.cart-controls-modern {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cart-controls-modern button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.remove-btn-modern {
+  color: #e53e3e;
+  margin-left: 0.5rem;
+}
+
+.quantity-modern {
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+.cart-footer-modern {
+  border-top: 1px solid #e2e8f0;
+}
+
+.cart-total-modern {
+  padding: 1.5rem;
+}
+
+.total-line-modern {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  color: #718096;
+}
+
+.grand-total-modern {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: #1a202c;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.checkout-btn-modern {
+  margin: 0 1.5rem 1.5rem;
+  padding: 1rem;
+  background: #059669;
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.empty-cart-modern {
+  text-align: center;
+  color: #718096;
+  padding: 2rem;
+}
+
+.empty-icon-modern {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.cart-overlay-modern {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* KEEP ALL EXISTING STYLES BELOW - THEY REMAIN UNCHANGED */
+/* ... your existing DigitalMenu.css styles remain exactly as they are ... */
