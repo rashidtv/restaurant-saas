@@ -8,55 +8,102 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [cartOpen, setCartOpen] = useState(false);
   const [previousOrders, setPreviousOrders] = useState([]);
 
-  // Table detection - ORIGINAL WORKING VERSION
+  // FIXED: Original working table detection
   useEffect(() => {
     const detectTableFromURL = () => {
+      console.log('🔄 Detecting table from URL...');
+      console.log('📍 Full URL:', window.location.href);
+      console.log('🔍 Search params:', window.location.search);
+      console.log('🎯 Hash:', window.location.hash);
+      
       let detectedTable = null;
+
+      // Method 1: Check URL search params (most common for QR codes)
       const urlParams = new URLSearchParams(window.location.search);
       detectedTable = urlParams.get('table');
+      console.log('📋 From search params:', detectedTable);
 
+      // Method 2: Check hash parameters
       if (!detectedTable && window.location.hash) {
+        console.log('🔍 Checking hash...');
         const hashContent = window.location.hash.replace('#', '');
+        // Try different hash parsing methods
         if (hashContent.includes('table=')) {
           const hashMatch = hashContent.match(/table=([^&]+)/);
           detectedTable = hashMatch ? hashMatch[1] : null;
         } else {
+          // If hash is just a table number like "#T02"
           detectedTable = hashContent;
         }
+        console.log('📋 From hash:', detectedTable);
       }
 
+      // Method 3: Check path parameters (like /menu/T02)
+      if (!detectedTable) {
+        const pathMatch = window.location.pathname.match(/\/(T\d+)$/);
+        detectedTable = pathMatch ? pathMatch[1] : null;
+        console.log('📋 From path:', detectedTable);
+      }
+
+      // Method 4: Check currentTable prop from parent component
+      if (!detectedTable && currentTable) {
+        detectedTable = currentTable;
+        console.log('📋 From props:', detectedTable);
+      }
+
+      // Clean and validate the table number
       if (detectedTable) {
+        // Remove any unwanted characters, keep only letters and numbers
         detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        
+        // Ensure it starts with T if it's just a number
         if (/^\d+$/.test(detectedTable)) {
           detectedTable = 'T' + detectedTable;
         }
+        
+        console.log('✅ Final table detected:', detectedTable);
         setSelectedTable(detectedTable);
+        
+        // Load previous orders for this table
         loadPreviousOrders(detectedTable);
       } else {
+        console.log('❌ No table detected in URL');
+        // DON'T set fallback - show error to user
         setSelectedTable('');
       }
     };
 
     if (isCustomerView) {
+      // Detect immediately
       detectTableFromURL();
+      
+      // Also detect on hash changes (for single page apps)
       window.addEventListener('hashchange', detectTableFromURL);
-      return () => window.removeEventListener('hashchange', detectTableFromURL);
+      
+      return () => {
+        window.removeEventListener('hashchange', detectTableFromURL);
+      };
     }
   }, [isCustomerView, currentTable]);
 
-  // ORIGINAL working order loading
+  // FIXED: Original working order loading
   const loadPreviousOrders = (tableNumber) => {
     try {
       const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
       if (storedOrders) {
-        setPreviousOrders(JSON.parse(storedOrders));
+        const orders = JSON.parse(storedOrders);
+        setPreviousOrders(orders);
+        console.log('📦 Loaded previous orders:', orders);
+      } else {
+        setPreviousOrders([]);
       }
     } catch (error) {
+      console.error('❌ Error loading previous orders:', error);
       setPreviousOrders([]);
     }
   };
 
-  // ORIGINAL working order saving
+  // FIXED: Original working order saving
   const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     try {
       const orderRecord = {
@@ -68,19 +115,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       };
 
       const existingOrders = JSON.parse(localStorage.getItem(`flavorflow_orders_${tableNumber}`) || '[]');
-      const updatedOrders = [orderRecord, ...existingOrders];
+      const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10); // Keep last 10 orders
       
       localStorage.setItem(`flavorflow_orders_${tableNumber}`, JSON.stringify(updatedOrders));
       setPreviousOrders(updatedOrders);
+      console.log('💾 Saved order to history:', orderRecord);
     } catch (error) {
-      console.error('Error saving order history:', error);
+      console.error('❌ Error saving order history:', error);
     }
   };
 
-  // ORIGINAL working add to cart - FIXED DUPLICATE ISSUE
+  // FIXED: Original working add to cart
   const addToCart = (item) => {
+    console.log('➕ Adding to cart:', item.name);
+    
     const cartItem = {
-      id: item.id,
+      id: item.id || item._id,
+      _id: item._id || item.id,
       name: item.name,
       price: item.price,
       quantity: 1,
@@ -88,42 +139,52 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       description: item.description
     };
 
-    setCart(prevCart => {
-      const existingIndex = prevCart.findIndex(cartItem => cartItem.id === item.id);
-      if (existingIndex !== -1) {
-        const updatedCart = [...prevCart];
-        updatedCart[existingIndex].quantity += 1;
-        return updatedCart;
-      } else {
-        return [...prevCart, cartItem];
-      }
-    });
+    const existingItemIndex = cart.findIndex(cartItem => 
+      cartItem.id === (item.id || item._id)
+    );
+    
+    if (existingItemIndex !== -1) {
+      const updatedCart = [...cart];
+      updatedCart[existingItemIndex] = {
+        ...updatedCart[existingItemIndex],
+        quantity: updatedCart[existingItemIndex].quantity + 1
+      };
+      setCart(updatedCart);
+    } else {
+      setCart([...cart, cartItem]);
+    }
   };
 
-  // Rest of ORIGINAL working functions
+  // FIXED: Original working remove from cart
   const removeFromCart = (itemId) => {
     setCart(cart.filter(item => item.id !== itemId));
   };
 
+  // FIXED: Original working update quantity
   const updateQuantity = (id, change) => {
     const updatedCart = cart.map(item =>
       item.id === id
         ? { ...item, quantity: Math.max(0, item.quantity + change) }
         : item
     ).filter(item => item.quantity > 0);
+    
     setCart(updatedCart);
   };
 
+  // FIXED: Original working place order
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
       return;
     }
 
+    // FIXED: No fallback table - require proper detection
     if (!selectedTable) {
-      alert('Table number not detected. Please scan the QR code again.');
+      alert('Table number not detected. Please scan the QR code again.\n\nIf this continues, please contact staff for assistance.');
       return;
     }
+
+    console.log('🛒 Placing order for table:', selectedTable);
 
     try {
       const orderData = cart.map(item => ({
@@ -135,15 +196,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }));
 
       const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
-      saveOrderToHistory(selectedTable, orderData, result.orderNumber);
+      
       setCart([]);
       setCartOpen(false);
-      alert(`Order placed successfully for Table ${selectedTable}!`);
+      alert(`Order placed successfully for Table ${selectedTable}! Order number: ${result.orderNumber || 'N/A'}`);
+      
+      // Save to history after successful order
+      saveOrderToHistory(selectedTable, orderData, result.orderNumber);
+      
     } catch (error) {
+      console.error('❌ Order failed:', error);
       alert('Failed to place order: ' + (error.message || 'Unknown error'));
     }
   };
 
+  // View previous order details
   const viewPreviousOrderDetails = (previousOrder) => {
     const orderDetails = previousOrder.items.map(item => 
       `• ${item.name} x${item.quantity} - RM ${(item.price * item.quantity).toFixed(2)}`
@@ -152,6 +219,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     alert(`Order #${previousOrder.orderNumber}\n\nItems:\n${orderDetails}\n\nTotal: RM ${previousOrder.total.toFixed(2)}\nDate: ${new Date(previousOrder.timestamp).toLocaleString()}`);
   };
 
+  // Simple menu data fallback
   const displayMenu = menu && menu.length > 0 ? menu : [
     { id: '1', name: 'Teh Tarik', price: 4.50, category: 'drinks', description: 'Famous Malaysian pulled tea' },
     { id: '2', name: 'Nasi Lemak', price: 12.90, category: 'main', description: 'Coconut rice with sambal' },
@@ -159,16 +227,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     { id: '4', name: 'Cendol', price: 6.90, category: 'desserts', description: 'Shaved ice dessert' }
   ];
 
+  // Simple categories
   const categories = ['all', ...new Set(displayMenu.map(item => item.category))];
+  
+  // Simple filtered items
   const filteredItems = displayMenu.filter(item => {
     const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
+  // Simple totals
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // FIXED: Show table detection status
   const TableStatus = () => {
     if (!selectedTable) {
       return (
@@ -193,6 +266,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
+  // FIXED: Previous Orders Component
   const PreviousOrdersSection = () => {
     if (!selectedTable || previousOrders.length === 0) return null;
 
@@ -234,10 +308,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // ORIGINAL Customer View JSX
+  // SIMPLE CUSTOMER VIEW - ORIGINAL WORKING VERSION
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
+        {/* Header */}
         <header className="simple-header">
           <h1>FlavorFlow</h1>
           <div className="header-actions">
@@ -252,14 +327,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
+        {/* Show warning if no table detected */}
         {!selectedTable && (
           <div className="warning-banner">
             <p>📱 Please scan your table's QR code to start ordering</p>
           </div>
         )}
 
+        {/* Show previous orders if available */}
         {selectedTable && <PreviousOrdersSection />}
 
+        {/* Search */}
         <div className="simple-search">
           <input
             type="text"
@@ -271,6 +349,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           />
         </div>
 
+        {/* Categories */}
         <div className="simple-categories">
           {categories.map(category => (
             <button
@@ -279,11 +358,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               onClick={() => setActiveCategory(category)}
               disabled={!selectedTable}
             >
-              {category === 'all' ? 'All' : category.charAt(0).toUpperCase() + category.slice(1)}
+              {category}
             </button>
           ))}
         </div>
 
+        {/* Menu Items */}
         <div className="simple-menu">
           {!selectedTable ? (
             <div className="disabled-overlay">
@@ -303,7 +383,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 <div className="item-info">
                   <h3>{item.name}</h3>
                   <p>{item.description}</p>
-                  <div className="item-price">RM {item.price.toFixed(2)}</div>
+                  <div className="item-price">RM {item.price}</div>
                 </div>
                 <button 
                   className="add-btn"
@@ -316,6 +396,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </div>
 
+        {/* Simple Cart */}
         {cartOpen && (
           <div className="simple-cart-overlay" onClick={() => setCartOpen(false)}>
             <div className="simple-cart" onClick={(e) => e.stopPropagation()}>
@@ -370,6 +451,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         )}
 
+        {/* Mobile Cart Button */}
         {isMobile && cart.length > 0 && !cartOpen && selectedTable && (
           <button 
             className="mobile-cart-btn"
@@ -382,7 +464,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   }
 
-  // ORIGINAL Admin View
+  // Simple Admin View (for staff) - ORIGINAL
   return (
     <div className="simple-admin-view">
       <h2>Menu Management - Staff View</h2>
@@ -407,6 +489,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         </div>
       </div>
       
+      {/* Menu display */}
       <div className="simple-menu">
         {displayMenu.map(item => (
           <div key={item.id} className="menu-item">
@@ -425,6 +508,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         ))}
       </div>
 
+      {/* Admin Cart */}
       {cart.length > 0 && (
         <div className="admin-cart">
           <h3>Current Order ({itemCount} items) - Table {selectedTable}</h3>
