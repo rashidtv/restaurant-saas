@@ -9,14 +9,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [showSearch, setShowSearch] = useState(false);
   const [localCartOpen, setLocalCartOpen] = useState(false);
 
- // FIX 1: ULTRA-SIMPLE SEARCH - NO FOCUS MANAGEMENT AT ALL
+// SIMPLE SEARCH COMPONENT - NO FOCUS MANAGEMENT
 const SearchComponent = () => {
-  const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
-
-  // Sync with parent search term
-  useEffect(() => {
-    setLocalSearchTerm(searchTerm);
-  }, [searchTerm]);
+  const [localSearchTerm, setLocalSearchTerm] = useState('');
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
@@ -40,7 +35,6 @@ const SearchComponent = () => {
           value={localSearchTerm}
           onChange={handleSearchChange}
           className="search-input"
-          // REMOVE ALL these attributes that might interfere
         />
         {localSearchTerm && (
           <button 
