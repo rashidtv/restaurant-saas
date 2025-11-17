@@ -683,8 +683,17 @@ function App() {
             <QRGenerator tables={tables} isMobile={isMobile} apiConnected={apiConnected} />
           )}
           {currentPage === 'menu' && (
-  <TestMenu />
-)}
+            <DigitalMenu 
+              cart={cart} 
+              setCart={setCart}
+              onCreateOrder={handleCustomerOrder}
+              isMobile={isMobile}
+              menu={menu}
+              apiConnected={apiConnected}
+              currentTable={currentTable}
+              isCustomerView={false}
+            />
+          )}
           {currentPage === 'kitchen' && (
             <KitchenDisplay 
               orders={orders} 
