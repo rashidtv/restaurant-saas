@@ -7,6 +7,22 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [searchTerm, setSearchTerm] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
   const [previousOrders, setPreviousOrders] = useState([]);
+
+  useEffect(() => {
+  if (isCustomerView && selectedTable) {
+    console.log('🔄 Loading orders for table:', selectedTable);
+    const storedOrders = localStorage.getItem(`flavorflow_orders_${selectedTable}`);
+    if (storedOrders) {
+      try {
+        const orders = JSON.parse(storedOrders);
+        setPreviousOrders(Array.isArray(orders) ? orders : []);
+      } catch (error) {
+        console.error('Error loading orders:', error);
+        setPreviousOrders([]);
+      }
+    }
+  }
+}, [selectedTable, isCustomerView]); // THIS DEPENDENCY ARRAY IS CRITICAL
   const [isLoading, setIsLoading] = useState(false);
 
   // FIXED: Reliable table detection with persistent order history
@@ -124,69 +140,28 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // FIXED: Reliable order saving
-  const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
-    try {
-      console.log('💾 Starting order save process...');
-      
-      const orderRecord = {
-        orderNumber: orderNumber || `ORDER-${Date.now()}`,
-        items: orderData.map(item => ({
-          menuItemId: item.menuItemId || item.id,
-          name: item.name,
-          price: parseFloat(item.price),
-          quantity: parseInt(item.quantity),
-          category: item.category || 'general'
-        })),
-        total: orderData.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.quantity)), 0),
-        timestamp: new Date().toISOString(),
-        table: tableNumber
-      };
+ // REPLACE your existing saveOrderToHistory with this:
+const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
+  try {
+    const orderRecord = {
+      orderNumber: orderNumber || `ORDER-${Date.now()}`,
+      items: orderData,
+      total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+      timestamp: new Date().toISOString(),
+      table: tableNumber
+    };
 
-      console.log('💾 Order record created:', orderRecord);
-
-      const storageKey = `flavorflow_orders_${tableNumber}`;
-      
-      // Get existing orders
-      let existingOrders = [];
-      try {
-        const stored = localStorage.getItem(storageKey);
-        if (stored) {
-          existingOrders = JSON.parse(stored);
-          if (!Array.isArray(existingOrders)) {
-            console.warn('💾 Existing orders not array, resetting...');
-            existingOrders = [];
-          }
-        }
-      } catch (e) {
-        console.error('💾 Error reading existing orders:', e);
-        existingOrders = [];
-      }
-
-      console.log('💾 Existing orders count:', existingOrders.length);
-
-      // Add new order and keep only last 10
-      const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10);
-      
-      console.log('💾 Updated orders count:', updatedOrders.length);
-      
-      // Save to localStorage
-      localStorage.setItem(storageKey, JSON.stringify(updatedOrders));
-      
-      // Verify the save worked
-      const verifyData = localStorage.getItem(storageKey);
-      console.log('💾 Verify - saved data exists:', !!verifyData);
-      
-      // Update React state
-      setPreviousOrders(updatedOrders);
-      
-      console.log('💾 ✅ Order saved successfully!');
-      
-    } catch (error) {
-      console.error('❌ Error saving order:', error);
-      alert('Error saving order history. Please contact staff.');
-    }
-  };
+    const storageKey = `flavorflow_orders_${tableNumber}`;
+    const existingOrders = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10);
+    
+    localStorage.setItem(storageKey, JSON.stringify(updatedOrders));
+    setPreviousOrders(updatedOrders); // THIS LINE UPDATES THE STATE IMMEDIATELY
+    
+  } catch (error) {
+    console.error('Error saving order:', error);
+  }
+};
 
   // View previous order details
   const viewPreviousOrderDetails = (previousOrder) => {
