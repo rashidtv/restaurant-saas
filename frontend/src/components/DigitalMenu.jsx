@@ -13,161 +13,96 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   
-  // FIXED: Order history and active order state
+  // Universal mobile states
   const [activeOrder, setActiveOrder] = useState(null);
-  const [viewMode, setViewMode] = useState('menu'); // 'menu' | 'order-status'
-  const [orderHistory, setOrderHistory] = useState([]);
+  const [viewMode, setViewMode] = useState('menu');
   const [loadingOrder, setLoadingOrder] = useState(false);
+  const [touchStart, setTouchStart] = useState(null);
 
-  // DEBUG: Log menu data
-  useEffect(() => {
-    console.log('DigitalMenu - Menu data received:', menu);
-  }, [menu]);
+  // Universal mobile detection
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
-  // FIXED: Only check for existing orders when specifically needed, not on every table detection
   useEffect(() => {
-    const checkExistingOrder = async () => {
-      if (selectedTable && isCustomerView && viewMode === 'menu') {
-        setLoadingOrder(true);
-        console.log('🔍 Checking for existing orders for table:', selectedTable);
-        
-        try {
-          // Simulate API call to check for active orders
-          const existingOrder = await fetchActiveOrder(selectedTable);
-          
-          if (existingOrder) {
-            console.log('✅ Found existing order:', existingOrder);
-            setActiveOrder(existingOrder);
-            // DON'T automatically switch to order status view - let user choose
-          } else {
-            console.log('❌ No existing order found');
-            setActiveOrder(null);
-          }
-        } catch (error) {
-          console.error('Error checking existing order:', error);
-        } finally {
-          setLoadingOrder(false);
-        }
-      }
+    // Universal touch device detection
+    const checkTouchDevice = () => {
+      const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setIsTouchDevice(isTouch);
+      console.log('📱 Touch device detected:', isTouch);
     };
 
-    // Only check if we're in menu view and have a table
-    if (viewMode === 'menu' && selectedTable) {
-      checkExistingOrder();
-    }
-  }, [selectedTable, isCustomerView, viewMode]);
+    checkTouchDevice();
+    window.addEventListener('touchstart', checkTouchDevice);
+    
+    return () => window.removeEventListener('touchstart', checkTouchDevice);
+  }, []);
 
-  // FIXED: Improved table detection
+  // Universal table detection
   useEffect(() => {
     const detectTableFromURL = () => {
-      console.log('🔍 Scanning URL for table number...');
+      console.log('🔍 Universal table detection...');
       
       const url = new URL(window.location.href);
-      const hash = window.location.hash;
       const searchParams = url.searchParams;
+      const hash = window.location.hash;
+      const pathname = window.location.pathname;
       
       let detectedTable = null;
 
-      // Check URL search params first
+      // Universal URL parameter detection
       if (searchParams.has('table')) {
         detectedTable = searchParams.get('table');
-        console.log('✅ Table detected from search params:', detectedTable);
-      }
-      
-      // Check hash params
-      if (hash.includes('?')) {
-        const hashParams = new URLSearchParams(hash.split('?')[1]);
-        if (hashParams.has('table')) {
-          detectedTable = hashParams.get('table');
-          console.log('✅ Table detected from hash params:', detectedTable);
-        }
+      } else if (hash.includes('table=')) {
+        const hashMatch = hash.match(/table=([^&]+)/);
+        detectedTable = hashMatch ? hashMatch[1] : null;
+      } else if (pathname.includes('/table/')) {
+        const pathMatch = pathname.match(/\/table\/([^\/]+)/);
+        detectedTable = pathMatch ? pathMatch[1] : null;
       }
 
-      // Check pathname for table
-      const pathMatch = window.location.pathname.match(/table[-\s]?(\w+)/i);
-      if (pathMatch) {
-        detectedTable = pathMatch[1];
-        console.log('✅ Table detected from pathname:', detectedTable);
-      }
-
+      // Clean table number
       if (detectedTable) {
+        detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        console.log('🎯 Table detected:', detectedTable);
+        
         setTableNumber(detectedTable);
         setSelectedTable(detectedTable);
-        console.log('🎯 Table number set to:', detectedTable);
       } else {
-        console.log('❌ No table number found in URL');
-        // Don't set any table, let user manually select or show table selection
+        console.log('❌ No table detected in URL');
       }
     };
 
     if (isCustomerView) {
       detectTableFromURL();
       
-      window.addEventListener('hashchange', detectTableFromURL);
-      window.addEventListener('popstate', detectTableFromURL);
+      // Universal event listeners
+      const events = ['hashchange', 'popstate', 'load'];
+      events.forEach(event => window.addEventListener(event, detectTableFromURL));
       
       return () => {
-        window.removeEventListener('hashchange', detectTableFromURL);
-        window.removeEventListener('popstate', detectTableFromURL);
+        events.forEach(event => window.removeEventListener(event, detectTableFromURL));
       };
     }
   }, [isCustomerView]);
 
-  // FIXED: Simulate API call to fetch active order
-  const fetchActiveOrder = async (tableId) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // FIXED: Return null to simulate no active orders for testing
-    // In production, this would make actual API call
-    return null;
-    
-    /*
-    // Mock data for testing - uncomment to test with active orders
-    const mockActiveOrders = [
-      {
-        _id: 'active_order_1',
-        orderNumber: 'MESRA123456',
-        tableId: 'T01',
-        table: 'T01',
-        items: [
-          { 
-            menuItem: { _id: '1', name: 'Teh Tarik', price: 4.50 },
-            quantity: 2,
-            price: 4.50,
-            status: 'preparing'
-          }
-        ],
-        status: 'preparing',
-        total: 9.00,
-        orderedAt: new Date(Date.now() - 15 * 60000),
-        estimatedReady: new Date(Date.now() + 15 * 60000)
-      }
-    ];
-    
-    return mockActiveOrders.find(order => 
-      order.tableId === tableId && 
-      ['pending', 'preparing', 'ready'].includes(order.status)
-    ) || null;
-    */
-  };
-
-  // FIXED: CRITICAL SEARCH COMPONENT - iOS Compatible
+  // Universal search component
   const SearchComponent = () => {
     const searchInputRef = useRef(null);
 
     useEffect(() => {
       if (showSearch && searchInputRef.current) {
-        // FIXED: Better iOS focus handling
-        const timer = setTimeout(() => {
+        // Universal focus with fallbacks
+        const focusInput = () => {
           if (searchInputRef.current) {
             searchInputRef.current.focus();
-            // Force keyboard to show on iOS
+            // Universal mobile input attributes
             searchInputRef.current.setAttribute('inputmode', 'search');
+            searchInputRef.current.setAttribute('enterkeyhint', 'search');
           }
-        }, 100);
-        
-        return () => clearTimeout(timer);
+        };
+
+        // Multiple focus attempts for different devices
+        setTimeout(focusInput, 50);
+        setTimeout(focusInput, 200);
       }
     }, [showSearch]);
 
@@ -184,7 +119,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     };
 
     const handleSearchSubmit = (e) => {
-      e.preventDefault(); // Prevent form submission
+      e.preventDefault();
       return false;
     };
 
@@ -193,76 +128,59 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     return (
       <div className="search-section">
         <div className="search-container">
-          <form onSubmit={handleSearchSubmit} style={{ width: '100%' }}>
+          <form onSubmit={handleSearchSubmit} className="search-form">
             <input
               ref={searchInputRef}
-              type="search" // FIXED: Use type="search" for better mobile handling
-              placeholder="Search for dishes, ingredients..."
+              type="search"
+              placeholder="Search menu items..."
               value={searchTerm}
               onChange={handleSearchChange}
               className="search-input"
+              // Universal mobile attributes
               autoComplete="off"
               autoCorrect="off"
-              autoCapitalize="off"
+              autoCapitalize="none"
               spellCheck="false"
               inputMode="search"
               enterKeyHint="search"
-              // FIXED: iOS-specific attributes
-              onTouchStart={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-              }}
-              onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
             />
+            {searchTerm && (
+              <button 
+                type="button"
+                className="clear-search"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </form>
-          {searchTerm && (
-            <button 
-              className="clear-search"
-              onClick={handleClearSearch}
-              type="button"
-              onTouchStart={(e) => e.stopPropagation()}
-            >
-              ✕
-            </button>
-          )}
         </div>
       </div>
     );
   };
 
-  // FIXED: Search toggle with better mobile handling
+  // Universal search toggle
   const handleSearchToggle = () => {
     setShowSearch(!showSearch);
-    if (!showSearch) {
-      // Closing search, clear term
+    if (showSearch) {
       setSearchTerm('');
     }
   };
 
-  // FIXED: BULLETPROOF DELETE FUNCTION - Doesn't close cart
+  // Universal cart management
   const removeFromCart = React.useCallback((itemId) => {
-    console.log('🔄 DELETE: Removing item ID:', itemId);
-    
-    const itemToRemove = cart.find(item => item.id === itemId);
-    
-    if (!itemToRemove) {
-      console.log('❌ Item not found in cart');
-      return;
-    }
-
-    console.log('🗑️ Removing item:', itemToRemove.name);
+    console.log('🗑️ Removing item:', itemId);
     
     const updatedCart = cart.filter(item => item.id !== itemId);
-    
-    console.log('✅ New cart after removal:', updatedCart);
     setCart(updatedCart);
     
-    // FIXED: Don't close cart or change view when deleting items
-    // Cart stays open for multiple deletions
-  }, [cart, setCart]);
+    // Universal: Keep cart open after deletion
+    if (updatedCart.length === 0 && isMobile) {
+      setCartOpen(false); // Only close if cart becomes empty on mobile
+    }
+  }, [cart, setCart, isMobile]);
 
-  // FIXED: Update quantity without closing cart
   const updateQuantity = React.useCallback((id, change) => {
     const updatedCart = cart.map(item =>
       item.id === id
@@ -271,12 +189,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     ).filter(item => item.quantity > 0);
     
     setCart(updatedCart);
-    // FIXED: Don't close cart when updating quantities
   }, [cart, setCart]);
 
-  // FIXED: Add to cart with better mobile experience
   const addToCart = React.useCallback((item) => {
-    console.log('🛒 Adding to cart:', item);
+    console.log('🛒 Adding to cart:', item.name);
     
     const cartItem = {
       id: item._id || item.id,
@@ -302,20 +218,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       setCart([...cart, cartItem]);
     }
 
-    // FIXED: Only auto-open cart on mobile if it's not already open
+    // Universal: Auto-open cart on mobile, but respect user preference
     if (isMobile && !cartOpen) {
-      setCartOpen(true);
+      setTimeout(() => setCartOpen(true), 300);
     }
   }, [cart, isMobile, cartOpen, setCart]);
 
-  // Calculate totals
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const serviceTax = subtotal * 0.06;
-  const sst = subtotal * 0.08;
-  const total = subtotal + serviceTax + sst;
-  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  // FIXED: Cart handlers - better mobile experience
+  // Universal cart handlers
   const toggleCart = () => {
     setCartOpen(!cartOpen);
   };
@@ -324,14 +233,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCartOpen(false);
   };
 
-  const handleProceedToPayment = () => {
-    if (cart.length === 0) return;
-    setShowPayment(true);
-    setCartOpen(false);
-  };
-
-  // FIXED: Enhanced place order function
-  const handlePlaceOrder = async (isAddingToExisting = false) => {
+  // Universal order placement
+  const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
       return;
@@ -340,11 +243,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const finalTableNumber = tableNumber || selectedTable;
     
     if (!finalTableNumber && isCustomerView) {
-      alert('Table number not detected. Please scan the QR code again or contact staff.');
+      alert('Table number not detected. Please scan the QR code again.');
       return;
     }
-
-    console.log('🛒 Placing order for table:', finalTableNumber);
 
     try {
       const orderData = cart.map(item => ({
@@ -356,25 +257,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         category: item.category
       }));
 
-      let result;
-      
-      if (isAddingToExisting && activeOrder) {
-        // Add to existing order
-        // This would call your API to add to existing order
-        console.log('➕ Adding to existing order:', activeOrder.orderNumber);
-        result = { orderNumber: activeOrder.orderNumber, message: 'Items added to existing order' };
-      } else {
-        // Create new order
-        result = await onCreateOrder(finalTableNumber, orderData, 'dine-in');
-        console.log('✅ Order placed successfully:', result);
-      }
+      const result = await onCreateOrder(finalTableNumber, orderData, 'dine-in');
       
       setCart([]);
       setCartOpen(false);
       setOrderSuccess(true);
+      
       setTimeout(() => setOrderSuccess(false), 5000);
       
-      alert(`Order ${isAddingToExisting ? 'updated' : 'placed'} successfully! Your order number is: ${result.orderNumber}`);
+      alert(`Order placed! Order number: ${result.orderNumber}`);
       
     } catch (error) {
       console.error('❌ Order failed:', error);
@@ -382,26 +273,16 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // FIXED: Order Status View Component
+  // Universal Order Status Component
   const OrderStatusView = ({ order, onAddMoreItems, onBackToMenu }) => {
-    const getStatusColor = (status) => {
-      switch (status) {
-        case 'pending': return '#f59e0b';
-        case 'preparing': return '#3b82f6';
-        case 'ready': return '#10b981';
-        case 'completed': return '#6b7280';
-        default: return '#6b7280';
-      }
-    };
-
-    const getStatusText = (status) => {
-      switch (status) {
-        case 'pending': return 'Order Received';
-        case 'preparing': return 'Preparing';
-        case 'ready': return 'Ready for Pickup';
-        case 'completed': return 'Completed';
-        default: return status;
-      }
+    const getStatusInfo = (status) => {
+      const statusMap = {
+        'pending': { color: '#f59e0b', text: 'Order Received', emoji: '⏳' },
+        'preparing': { color: '#3b82f6', text: 'Being Prepared', emoji: '👨‍🍳' },
+        'ready': { color: '#10b981', text: 'Ready', emoji: '✅' },
+        'completed': { color: '#6b7280', text: 'Completed', emoji: '🎉' }
+      };
+      return statusMap[status] || { color: '#6b7280', text: status, emoji: '📦' };
     };
 
     const getItemStatus = (item) => {
@@ -415,34 +296,38 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       const estimated = new Date(order.estimatedReady);
       const diffMs = estimated - now;
       const diffMins = Math.max(0, Math.ceil(diffMs / 60000));
-      return `${diffMins} min`;
+      return `${diffMins} minute${diffMins !== 1 ? 's' : ''}`;
     };
+
+    const statusInfo = getStatusInfo(order.status);
 
     return (
       <div className="order-status-view">
         <div className="status-main">
           <div className="status-header">
-            <h2>Your Current Order</h2>
+            <h2>Your Order Status</h2>
             <p>Table {order.table} • {order.orderNumber}</p>
           </div>
 
           <div className="order-card">
             <div className="order-header">
               <div className="order-info">
-                <h3>Order Status</h3>
+                <h3>Current Status</h3>
                 <p className="order-time">
-                  Ordered {new Date(order.orderedAt).toLocaleTimeString()}
+                  Ordered at {new Date(order.orderedAt).toLocaleTimeString()}
                 </p>
               </div>
               <div 
                 className="status-badge"
-                style={{ backgroundColor: getStatusColor(order.status) }}
+                style={{ backgroundColor: statusInfo.color }}
               >
-                {getStatusText(order.status)}
+                <span className="status-emoji">{statusInfo.emoji}</span>
+                {statusInfo.text}
               </div>
             </div>
 
             <div className="order-items">
+              <h4 className="items-title">Order Items</h4>
               {order.items.map((item, index) => (
                 <div key={index} className="order-item">
                   <div className="item-info">
@@ -450,11 +335,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                     <span className="item-name">{item.menuItem.name}</span>
                   </div>
                   <div className="item-status">
-                    <span style={{ 
-                      color: item.status === 'ready' ? '#10b981' : 
-                            item.status === 'preparing' ? '#3b82f6' : '#f59e0b',
-                      fontWeight: '600'
-                    }}>
+                    <span className={`status-${item.status}`}>
                       {getItemStatus(item)}
                     </span>
                   </div>
@@ -464,11 +345,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
             <div className="order-footer">
               <div className="order-total">
-                Total: <strong>RM {order.total.toFixed(2)}</strong>
+                <strong>Total: RM {order.total.toFixed(2)}</strong>
               </div>
               {order.status !== 'completed' && (
                 <div className="time-remaining">
-                  ⏱️ Estimated ready in: {calculateTimeRemaining()}
+                  <span className="time-icon">⏱️</span>
+                  Estimated ready in: {calculateTimeRemaining()}
                 </div>
               )}
             </div>
@@ -476,18 +358,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
           <div className="status-actions">
             <button 
-              className="add-more-btn"
+              className="btn-primary"
               onClick={onAddMoreItems}
-              type="button"
             >
-              ＋ Add More Items to This Order
+              <span className="btn-icon">+</span>
+              Add More Items
             </button>
             <button 
-              className="back-to-menu-btn"
+              className="btn-secondary"
               onClick={onBackToMenu}
-              type="button"
             >
-              ← Back to Menu
+              <span className="btn-icon">←</span>
+              Back to Menu
             </button>
           </div>
         </div>
@@ -495,23 +377,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // FIXED: PREMIUM CUSTOMER VIEW WITH ALL MOBILE FIXES
+  // Universal Customer View
   const PremiumCustomerView = () => {
     const [localCartOpen, setLocalCartOpen] = useState(false);
     const [showOrderConfirmation, setShowOrderConfirmation] = useState(false);
     const [recentlyAdded, setRecentlyAdded] = useState(null);
 
-    // Food category emojis and colors
+    // Universal category configuration
     const categoryConfig = {
       'all': { emoji: '🍽️', color: '#6366f1', name: 'All Items' },
-      'drinks': { emoji: '🥤', color: '#3b82f6', name: 'Beverages' },
+      'drinks': { emoji: '🥤', color: '#3b82f6', name: 'Drinks' },
       'main': { emoji: '🍛', color: '#f59e0b', name: 'Main Course' },
       'desserts': { emoji: '🍰', color: '#ec4899', name: 'Desserts' },
       'appetizers': { emoji: '🥗', color: '#10b981', name: 'Appetizers' },
       'specials': { emoji: '⭐', color: '#8b5cf6', name: 'Specials' }
     };
 
-    // FIXED: Handle view mode changes
+    // Universal view handlers
     const handleAddMoreItems = () => {
       setViewMode('menu');
       setLocalCartOpen(false);
@@ -524,12 +406,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const handleViewOrderStatus = () => {
       if (activeOrder) {
         setViewMode('order-status');
-      } else {
-        alert('No active order found for this table.');
       }
     };
 
-    // Show order status view if there's an active order AND user selected it
+    // Show order status if selected
     if (viewMode === 'order-status' && activeOrder) {
       return (
         <OrderStatusView 
@@ -543,7 +423,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const handleItemAdd = (item) => {
       addToCart(item);
       setRecentlyAdded(item.id);
-      setTimeout(() => setRecentlyAdded(null), 2000);
+      setTimeout(() => setRecentlyAdded(null), 1500);
     };
 
     const handlePlaceOrderCustomer = async () => {
@@ -562,52 +442,40 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           category: item.category
         }));
 
-        console.log('📦 Placing order with items:', orderData);
-        
         const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
         setCart([]);
         setLocalCartOpen(false);
         setShowOrderConfirmation(true);
         
-        console.log('✅ Order result:', result);
       } catch (error) {
-        console.error('❌ Order failed:', error);
         alert('Order failed: ' + error.message);
       }
     };
 
     const handleCartToggle = (open) => {
-      console.log('🛒 Cart toggle:', open);
       setLocalCartOpen(open);
     };
 
     const handleCloseCart = () => {
-      console.log('🛒 Closing cart explicitly');
       setLocalCartOpen(false);
     };
 
-    const handleCartClick = (e) => {
-      e.stopPropagation();
-    };
-
-    // Get categories from menu
+    // Universal menu data
     const categories = ['all', ...new Set((menu || []).map(item => item.category).filter(Boolean))];
     
-    // Filter items based on active category and search
     const filteredItems = (menu || []).filter(item => {
       const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
       const matchesSearch = searchTerm === '' || 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        item.name.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesCategory && matchesSearch;
     });
 
-    // Calculate totals for customer view
+    // Universal totals calculation
     const customerSubtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const customerTax = customerSubtotal * 0.14;
     const customerTotal = customerSubtotal + customerTax;
 
-    // Menu Item Card Component
+    // Universal Menu Item Component
     const PremiumMenuItem = ({ item }) => {
       const isRecentlyAdded = recentlyAdded === item.id;
       
@@ -616,14 +484,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <div className="item-image-container">
             <div className="item-image" style={{ background: categoryConfig[item.category]?.color || '#6366f1' }}>
               <span className="item-emoji">{item.image || '🍽️'}</span>
-              {item.popular && <div className="popular-badge">🔥 Popular</div>}
-              {item.spicy && <div className="spicy-badge">🌶️ Spicy</div>}
+              {item.popular && <div className="item-badge popular">Popular</div>}
+              {item.spicy && <div className="item-badge spicy">Spicy</div>}
             </div>
             <button 
               className="add-btn"
               onClick={() => handleItemAdd(item)}
-              type="button"
-              onTouchStart={(e) => e.stopPropagation()}
             >
               <span className="add-icon">+</span>
             </button>
@@ -644,22 +510,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       );
     };
 
-    // Order Confirmation Component
+    // Universal Order Confirmation
     const OrderConfirmation = () => (
       <div className="order-confirmation-overlay">
         <div className="order-confirmation">
           <div className="confirmation-icon">🎉</div>
           <h2>Order Confirmed!</h2>
-          <p>Your order has been placed successfully and is being prepared.</p>
+          <p>Your order has been placed successfully.</p>
           <div className="order-details">
             <p><strong>Table:</strong> {selectedTable}</p>
             <p><strong>Items:</strong> {cart.reduce((sum, item) => sum + item.quantity, 0)}</p>
             <p><strong>Total:</strong> RM {customerTotal.toFixed(2)}</p>
           </div>
           <button 
-            className="continue-shopping-btn"
+            className="btn-primary"
             onClick={() => setShowOrderConfirmation(false)}
-            type="button"
           >
             Continue Shopping
           </button>
@@ -669,15 +534,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
     return (
       <div className="premium-customer-view">
-        {/* Header */}
+        {/* Universal Header */}
         <header className="premium-header">
-          <div className="header-background"></div>
           <div className="header-content">
             <div className="restaurant-info">
               <div className="restaurant-logo">🍛</div>
               <div className="restaurant-text">
                 <h1 className="restaurant-name">FlavorFlow</h1>
-                <p className="restaurant-tagline">Authentic Flavors • Premium Experience</p>
+                <p className="restaurant-tagline">Delicious Food • Great Experience</p>
               </div>
             </div>
             
@@ -688,51 +552,29 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               </div>
               
               <div className="action-buttons">
-                {/* FIXED: Search button with better mobile handling */}
                 <button 
-                  className="search-btn"
+                  className="icon-btn"
                   onClick={handleSearchToggle}
-                  type="button"
-                  onTouchStart={(e) => e.stopPropagation()}
                 >
-                  🔍
+                  <span className="btn-emoji">🔍</span>
                 </button>
                 
-                {/* FIXED: View Order Status button - only show if there's an active order */}
                 {activeOrder && (
                   <button 
-                    className="order-status-btn"
+                    className="icon-btn status"
                     onClick={handleViewOrderStatus}
-                    type="button"
-                    onTouchStart={(e) => e.stopPropagation()}
-                    style={{
-                      width: '50px',
-                      height: '50px',
-                      border: 'none',
-                      borderRadius: '1rem',
-                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                      color: 'white',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '1.25rem',
-                      transition: 'all 0.3s ease'
-                    }}
                   >
-                    📦
+                    <span className="btn-emoji">📦</span>
                   </button>
                 )}
                 
                 <button 
-                  className="cart-indicator"
+                  className="icon-btn cart"
                   onClick={() => handleCartToggle(true)}
-                  type="button"
-                  onTouchStart={(e) => e.stopPropagation()}
                 >
-                  <span className="cart-icon">🛒</span>
+                  <span className="btn-emoji">🛒</span>
                   {cart.length > 0 && (
-                    <span className="cart-count">
+                    <span className="cart-badge">
                       {cart.reduce((sum, item) => sum + item.quantity, 0)}
                     </span>
                   )}
@@ -742,10 +584,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* FIXED: SEPARATE SEARCH COMPONENT */}
+        {/* Universal Search */}
         <SearchComponent />
 
-        {/* Categories */}
+        {/* Universal Categories */}
         <section className="categories-section">
           <div className="categories-scroll">
             {categories.map(category => {
@@ -756,8 +598,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   className={`category-card ${activeCategory === category ? 'active' : ''}`}
                   onClick={() => setActiveCategory(category)}
                   style={{ '--category-color': config.color }}
-                  type="button"
-                  onTouchStart={(e) => e.stopPropagation()}
                 >
                   <div className="category-emoji">{config.emoji}</div>
                   <span className="category-name">{config.name}</span>
@@ -770,7 +610,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </section>
 
-        {/* Menu Items */}
+        {/* Universal Menu Items */}
         <main className="menu-main">
           <div className="menu-header">
             <h2 className="section-title">
@@ -797,27 +637,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </main>
 
-        {/* FIXED: Cart Sidebar - Stays open during deletions */}
+        {/* Universal Cart */}
         <div 
           className={`premium-cart-sidebar ${localCartOpen ? 'open' : ''}`}
-          onClick={handleCartClick}
         >
           <div className="cart-header">
             <div className="cart-title-section">
               <h3>Your Order</h3>
               <p>Table {selectedTable}</p>
-              {/* FIXED: Show active order notice */}
-              {activeOrder && (
-                <p style={{ fontSize: '0.8rem', color: '#f59e0b', margin: '0.25rem 0 0 0' }}>
-                  ⚠️ You have an active order #{activeOrder.orderNumber}
-                </p>
-              )}
             </div>
             <button 
-              className="close-cart"
+              className="close-btn"
               onClick={handleCloseCart}
-              type="button"
-              onTouchStart={(e) => e.stopPropagation()}
             >
               ✕
             </button>
@@ -826,9 +657,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <div className="cart-content">
             {cart.length === 0 ? (
               <div className="empty-cart-state">
-                <div className="empty-cart-icon">🛒</div>
+                <div className="empty-icon">🛒</div>
                 <h4>Your cart is empty</h4>
-                <p>Add delicious items from our menu</p>
+                <p>Add items from the menu</p>
               </div>
             ) : (
               <>
@@ -843,33 +674,22 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                         <div className="item-controls">
                           <div className="quantity-controls">
                             <button 
-                              className="qty-btn minus"
+                              className="qty-btn"
                               onClick={() => updateQuantity(item.id, -1)}
-                              type="button"
-                              onTouchStart={(e) => e.stopPropagation()}
                             >
                               −
                             </button>
                             <span className="quantity">{item.quantity}</span>
                             <button 
-                              className="qty-btn plus"
+                              className="qty-btn"
                               onClick={() => updateQuantity(item.id, 1)}
-                              type="button"
-                              onTouchStart={(e) => e.stopPropagation()}
                             >
                               +
                             </button>
                           </div>
-                          {/* FIXED: Delete button doesn't close cart */}
                           <button 
-                            className="remove-item"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              console.log('🗑️ DELETE BUTTON CLICKED for:', item.name);
-                              removeFromCart(item.id);
-                            }}
-                            type="button"
-                            onTouchStart={(e) => e.stopPropagation()}
+                            className="remove-btn"
+                            onClick={() => removeFromCart(item.id)}
                           >
                             🗑️
                           </button>
@@ -898,61 +718,61 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 </div>
 
                 <button 
-                  className="checkout-button"
+                  className="checkout-btn"
                   onClick={handlePlaceOrderCustomer}
-                  type="button"
-                  onTouchStart={(e) => e.stopPropagation()}
                 >
-                  <span className="checkout-text">
-                    {activeOrder ? 'Add to Existing Order' : 'Place New Order'}
-                  </span>
-                  <span className="checkout-price">RM {customerTotal.toFixed(2)}</span>
+                  <span className="btn-text">Place Order</span>
+                  <span className="btn-price">RM {customerTotal.toFixed(2)}</span>
                 </button>
               </>
             )}
           </div>
         </div>
 
-        {/* Mobile Cart FAB */}
+        {/* Universal Mobile FAB */}
         {isMobile && cart.length > 0 && !localCartOpen && (
           <button 
-            className="mobile-cart-fab"
+            className="mobile-fab"
             onClick={() => handleCartToggle(true)}
-            type="button"
-            onTouchStart={(e) => e.stopPropagation()}
           >
             <span className="fab-icon">🛒</span>
             <span className="fab-count">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
-            <span className="fab-text">View Order</span>
+            <span className="fab-text">View Cart</span>
           </button>
         )}
 
-        {/* Overlay */}
+        {/* Universal Overlay */}
         {localCartOpen && (
           <div 
-            className="cart-overlay"
+            className="overlay"
             onClick={handleCloseCart}
-            onTouchStart={(e) => e.stopPropagation()}
           />
         )}
 
-        {/* Order Confirmation */}
+        {/* Universal Confirmation */}
         {showOrderConfirmation && <OrderConfirmation />}
       </div>
     );
   };
 
-  // ADMIN VIEW (unchanged from your original code)
+  // Universal Admin View (simplified for demo)
   const AdminView = () => {
-    // ... (keep your existing AdminView implementation)
     return (
-      <div>Admin View - Implementation unchanged</div>
+      <div className="admin-view">
+        <div className="admin-header">
+          <h2>Menu Management</h2>
+          <p>Staff View - Table {selectedTable || 'Not Selected'}</p>
+        </div>
+        <div className="admin-content">
+          <p>Admin interface would go here with full functionality</p>
+        </div>
+      </div>
     );
   };
 
-  // MAIN RENDER
+  // Universal Main Render
   return (
-    <div className="digital-menu-modern">
+    <div className="digital-menu">
       {isCustomerView ? <PremiumCustomerView /> : <AdminView />}
     </div>
   );
