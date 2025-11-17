@@ -9,50 +9,52 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [showSearch, setShowSearch] = useState(false);
   const [localCartOpen, setLocalCartOpen] = useState(false);
 
-  // FIX 1: SIMPLE SEARCH - No focus management
-  const SearchComponent = () => {
-    const [localSearchTerm, setLocalSearchTerm] = useState('');
+ // FIX 1: ULTRA-SIMPLE SEARCH - NO FOCUS MANAGEMENT AT ALL
+const SearchComponent = () => {
+  const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
 
-    const handleSearchChange = (e) => {
-      const value = e.target.value;
-      setLocalSearchTerm(value);
-      setSearchTerm(value);
-    };
+  // Sync with parent search term
+  useEffect(() => {
+    setLocalSearchTerm(searchTerm);
+  }, [searchTerm]);
 
-    const handleClearSearch = () => {
-      setLocalSearchTerm('');
-      setSearchTerm('');
-    };
-
-    if (!showSearch) return null;
-
-    return (
-      <div className="search-section">
-        <div className="search-container">
-          <input
-            type="text"
-            placeholder="Search for dishes, ingredients..."
-            value={localSearchTerm}
-            onChange={handleSearchChange}
-            className="search-input"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-          />
-          {localSearchTerm && (
-            <button 
-              className="clear-search"
-              onClick={handleClearSearch}
-              type="button"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      </div>
-    );
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setLocalSearchTerm(value);
+    setSearchTerm(value);
   };
+
+  const handleClearSearch = () => {
+    setLocalSearchTerm('');
+    setSearchTerm('');
+  };
+
+  if (!showSearch) return null;
+
+  return (
+    <div className="search-section">
+      <div className="search-container">
+        <input
+          type="text"
+          placeholder="Search for dishes, ingredients..."
+          value={localSearchTerm}
+          onChange={handleSearchChange}
+          className="search-input"
+          // REMOVE ALL these attributes that might interfere
+        />
+        {localSearchTerm && (
+          <button 
+            className="clear-search"
+            onClick={handleClearSearch}
+            type="button"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
   // FIX 2: SIMPLE DELETE - Direct state manipulation
   const removeFromCart = (itemId) => {
