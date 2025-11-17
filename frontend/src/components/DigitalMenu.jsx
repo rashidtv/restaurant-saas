@@ -7,68 +7,85 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [searchTerm, setSearchTerm] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
   const [previousOrders, setPreviousOrders] = useState([]);
+  const [showPreviousOrders, setShowPreviousOrders] = useState(false);
 
-  // FIXED: Original working table detection
-// FIXED: Table detection with proper order loading
-useEffect(() => {
-  const detectTableFromURL = () => {
-    console.log('🔄 Detecting table from URL...');
-    
-    let detectedTable = null;
-    const urlParams = new URLSearchParams(window.location.search);
-    detectedTable = urlParams.get('table');
+  // FIXED: Improved table detection with better order loading
+  useEffect(() => {
+    const detectTableFromURL = () => {
+      console.log('🔄 Detecting table from URL...');
+      
+      let detectedTable = null;
+      const urlParams = new URLSearchParams(window.location.search);
+      detectedTable = urlParams.get('table');
 
-    if (!detectedTable && window.location.hash) {
-      const hashContent = window.location.hash.replace('#', '');
-      if (hashContent.includes('table=')) {
-        const hashMatch = hashContent.match(/table=([^&]+)/);
-        detectedTable = hashMatch ? hashMatch[1] : null;
+      if (!detectedTable && window.location.hash) {
+        const hashContent = window.location.hash.replace('#', '');
+        if (hashContent.includes('table=')) {
+          const hashMatch = hashContent.match(/table=([^&]+)/);
+          detectedTable = hashMatch ? hashMatch[1] : null;
+        } else {
+          detectedTable = hashContent;
+        }
+      }
+
+      if (detectedTable) {
+        detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        if (/^\d+$/.test(detectedTable)) {
+          detectedTable = 'T' + detectedTable;
+        }
+        
+        console.log('✅ Final table detected:', detectedTable);
+        setSelectedTable(detectedTable);
+        
       } else {
-        detectedTable = hashContent;
+        console.log('❌ No table detected in URL');
+        setSelectedTable('');
       }
-    }
+    };
 
-    if (detectedTable) {
-      detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      if (/^\d+$/.test(detectedTable)) {
-        detectedTable = 'T' + detectedTable;
-      }
-      
-      console.log('✅ Final table detected:', detectedTable);
-      setSelectedTable(detectedTable);
-      
-      // FIX: Wait for React to update state before loading orders
-      setTimeout(() => {
-        loadPreviousOrders(detectedTable);
-      }, 0);
-      
+    if (isCustomerView) {
+      detectTableFromURL();
+      window.addEventListener('hashchange', detectTableFromURL);
+      return () => window.removeEventListener('hashchange', detectTableFromURL);
+    }
+  }, [isCustomerView]);
+
+  // FIXED: Load previous orders whenever selectedTable changes
+  useEffect(() => {
+    if (selectedTable) {
+      console.log('📦 Loading orders for table:', selectedTable);
+      loadPreviousOrders(selectedTable);
     } else {
-      console.log('❌ No table detected in URL');
-      setSelectedTable('');
+      setPreviousOrders([]);
+      setShowPreviousOrders(false);
     }
-  };
+  }, [selectedTable]);
 
-  if (isCustomerView) {
-    detectTableFromURL();
-    window.addEventListener('hashchange', detectTableFromURL);
-    return () => window.removeEventListener('hashchange', detectTableFromURL);
-  }
-}, [isCustomerView, currentTable]);
-
-  // FIXED: Original working order loading
+  // FIXED: Improved order loading
   const loadPreviousOrders = (tableNumber) => {
     try {
       const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
       if (storedOrders) {
         const orders = JSON.parse(storedOrders);
         setPreviousOrders(orders);
-        console.log('📦 Loaded previous orders:', orders);
+        setShowPreviousOrders(orders.length > 0);
+        console.log('📦 Loaded previous orders:', orders.length, 'orders');
+        
+        // Show welcome message if orders exist
+        if (orders.length > 0) {
+          setTimeout(() => {
+            alert(`Welcome back to Table ${tableNumber}! You have ${orders.length} previous order(s). Click "Order History" to view or reorder.`);
+          }, 500);
+        }
       } else {
         setPreviousOrders([]);
+        setShowPreviousOrders(false);
+        console.log('📦 No previous orders found for table:', tableNumber);
       }
     } catch (error) {
       console.error('❌ Error loading previous orders:', error);
       setPreviousOrders([]);
+      setShowPreviousOrders(false);
     }
   };
 
@@ -88,10 +105,41 @@ useEffect(() => {
       
       localStorage.setItem(`flavorflow_orders_${tableNumber}`, JSON.stringify(updatedOrders));
       setPreviousOrders(updatedOrders);
+      setShowPreviousOrders(true);
       console.log('💾 Saved order to history:', orderRecord);
     } catch (error) {
       console.error('❌ Error saving order history:', error);
     }
+  };
+
+  // NEW: Quick reorder functionality
+  const quickReorder = (previousOrder) => {
+    if (!selectedTable) {
+      alert('Please scan the QR code first to detect your table.');
+      return;
+    }
+
+    // Clear current cart first
+    setCart([]);
+    
+    // Add a small delay to ensure cart is cleared
+    setTimeout(() => {
+      const newCart = previousOrder.items.map(item => ({
+        id: item.menuItemId || item.id,
+        _id: item.menuItemId || item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        category: item.category
+      }));
+      
+      setCart(newCart);
+      setCartOpen(true);
+      
+      // Scroll to top and show confirmation
+      window.scrollTo(0, 0);
+      console.log('🔄 Reordered items:', newCart);
+    }, 100);
   };
 
   // FIXED: Original working add to cart
@@ -235,49 +283,68 @@ useEffect(() => {
     );
   };
 
-  // FIXED: Previous Orders Component
+  // FIXED: Enhanced Previous Orders Component with reorder functionality
   const PreviousOrdersSection = () => {
     if (!selectedTable || previousOrders.length === 0) return null;
 
     return (
       <div className="previous-orders-section">
-        <h3>📋 Your Order History</h3>
-        <div className="previous-orders-list">
-          {previousOrders.map((order, index) => (
-            <div key={index} className="previous-order-card">
-              <div className="order-header">
-                <span className="order-number">Order #{order.orderNumber}</span>
-                <span className="order-date">
-                  {new Date(order.timestamp).toLocaleDateString()}
-                </span>
-              </div>
-              <div className="order-items">
-                {order.items.slice(0, 3).map((item, itemIndex) => (
-                  <span key={itemIndex} className="order-item-tag">
-                    {item.name} x{item.quantity}
-                  </span>
-                ))}
-                {order.items.length > 3 && (
-                  <span className="more-items">+{order.items.length - 3} more</span>
-                )}
-              </div>
-              <div className="order-footer">
-                <span className="order-total">RM {order.total.toFixed(2)}</span>
-                <button 
-                  className="view-order-btn"
-                  onClick={() => viewPreviousOrderDetails(order)}
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="previous-orders-header">
+          <h3>📋 Order History - Table {selectedTable}</h3>
+          <button 
+            className="toggle-orders-btn"
+            onClick={() => setShowPreviousOrders(!showPreviousOrders)}
+          >
+            {showPreviousOrders ? '▲ Hide' : '▼ Show'} ({previousOrders.length})
+          </button>
         </div>
+        
+        {showPreviousOrders && (
+          <div className="previous-orders-list">
+            {previousOrders.map((order, index) => (
+              <div key={index} className="previous-order-card">
+                <div className="order-header">
+                  <span className="order-number">Order #{order.orderNumber}</span>
+                  <span className="order-date">
+                    {new Date(order.timestamp).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="order-items">
+                  {order.items.slice(0, 3).map((item, itemIndex) => (
+                    <span key={itemIndex} className="order-item-tag">
+                      {item.name} x{item.quantity}
+                    </span>
+                  ))}
+                  {order.items.length > 3 && (
+                    <span className="more-items">+{order.items.length - 3} more</span>
+                  )}
+                </div>
+                <div className="order-footer">
+                  <span className="order-total">RM {order.total.toFixed(2)}</span>
+                  <div className="order-actions">
+                    <button 
+                      className="view-order-btn"
+                      onClick={() => viewPreviousOrderDetails(order)}
+                    >
+                      Details
+                    </button>
+                    <button 
+                      className="reorder-btn"
+                      onClick={() => quickReorder(order)}
+                    >
+                      Reorder
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
 
-  // SIMPLE CUSTOMER VIEW - ORIGINAL WORKING VERSION
+  // SIMPLE CUSTOMER VIEW - ENHANCED WITH ORDER HISTORY
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
@@ -305,6 +372,13 @@ useEffect(() => {
 
         {/* Show previous orders if available */}
         {selectedTable && <PreviousOrdersSection />}
+
+        {/* Welcome back message */}
+        {selectedTable && previousOrders.length > 0 && (
+          <div className="welcome-back-banner">
+            <p>🎉 Welcome back to Table {selectedTable}! You have {previousOrders.length} previous order(s).</p>
+          </div>
+        )}
 
         {/* Search */}
         <div className="simple-search">
@@ -375,7 +449,17 @@ useEffect(() => {
               </div>
               
               {cart.length === 0 ? (
-                <p>Your cart is empty</p>
+                <div className="empty-cart">
+                  <p>Your cart is empty</p>
+                  {previousOrders.length > 0 && (
+                    <button 
+                      className="view-previous-orders-btn"
+                      onClick={() => setShowPreviousOrders(true)}
+                    >
+                      View Order History
+                    </button>
+                  )}
+                </div>
               ) : (
                 <>
                   <div className="cart-items">
