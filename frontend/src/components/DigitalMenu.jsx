@@ -6,6 +6,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
+  const [previousOrders, setPreviousOrders] = useState([]); // NEW: Store order history
 
   // FIXED: Proper table detection without fallback
   useEffect(() => {
@@ -62,6 +63,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         
         console.log('✅ Final table detected:', detectedTable);
         setSelectedTable(detectedTable);
+        
+        // NEW: Load previous orders for this table when table is detected
+        loadPreviousOrders(detectedTable);
       } else {
         console.log('❌ No table detected in URL');
         // DON'T set fallback - show error to user
@@ -81,6 +85,75 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       };
     }
   }, [isCustomerView, currentTable]);
+
+  // NEW: Load previous orders from localStorage
+  const loadPreviousOrders = (tableNumber) => {
+    try {
+      const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
+      if (storedOrders) {
+        const orders = JSON.parse(storedOrders);
+        setPreviousOrders(orders);
+        console.log('📦 Loaded previous orders:', orders);
+      } else {
+        setPreviousOrders([]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading previous orders:', error);
+      setPreviousOrders([]);
+    }
+  };
+
+  // NEW: Save order to localStorage
+  const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
+    try {
+      const orderRecord = {
+        orderNumber,
+        items: orderData,
+        total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        timestamp: new Date().toISOString(),
+        table: tableNumber
+      };
+
+      const existingOrders = JSON.parse(localStorage.getItem(`flavorflow_orders_${tableNumber}`) || '[]');
+      const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10); // Keep last 10 orders
+      
+      localStorage.setItem(`flavorflow_orders_${tableNumber}`, JSON.stringify(updatedOrders));
+      setPreviousOrders(updatedOrders);
+      console.log('💾 Saved order to history:', orderRecord);
+    } catch (error) {
+      console.error('❌ Error saving order history:', error);
+    }
+  };
+
+  // NEW: Add previous order to current cart
+  const addPreviousOrderToCart = (previousOrder) => {
+    const updatedCart = [...cart];
+    
+    previousOrder.items.forEach(previousItem => {
+      const existingItemIndex = updatedCart.findIndex(cartItem => 
+        cartItem.id === previousItem.menuItemId
+      );
+      
+      if (existingItemIndex !== -1) {
+        // Item exists, increase quantity
+        updatedCart[existingItemIndex].quantity += previousItem.quantity;
+      } else {
+        // Add new item
+        updatedCart.push({
+          id: previousItem.menuItemId,
+          _id: previousItem.menuItemId,
+          name: previousItem.name,
+          price: previousItem.price,
+          quantity: previousItem.quantity,
+          category: previousItem.category
+        });
+      }
+    });
+    
+    setCart(updatedCart);
+    setCartOpen(true); // Open cart to show added items
+    alert(`Added previous order #${previousOrder.orderNumber} to cart!`);
+  };
 
   // Simple menu data fallback
   const displayMenu = menu && menu.length > 0 ? menu : [
@@ -136,7 +209,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // FIXED: Better place order with proper table validation
+  // FIXED: Better place order with proper table validation AND save to history
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -161,6 +234,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }));
 
       const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
+      
+      // NEW: Save order to history before clearing cart
+      saveOrderToHistory(selectedTable, orderData, result.orderNumber || `TEMP-${Date.now()}`);
       
       setCart([]);
       setCartOpen(false);
@@ -211,6 +287,48 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
+  // NEW: Previous Orders Component
+  const PreviousOrdersSection = () => {
+    if (!selectedTable || previousOrders.length === 0) return null;
+
+    return (
+      <div className="previous-orders-section">
+        <h3>Your Previous Orders</h3>
+        <div className="previous-orders-list">
+          {previousOrders.map((order, index) => (
+            <div key={index} className="previous-order-card">
+              <div className="order-header">
+                <span className="order-number">Order #{order.orderNumber}</span>
+                <span className="order-date">
+                  {new Date(order.timestamp).toLocaleDateString()}
+                </span>
+              </div>
+              <div className="order-items">
+                {order.items.slice(0, 3).map((item, itemIndex) => (
+                  <span key={itemIndex} className="order-item-tag">
+                    {item.name} x{item.quantity}
+                  </span>
+                ))}
+                {order.items.length > 3 && (
+                  <span className="more-items">+{order.items.length - 3} more</span>
+                )}
+              </div>
+              <div className="order-footer">
+                <span className="order-total">RM {order.total.toFixed(2)}</span>
+                <button 
+                  className="reorder-btn"
+                  onClick={() => addPreviousOrderToCart(order)}
+                >
+                  Add to Cart
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // SIMPLE CUSTOMER VIEW
   if (isCustomerView) {
     return (
@@ -236,6 +354,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <p>📱 Please scan your table's QR code to start ordering</p>
           </div>
         )}
+
+        {/* Show previous orders if available */}
+        {selectedTable && <PreviousOrdersSection />}
 
         {/* Search */}
         <div className="simple-search">
@@ -296,30 +417,39 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </div>
 
-        {/* Simple Cart */}
+        {/* Simple Cart - UPDATED: Fixed position that follows scroll */}
         {cartOpen && (
           <div className="simple-cart-overlay" onClick={() => setCartOpen(false)}>
-            <div className="simple-cart" onClick={(e) => e.stopPropagation()}>
+            <div className="simple-cart-popup" onClick={(e) => e.stopPropagation()}>
               <div className="cart-header">
                 <h2>Your Order - Table {selectedTable}</h2>
-                <button onClick={() => setCartOpen(false)}>Close</button>
+                <button className="close-cart-btn" onClick={() => setCartOpen(false)}>✕</button>
               </div>
               
               {cart.length === 0 ? (
-                <p>Your cart is empty</p>
+                <div className="empty-cart-message">
+                  <p>Your cart is empty</p>
+                  {previousOrders.length > 0 && (
+                    <button 
+                      className="view-previous-orders-btn"
+                      onClick={() => setCartOpen(false)}
+                    >
+                      View Previous Orders
+                    </button>
+                  )}
+                </div>
               ) : (
                 <>
-                  <div className="cart-items">
+                  <div className="cart-items-scrollable">
                     {cart.map(item => (
                       <div key={item.id} className="cart-item">
                         <div className="item-details">
                           <strong>{item.name}</strong>
-                          <div>Qty: {item.quantity}</div>
                           <div>RM {item.price} each</div>
                         </div>
                         <div className="item-controls">
                           <button onClick={() => updateQuantity(item.id, -1)}>-</button>
-                          <span>{item.quantity}</span>
+                          <span className="quantity-display">{item.quantity}</span>
                           <button onClick={() => updateQuantity(item.id, 1)}>+</button>
                           <button 
                             className="remove-btn"
@@ -335,36 +465,38 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                     ))}
                   </div>
                   
-                  <div className="cart-total">
-                    <strong>Total: RM {total.toFixed(2)}</strong>
+                  <div className="cart-footer">
+                    <div className="cart-total">
+                      <strong>Total: RM {total.toFixed(2)}</strong>
+                    </div>
+                    
+                    <button 
+                      className="place-order-btn"
+                      onClick={handlePlaceOrder}
+                    >
+                      Place Order for Table {selectedTable}
+                    </button>
                   </div>
-                  
-                  <button 
-                    className="place-order-btn"
-                    onClick={handlePlaceOrder}
-                  >
-                    Place Order for Table {selectedTable}
-                  </button>
                 </>
               )}
             </div>
           </div>
         )}
 
-        {/* Mobile Cart Button */}
+        {/* Mobile Cart Button - UPDATED: Better fixed positioning */}
         {isMobile && cart.length > 0 && !cartOpen && selectedTable && (
           <button 
-            className="mobile-cart-btn"
+            className="mobile-cart-btn-fixed"
             onClick={() => setCartOpen(true)}
           >
-            View Cart ({itemCount}) - RM {total.toFixed(2)}
+            🛒 {itemCount} items - RM {total.toFixed(2)}
           </button>
         )}
       </div>
     );
   }
 
-  // Simple Admin View (for staff)
+  // Simple Admin View (for staff) - unchanged
   return (
     <div className="simple-admin-view">
       <h2>Menu Management - Staff View</h2>
