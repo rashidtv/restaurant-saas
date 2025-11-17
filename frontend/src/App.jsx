@@ -686,11 +686,11 @@ function App() {
             <DigitalMenu 
               cart={cart} 
               setCart={setCart}
-              onCreateOrder={handleCustomerOrder}
+              onCreateOrder={createNewOrder}
               isMobile={isMobile}
               menu={menu}
               apiConnected={apiConnected}
-              currentTable={currentTable}
+              currentTable={null}
               isCustomerView={false}
             />
           )}
