@@ -798,57 +798,278 @@ const TestComponent = () => {
     );
   };
 
-  // MAIN RENDER
-  // TEMPORARY: iOS Test Version - REPLACE THE ENTIRE RETURN
-return (
-  <div style={{ 
-    padding: '20px', 
-    background: 'lightblue',
-    minHeight: '100vh',
-    fontSize: '18px'
-  }}>
-    <h1>🚨 iOS TEST PAGE 🚨</h1>
-    <p>If you can see this, React is working on iOS</p>
-    
-    <div style={{ margin: '20px 0' }}>
-      <h3>Test Search Input:</h3>
+// SIMPLE WORKING CUSTOMER VIEW - Add this before the main return
+const SimpleCustomerView = () => {
+  const [localCart, setLocalCart] = useState([]);
+  const [localSearch, setLocalSearch] = useState('');
+  const [showCart, setShowCart] = useState(false);
+  const [activeCat, setActiveCat] = useState('all');
+
+  // Simple search that works
+  const SimpleSearch = () => (
+    <div style={{ 
+      background: 'white', 
+      padding: '15px', 
+      borderBottom: '1px solid #eee' 
+    }}>
       <input
         type="text"
-        placeholder="Type here to test keyboard..."
-        style={{ 
-          padding: '15px', 
-          fontSize: '18px',
+        placeholder="Search menu items..."
+        value={localSearch}
+        onChange={(e) => setLocalSearch(e.target.value)}
+        style={{
           width: '100%',
-          border: '2px solid #333'
+          padding: '12px',
+          fontSize: '16px',
+          border: '2px solid #ddd',
+          borderRadius: '8px'
         }}
-        onChange={(e) => console.log('Typed:', e.target.value)}
       />
     </div>
+  );
+
+  // Simple delete that works
+  const removeItem = (itemId) => {
+    console.log('Removing item:', itemId);
+    const updated = localCart.filter(item => item.id !== itemId);
+    setLocalCart(updated);
+    console.log('Cart after removal:', updated);
+  };
+
+  // Simple add to cart
+  const addToCart = (item) => {
+    console.log('Adding item:', item.name);
+    const existing = localCart.find(cartItem => cartItem.id === item.id);
     
-    <div style={{ margin: '20px 0' }}>
-      <h3>Test Cart Delete:</h3>
-      <button 
-        onClick={() => {
-          const testCart = [{id: 1, name: 'Test'}, {id: 2, name: 'Test2'}];
-          const updated = testCart.filter(item => item.id !== 1);
-          console.log('Delete test:', updated);
-        }}
-        style={{ 
-          padding: '15px', 
-          fontSize: '18px',
-          background: 'green',
-          color: 'white'
-        }}
-      >
-        Test Delete Button
-      </button>
+    if (existing) {
+      const updated = localCart.map(cartItem =>
+        cartItem.id === item.id 
+          ? { ...cartItem, quantity: cartItem.quantity + 1 }
+          : cartItem
+      );
+      setLocalCart(updated);
+    } else {
+      setLocalCart([...localCart, { ...item, quantity: 1 }]);
+    }
+  };
+
+  // Filter menu items
+  const filteredItems = menu.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(localSearch.toLowerCase());
+    const matchesCategory = activeCat === 'all' || item.category === activeCat;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Calculate total
+  const total = localCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+      {/* Header */}
+      <header style={{
+        background: 'white',
+        padding: '15px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div>
+          <h1 style={{ margin: 0, color: '#333' }}>FlavorFlow</h1>
+          <p style={{ margin: 0, color: '#666' }}>Table {selectedTable || '--'}</p>
+        </div>
+        <button 
+          onClick={() => setShowCart(true)}
+          style={{
+            background: '#10b981',
+            color: 'white',
+            border: 'none',
+            padding: '10px 15px',
+            borderRadius: '8px',
+            fontSize: '16px'
+          }}
+        >
+          Cart ({localCart.reduce((sum, item) => sum + item.quantity, 0)})
+        </button>
+      </header>
+
+      {/* Search */}
+      <SimpleSearch />
+
+      {/* Categories */}
+      <div style={{
+        background: 'white',
+        padding: '15px',
+        display: 'flex',
+        gap: '10px',
+        overflowX: 'auto'
+      }}>
+        {['all', 'main', 'drinks', 'desserts'].map(cat => (
+          <button
+            key={cat}
+            onClick={() => setActiveCat(cat)}
+            style={{
+              padding: '10px 15px',
+              border: 'none',
+              background: activeCat === cat ? '#667eea' : '#f1f5f9',
+              color: activeCat === cat ? 'white' : '#333',
+              borderRadius: '20px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Menu Items */}
+      <div style={{ padding: '15px' }}>
+        <h2 style={{ color: 'white', marginBottom: '15px' }}>Menu</h2>
+        
+        {filteredItems.map(item => (
+          <div key={item.id} style={{
+            background: 'white',
+            padding: '15px',
+            marginBottom: '10px',
+            borderRadius: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <h3 style={{ margin: 0 }}>{item.name}</h3>
+              <p style={{ margin: '5px 0', color: '#666' }}>{item.description}</p>
+              <p style={{ margin: 0, fontWeight: 'bold' }}>RM {item.price}</p>
+            </div>
+            <button
+              onClick={() => addToCart(item)}
+              style={{
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '16px'
+              }}
+            >
+              Add +
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Cart Sidebar */}
+      {showCart && (
+        <>
+          <div 
+            onClick={() => setShowCart(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.5)'
+            }}
+          />
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: '90%',
+            maxWidth: '400px',
+            background: 'white',
+            padding: '20px',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2>Your Cart</h2>
+              <button 
+                onClick={() => setShowCart(false)}
+                style={{ background: 'none', border: 'none', fontSize: '20px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {localCart.length === 0 ? (
+              <p>Your cart is empty</p>
+            ) : (
+              <>
+                {localCart.map(item => (
+                  <div key={item.id} style={{
+                    padding: '10px',
+                    borderBottom: '1px solid #eee',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 'bold' }}>{item.name}</p>
+                      <p style={{ margin: 0 }}>Qty: {item.quantity} × RM {item.price}</p>
+                    </div>
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      style={{
+                        background: '#ef4444',
+                        color: 'white',
+                        border: 'none',
+                        padding: '5px 10px',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                
+                <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #333' }}>
+                  <h3>Total: RM {total.toFixed(2)}</h3>
+                  <button
+                    onClick={async () => {
+                      if (!selectedTable) {
+                        alert('Table not detected');
+                        return;
+                      }
+                      try {
+                        await onCreateOrder(selectedTable, localCart, 'dine-in');
+                        setLocalCart([]);
+                        setShowCart(false);
+                        alert('Order placed successfully!');
+                      } catch (error) {
+                        alert('Order failed: ' + error.message);
+                      }
+                    }}
+                    style={{
+                      background: '#059669',
+                      color: 'white',
+                      border: 'none',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      width: '100%'
+                    }}
+                  >
+                    Place Order
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
-    
-    <div style={{ margin: '20px 0' }}>
-      <h3>Environment Info:</h3>
-      <p>User Agent: {navigator.userAgent}</p>
-      <p>iOS: {/iPad|iPhone|iPod/.test(navigator.userAgent) ? 'Yes' : 'No'}</p>
-    </div>
+  );
+};
+
+ // MAIN RENDER - REPLACE THE TEST VERSION WITH THIS
+return (
+  <div className="digital-menu-modern">
+    {isCustomerView ? (
+      <SimpleCustomerView />
+    ) : (
+      <AdminView />
+    )}
   </div>
 );
 };
