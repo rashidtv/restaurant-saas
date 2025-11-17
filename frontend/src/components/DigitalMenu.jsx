@@ -8,67 +8,102 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [cartOpen, setCartOpen] = useState(false);
   const [previousOrders, setPreviousOrders] = useState([]);
 
-  // Table detection
+  // FIXED: Single useEffect for table detection and order loading
   useEffect(() => {
     if (!isCustomerView) return;
 
-    const detectTableFromURL = () => {
-      let detectedTable = null;
+    console.log('=== TABLE DETECTION STARTED ===');
+    
+    const detectTableAndLoadOrders = () => {
+      // Get table from URL parameters
       const urlParams = new URLSearchParams(window.location.search);
-      detectedTable = urlParams.get('table');
+      let table = urlParams.get('table');
 
-      if (!detectedTable && window.location.hash) {
-        const hashContent = window.location.hash.replace('#', '');
-        if (hashContent.includes('table=')) {
-          const hashMatch = hashContent.match(/table=([^&]+)/);
-          detectedTable = hashMatch ? hashMatch[1] : null;
-        } else {
-          detectedTable = hashContent;
-        }
+      // If not in URL params, check hash
+      if (!table && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+        table = hashParams.get('table') || window.location.hash.replace('#', '');
       }
 
-      if (detectedTable) {
-        detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        if (/^\d+$/.test(detectedTable)) {
-          detectedTable = 'T' + detectedTable;
+      // Clean table number
+      if (table) {
+        table = table.toString().toUpperCase().trim();
+        if (/^\d+$/.test(table)) {
+          table = 'T' + table;
         }
-        setSelectedTable(detectedTable);
-      }
-    };
-
-    detectTableFromURL();
-    window.addEventListener('hashchange', detectTableFromURL);
-    return () => window.removeEventListener('hashchange', detectTableFromURL);
-  }, [isCustomerView]);
-
-  // FIX: Load orders when selectedTable changes
-  useEffect(() => {
-    if (selectedTable) {
-      const storedOrders = localStorage.getItem(`orders_${selectedTable}`);
-      if (storedOrders) {
-        setPreviousOrders(JSON.parse(storedOrders));
+        table = table.replace(/[^T0-9]/gi, '');
+        
+        console.log('🟢 Table detected:', table);
+        setSelectedTable(table);
+        
+        // CRITICAL: Load orders immediately after setting table
+        setTimeout(() => {
+          loadOrdersForTable(table);
+        }, 100);
       } else {
+        console.log('🔴 No table detected');
+        setSelectedTable('');
         setPreviousOrders([]);
       }
-    }
-  }, [selectedTable]); // This is the critical fix
-
-  const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
-    const orderRecord = {
-      orderNumber: orderNumber || `ORDER-${Date.now()}`,
-      items: orderData,
-      total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      timestamp: new Date().toISOString(),
-      table: tableNumber
     };
 
-    const existingOrders = JSON.parse(localStorage.getItem(`orders_${tableNumber}`) || '[]');
-    const updatedOrders = [orderRecord, ...existingOrders];
+    const loadOrdersForTable = (tableNumber) => {
+      try {
+        console.log('📦 Loading orders for table:', tableNumber);
+        const storageKey = `flavorflow_orders_${tableNumber}`;
+        const stored = localStorage.getItem(storageKey);
+        
+        if (stored) {
+          const orders = JSON.parse(stored);
+          console.log('✅ Orders loaded:', orders);
+          setPreviousOrders(Array.isArray(orders) ? orders : []);
+        } else {
+          console.log('ℹ️ No orders found for table:', tableNumber);
+          setPreviousOrders([]);
+        }
+      } catch (error) {
+        console.error('❌ Error loading orders:', error);
+        setPreviousOrders([]);
+      }
+    };
+
+    // Run detection immediately
+    detectTableAndLoadOrders();
+
+    // Listen for URL changes
+    window.addEventListener('hashchange', detectTableAndLoadOrders);
     
-    localStorage.setItem(`orders_${tableNumber}`, JSON.stringify(updatedOrders));
-    setPreviousOrders(updatedOrders);
+    return () => window.removeEventListener('hashchange', detectTableAndLoadOrders);
+  }, [isCustomerView]);
+
+  // FIXED: Simple and reliable order saving
+  const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
+    try {
+      console.log('💾 Saving order for table:', tableNumber);
+      
+      const orderRecord = {
+        orderNumber: orderNumber || `ORDER-${Date.now()}`,
+        items: orderData,
+        total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        timestamp: new Date().toISOString(),
+        table: tableNumber
+      };
+
+      const storageKey = `flavorflow_orders_${tableNumber}`;
+      const existingOrders = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const updatedOrders = [orderRecord, ...existingOrders];
+      
+      localStorage.setItem(storageKey, JSON.stringify(updatedOrders));
+      setPreviousOrders(updatedOrders);
+      
+      console.log('✅ Order saved successfully. Total orders:', updatedOrders.length);
+      
+    } catch (error) {
+      console.error('❌ Error saving order:', error);
+    }
   };
 
+  // Rest of your functions remain the same
   const viewPreviousOrderDetails = (previousOrder) => {
     const orderDetails = previousOrder.items.map(item => 
       `• ${item.name} x${item.quantity} - RM ${(item.price * item.quantity).toFixed(2)}`
@@ -108,7 +143,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   };
 
   const handlePlaceOrder = async () => {
-    if (cart.length === 0 || !selectedTable) return;
+    if (cart.length === 0) {
+      alert('Your cart is empty. Please add some items first.');
+      return;
+    }
+
+    if (!selectedTable) {
+      alert('Table number not detected. Please scan the QR code again.');
+      return;
+    }
 
     try {
       const orderData = cart.map(item => ({
@@ -120,12 +163,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }));
 
       const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
+      
+      // Save order history
       saveOrderToHistory(selectedTable, orderData, result.orderNumber);
+      
       setCart([]);
       setCartOpen(false);
-      alert(`Order placed successfully for Table ${selectedTable}!`);
+      alert(`Order placed successfully for Table ${selectedTable}! Order number: ${result.orderNumber || 'N/A'}`);
+      
     } catch (error) {
-      alert('Failed to place order. Please try again.');
+      console.error('Order failed:', error);
+      alert('Failed to place order: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -151,6 +199,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         </div>
       );
     }
+    
     return (
       <div className="table-success">
         <div className="success-icon">✅</div>
@@ -163,27 +212,50 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   };
 
   const PreviousOrdersSection = () => {
-    if (!selectedTable || previousOrders.length === 0) return null;
+    if (!selectedTable) return null;
+
+    console.log('🔄 Rendering PreviousOrdersSection, orders count:', previousOrders.length);
+
+    if (previousOrders.length === 0) {
+      return (
+        <div className="previous-orders-section">
+          <h3>📋 Your Order History</h3>
+          <div className="no-previous-orders">
+            <p>No previous orders found for Table {selectedTable}</p>
+            <small>Orders will appear here after you place them</small>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="previous-orders-section">
-        <h3>📋 Your Order History</h3>
+        <h3>📋 Your Order History ({previousOrders.length} orders)</h3>
         <div className="previous-orders-list">
           {previousOrders.map((order, index) => (
             <div key={index} className="previous-order-card">
               <div className="order-header">
                 <span className="order-number">Order #{order.orderNumber}</span>
-                <span className="order-date">{new Date(order.timestamp).toLocaleDateString()}</span>
+                <span className="order-date">
+                  {new Date(order.timestamp).toLocaleDateString()}
+                </span>
               </div>
               <div className="order-items">
                 {order.items.slice(0, 3).map((item, itemIndex) => (
-                  <span key={itemIndex} className="order-item-tag">{item.name} x{item.quantity}</span>
+                  <span key={itemIndex} className="order-item-tag">
+                    {item.name} x{item.quantity}
+                  </span>
                 ))}
-                {order.items.length > 3 && <span className="more-items">+{order.items.length - 3} more</span>}
+                {order.items.length > 3 && (
+                  <span className="more-items">+{order.items.length - 3} more</span>
+                )}
               </div>
               <div className="order-footer">
                 <span className="order-total">RM {order.total.toFixed(2)}</span>
-                <button className="view-order-btn" onClick={() => viewPreviousOrderDetails(order)}>
+                <button 
+                  className="view-order-btn"
+                  onClick={() => viewPreviousOrderDetails(order)}
+                >
                   View Details
                 </button>
               </div>
@@ -194,6 +266,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
+  // Customer View - Keep your existing JSX exactly as is
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
@@ -201,7 +274,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <h1>FlavorFlow</h1>
           <div className="header-actions">
             <TableStatus />
-            <button className="cart-button" onClick={() => setCartOpen(true)} disabled={!selectedTable}>
+            <button 
+              className="cart-button"
+              onClick={() => setCartOpen(true)}
+              disabled={!selectedTable}
+            >
               Cart ({itemCount})
             </button>
           </div>
@@ -260,7 +337,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   <p>{item.description}</p>
                   <div className="item-price">RM {item.price.toFixed(2)}</div>
                 </div>
-                <button className="add-btn" onClick={() => addToCart(item)}>Add +</button>
+                <button 
+                  className="add-btn"
+                  onClick={() => addToCart(item)}
+                >
+                  Add +
+                </button>
               </div>
             ))
           )}
@@ -290,14 +372,28 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                           <button onClick={() => updateQuantity(item.id, -1)}>-</button>
                           <span>{item.quantity}</span>
                           <button onClick={() => updateQuantity(item.id, 1)}>+</button>
-                          <button className="remove-btn" onClick={() => removeFromCart(item.id)}>Remove</button>
+                          <button 
+                            className="remove-btn"
+                            onClick={() => removeFromCart(item.id)}
+                          >
+                            Remove
+                          </button>
                         </div>
-                        <div className="item-total">RM {(item.price * item.quantity).toFixed(2)}</div>
+                        <div className="item-total">
+                          RM {(item.price * item.quantity).toFixed(2)}
+                        </div>
                       </div>
                     ))}
                   </div>
-                  <div className="cart-total"><strong>Total: RM {total.toFixed(2)}</strong></div>
-                  <button className="place-order-btn" onClick={handlePlaceOrder}>
+                  
+                  <div className="cart-total">
+                    <strong>Total: RM {total.toFixed(2)}</strong>
+                  </div>
+                  
+                  <button 
+                    className="place-order-btn"
+                    onClick={handlePlaceOrder}
+                  >
                     Place Order for Table {selectedTable}
                   </button>
                 </>
@@ -307,7 +403,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         )}
 
         {isMobile && cart.length > 0 && !cartOpen && selectedTable && (
-          <button className="mobile-cart-btn" onClick={() => setCartOpen(true)}>
+          <button 
+            className="mobile-cart-btn"
+            onClick={() => setCartOpen(true)}
+          >
             View Cart ({itemCount}) - RM {total.toFixed(2)}
           </button>
         )}
@@ -315,18 +414,29 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   }
 
-  // Admin view
+  // Admin View - Keep your existing JSX
   return (
     <div className="simple-admin-view">
       <h2>Menu Management - Staff View</h2>
       <div className="admin-controls">
-        <select value={selectedTable} onChange={(e) => setSelectedTable(e.target.value)}>
+        <select 
+          value={selectedTable}
+          onChange={(e) => setSelectedTable(e.target.value)}
+        >
           <option value="">Select Table</option>
-          {['T01','T02','T03','T04','T05','T06','T07','T08'].map(table => (
-            <option key={table} value={table}>{table}</option>
-          ))}
+          <option value="T01">Table T01</option>
+          <option value="T02">Table T02</option>
+          <option value="T03">Table T03</option>
+          <option value="T04">Table T04</option>
+          <option value="T05">Table T05</option>
+          <option value="T06">Table T06</option>
+          <option value="T07">Table T07</option>
+          <option value="T08">Table T08</option>
         </select>
-        <div className="table-display">Current Table: <strong>{selectedTable || 'None selected'}</strong></div>
+        
+        <div className="table-display">
+          Current Table: <strong>{selectedTable || 'None selected'}</strong>
+        </div>
       </div>
       
       <div className="simple-menu">
@@ -337,7 +447,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               <p>{item.description}</p>
               <div className="item-price">RM {item.price}</div>
             </div>
-            <button className="add-btn" onClick={() => addToCart(item)}>Add +</button>
+            <button 
+              className="add-btn"
+              onClick={() => addToCart(item)}
+            >
+              Add +
+            </button>
           </div>
         ))}
       </div>
@@ -354,7 +469,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             ))}
           </div>
           <div className="cart-total">Total: RM {total.toFixed(2)}</div>
-          <button className="place-order-btn" onClick={handlePlaceOrder} disabled={!selectedTable}>
+          <button 
+            className="place-order-btn"
+            onClick={handlePlaceOrder}
+            disabled={!selectedTable}
+          >
             {selectedTable ? `Place Order for Table ${selectedTable}` : 'Select a table first'}
           </button>
         </div>
