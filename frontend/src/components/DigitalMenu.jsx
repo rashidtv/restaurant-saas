@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import './DigitalMenu.css';
 
 const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiConnected, currentTable, isCustomerView = false }) => {
+  // ----- state -----
   const [selectedTable, setSelectedTable] = useState(currentTable || '');
   const [activeCategory, setActiveCategory] = useState('all');
   const [orderType, setOrderType] = useState('dine-in');
@@ -16,15 +17,20 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
   const [customerOrders, setCustomerOrders] = useState([]);
   const [tableDetected, setTableDetected] = useState(false);
 
+  // ----- defensive wrappers -----
+  // Ensure we always have arrays (protect against parent passing null)
+  const safeMenu = Array.isArray(menu) ? menu : [];
+  const safeCart = Array.isArray(cart) ? cart : [];
+
   // Normalize menu items so each has an `id` field (useMemo for perf)
   const menuItems = useMemo(() => {
-    return (menu || []).map(it => {
-      const id = it.id || it._id || (it._id && it._id.toString()) || Math.random().toString(36).slice(2, 9);
+    return safeMenu.map(it => {
+      const id = (it && (it.id || it._id)) || Math.random().toString(36).slice(2, 9);
       return { ...it, id };
     });
-  }, [menu]);
+  }, [safeMenu]);
 
-  // Add this at the top of your DigitalMenu component
+  // ----- mount debug -----
   useEffect(() => {
     console.log('📱 Device Info:', {
       userAgent: navigator.userAgent,
@@ -34,7 +40,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     console.log('✅ DigitalMenu mounted');
   }, []);
 
-  // CRITICAL: Table detection from QR code
+  // ----- Table detection (from QR link) -----
   useEffect(() => {
     const detectTableFromURL = () => {
       try {
@@ -44,13 +50,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
         const searchParams = url.searchParams;
         let detectedTable = null;
 
-        // search params
         if (searchParams.has('table')) {
           detectedTable = searchParams.get('table');
           console.log('✅ Table detected from search params:', detectedTable);
         }
 
-        // hash params (e.g., #/?table=12)
         if (!detectedTable && hash.includes('?')) {
           const hashParams = new URLSearchParams(hash.split('?')[1]);
           if (hashParams.has('table')) {
@@ -59,17 +63,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
           }
         }
 
-        // common path formats: /menu/:table, /restaurant/:rid/table/:table
         if (!detectedTable) {
           const path = window.location.pathname || '';
           const parts = path.split('/').filter(Boolean);
-          // look for 'menu' followed by table
           const menuIdx = parts.indexOf('menu');
           if (menuIdx !== -1 && parts[menuIdx + 1]) {
             detectedTable = parts[menuIdx + 1];
             console.log('✅ Table detected from /menu/ path:', detectedTable);
           } else {
-            // look for 'table' segment
             const tableIdx = parts.indexOf('table');
             if (tableIdx !== -1 && parts[tableIdx + 1]) {
               detectedTable = parts[tableIdx + 1];
@@ -105,7 +106,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     }
   }, [isCustomerView]);
 
-  // Check for existing orders when table is detected
+  // ----- local orders (simulate backend) -----
   const checkExistingOrders = async (tableNum) => {
     try {
       const key = `table_${tableNum}_orders`;
@@ -123,7 +124,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     }
   };
 
-  // Save order to localStorage (simulate backend)
   const saveOrderToStorage = (order) => {
     try {
       const key = `table_${selectedTable}_orders`;
@@ -137,7 +137,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     }
   };
 
-  // iOS-SAFE SEARCH COMPONENT
+  // ----- Search component (iOS safe) -----
   const SearchComponent = () => {
     const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
     const inputRef = useRef(null);
@@ -181,24 +181,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     );
   };
 
-  // SIMPLE DELETE FUNCTION (iOS Safe)
+  // ----- Cart utilities (defensive reads use safeCart) -----
   const removeFromCart = (itemId) => {
     console.log('REMOVE: Removing item', itemId);
-    const updatedCart = (cart || []).filter(item => item.id !== itemId);
-    console.log('Cart before:', (cart || []).length, 'Cart after:', updatedCart.length);
+    const updatedCart = safeCart.filter(item => item.id !== itemId);
+    console.log('Cart before:', safeCart.length, 'Cart after:', updatedCart.length);
     setCart(updatedCart);
   };
 
   const updateQuantity = (id, change) => {
-    const updatedCart = (cart || []).map(item =>
+    const updatedCart = (safeCart || []).map(item =>
       item.id === id
-        ? { ...item, quantity: Math.max(0, item.quantity + change) }
+        ? { ...item, quantity: Math.max(0, (item.quantity || 0) + change) }
         : item
-    ).filter(item => item.quantity > 0);
+    ).filter(item => (item.quantity || 0) > 0);
     setCart(updatedCart);
   };
 
-  // Add to cart function (uses normalized menu item id)
   const addToCart = (item) => {
     const id = item.id; // normalized id from menuItems
     console.log('🛒 Adding to cart:', { id, name: item.name });
@@ -214,30 +213,30 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
       ...item
     };
 
-    const existingItem = (cart || []).find(ci => ci.id === id);
+    const existingItem = safeCart.find(ci => ci.id === id);
 
     if (existingItem) {
-      const updatedCart = (cart || []).map(ci =>
+      const updatedCart = safeCart.map(ci =>
         ci.id === id
           ? { ...ci, quantity: (ci.quantity || 0) + 1 }
           : ci
       );
       setCart(updatedCart);
     } else {
-      setCart([...(cart || []), cartItem]);
+      setCart([...(safeCart || []), cartItem]);
     }
 
     if (isMobile) setCartOpen(true);
   };
 
-  // Calculate totals (frontend cart)
-  const subtotal = (cart || []).reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+  // ----- Totals & counts (use safeCart) -----
+  const subtotal = (safeCart || []).reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
   const serviceTax = subtotal * 0.06;
   const sst = subtotal * 0.08;
   const total = subtotal + serviceTax + sst;
-  const itemCount = (cart || []).reduce((sum, item) => sum + item.quantity, 0);
+  const itemCount = (safeCart || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
 
-  // OrderStatusView (kept mostly unchanged)
+  // ----- Order Status View -----
   const OrderStatusView = () => {
     const getStatusColor = (status) => {
       switch (status) {
@@ -318,13 +317,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
                   </div>
 
                   <div className="order-items">
-                    {order.items.map((item, itemIndex) => (
+                    {(order.items || []).map((item, itemIndex) => (
                       <div key={itemIndex} className="order-item">
                         <div className="item-info">
                           <span className="item-quantity">{item.quantity}x</span>
                           <span className="item-name">{item.name}</span>
                         </div>
-                        <span className="item-price">RM {(item.price * item.quantity).toFixed(2)}</span>
+                        <span className="item-price">RM {((item.price || 0) * (item.quantity || 0)).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -352,10 +351,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     );
   };
 
-  // PREMIUM CUSTOMER VIEW COMPONENT
+  // ----- Premium Customer View -----
   const PremiumCustomerView = () => {
     const [localCartOpen, setLocalCartOpen] = useState(false);
     const [recentlyAdded, setRecentlyAdded] = useState(null);
+
+    const handleCartToggle = (open) => setLocalCartOpen(open);
+    const handleCloseCart = () => setLocalCartOpen(false);
 
     if (!tableDetected) {
       return (
@@ -393,7 +395,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     };
 
     const handlePlaceOrderCustomer = async () => {
-      if ((cart || []).length === 0) {
+      if ((safeCart || []).length === 0) {
         alert('Your cart is empty');
         return;
       }
@@ -404,7 +406,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
       }
 
       try {
-        const orderData = (cart || []).map(item => ({
+        const orderData = (safeCart || []).map(item => ({
           menuItemId: item.id,
           _id: item.id,
           name: item.name,
@@ -433,11 +435,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
           ...result,
           table: selectedTable,
           status: 'pending',
-          total: cart.reduce((s, it) => s + ((it.price || 0) * it.quantity), 0)
+          total: (safeCart || []).reduce((s, it) => s + ((it.price || 0) * (it.quantity || 0)), 0),
         };
 
         saveOrderToStorage(orderWithTable);
-        setCart([]);
+        setCart([]); // clear parent's cart
         setLocalCartOpen(false);
         setViewMode('orderStatus');
 
@@ -448,19 +450,16 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
       }
     };
 
-    const handleCartToggle = (open) => setLocalCartOpen(open);
-    const handleCloseCart = () => setLocalCartOpen(false);
+    const categories = ['all', ...new Set((menuItems || []).map(item => item.category).filter(Boolean))];
 
-    const categories = ['all', ...new Set(menuItems.map(item => item.category).filter(Boolean))];
-
-    const filteredItems = menuItems.filter(item => {
+    const filteredItems = (menuItems || []).filter(item => {
       const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
       const q = (searchTerm || '').toLowerCase();
-      const matchesSearch = !q || item.name.toLowerCase().includes(q) || (item.description || '').toLowerCase().includes(q);
+      const matchesSearch = !q || (item.name || '').toLowerCase().includes(q) || ((item.description || '').toLowerCase().includes(q));
       return matchesCategory && matchesSearch;
     });
 
-    const customerSubtotal = (cart || []).reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+    const customerSubtotal = (safeCart || []).reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
     const customerTax = customerSubtotal * 0.14;
     const customerTotal = customerSubtotal + customerTax;
 
@@ -533,9 +532,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
                   type="button"
                 >
                   <span className="cart-icon">🛒</span>
-                  {(cart || []).length > 0 && (
+                  {(safeCart || []).length > 0 && (
                     <span className="cart-count">
-                      {(cart || []).reduce((sum, item) => sum + item.quantity, 0)}
+                      {(safeCart || []).reduce((sum, item) => sum + (item.quantity || 0), 0)}
                     </span>
                   )}
                 </button>
@@ -575,7 +574,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
                   <div className="category-emoji">{config.emoji}</div>
                   <span className="category-name">{config.name}</span>
                   <div className="category-count">
-                    {category === 'all' ? menuItems.length : menuItems.filter(item => item.category === category).length}
+                    {category === 'all' ? (menuItems || []).length : (menuItems || []).filter(item => item.category === category).length}
                   </div>
                 </button>
               );
@@ -590,11 +589,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
               {activeCategory === 'all' ? 'Our Menu' : categoryConfig[activeCategory]?.name}
             </h2>
             <p className="section-subtitle">
-              {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} available
+              {(filteredItems || []).length} {(filteredItems || []).length === 1 ? 'item' : 'items'} available
             </p>
           </div>
 
-          {filteredItems.length === 0 ? (
+          {(filteredItems || []).length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">🍽️</div>
               <h3>No items found</h3>
@@ -628,7 +627,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
           </div>
 
           <div className="cart-content">
-            {(cart || []).length === 0 ? (
+            {(safeCart || []).length === 0 ? (
               <div className="empty-cart-state">
                 <div className="empty-cart-icon">🛒</div>
                 <h4>Your cart is empty</h4>
@@ -637,7 +636,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
             ) : (
               <>
                 <div className="cart-items">
-                  {(cart || []).map(item => (
+                  {(safeCart || []).map(item => (
                     <div key={item.id} className="cart-item">
                       <div className="item-details">
                         <div className="item-main">
@@ -672,7 +671,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
                         </div>
                       </div>
                       <div className="item-total">
-                        RM {((item.price || 0) * item.quantity).toFixed(2)}
+                        RM {(((item.price || 0) * (item.quantity || 0))).toFixed(2)}
                       </div>
                     </div>
                   ))}
@@ -707,14 +706,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
         </div>
 
         {/* Mobile Cart FAB */}
-        {isMobile && (cart || []).length > 0 && !localCartOpen && (
+        {isMobile && (safeCart || []).length > 0 && !localCartOpen && (
           <button
             className="mobile-cart-fab"
             onClick={() => handleCartToggle(true)}
             type="button"
           >
             <span className="fab-icon">🛒</span>
-            <span className="fab-count">{(cart || []).reduce((sum, item) => sum + item.quantity, 0)}</span>
+            <span className="fab-count">{(safeCart || []).reduce((sum, item) => sum + (item.quantity || 0), 0)}</span>
             <span className="fab-text">View Order</span>
           </button>
         )}
@@ -730,7 +729,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     );
   };
 
-  // ADMIN VIEW (kept simple)
+  // ----- Admin View -----
   const AdminView = () => {
     return (
       <div className="digital-menu-modern">
@@ -749,7 +748,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     );
   };
 
-  // SIMPLE WORKING CUSTOMER VIEW (uses normalized menuItems)
+  // ----- Simple Customer View (fallback/test) -----
   const SimpleCustomerView = () => {
     const [localCart, setLocalCart] = useState([]);
     const [localSearch, setLocalSearch] = useState('');
@@ -801,13 +800,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
       }
     };
 
-    const filteredItems = menuItems.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(localSearch.toLowerCase());
+    const filteredItems = (menuItems || []).filter(item => {
+      const matchesSearch = (item.name || '').toLowerCase().includes((localSearch || '').toLowerCase());
       const matchesCategory = activeCat === 'all' || item.category === activeCat;
       return matchesSearch && matchesCategory;
     });
 
-    const totalLocal = localCart.reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0);
+    const totalLocal = localCart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
 
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
@@ -833,7 +832,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
               fontSize: '16px'
             }}
           >
-            Cart ({localCart.reduce((sum, item) => sum + item.quantity, 0)})
+            Cart ({localCart.reduce((sum, item) => sum + (item.quantity || 0), 0)})
           </button>
         </header>
 
@@ -846,7 +845,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
           gap: '10px',
           overflowX: 'auto'
         }}>
-          {['all', ...new Set(menuItems.map(i => i.category || 'other'))].map(cat => (
+          {['all', ...new Set((menuItems || []).map(i => i.category || 'other'))].map(cat => (
             <button
               key={cat}
               onClick={() => setActiveCat(cat)}
@@ -976,7 +975,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
                           if (typeof onCreateOrder === 'function') {
                             await onCreateOrder(selectedTable, localCart, 'dine-in');
                           } else {
-                            // fallback
                             console.warn('onCreateOrder not provided — simulating order');
                           }
                           setLocalCart([]);
@@ -1008,7 +1006,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu = [], apiCon
     );
   };
 
-  // MAIN RENDER
+  // ----- Main render -----
   return (
     <div className="digital-menu-modern">
       {isCustomerView ? (
