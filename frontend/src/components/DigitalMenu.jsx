@@ -9,82 +9,51 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [previousOrders, setPreviousOrders] = useState([]);
 
   // FIXED: Original working table detection
-  useEffect(() => {
-    const detectTableFromURL = () => {
-      console.log('🔄 Detecting table from URL...');
-      console.log('📍 Full URL:', window.location.href);
-      console.log('🔍 Search params:', window.location.search);
-      console.log('🎯 Hash:', window.location.hash);
-      
-      let detectedTable = null;
+// FIXED: Table detection with proper order loading
+useEffect(() => {
+  const detectTableFromURL = () => {
+    console.log('🔄 Detecting table from URL...');
+    
+    let detectedTable = null;
+    const urlParams = new URLSearchParams(window.location.search);
+    detectedTable = urlParams.get('table');
 
-      // Method 1: Check URL search params (most common for QR codes)
-      const urlParams = new URLSearchParams(window.location.search);
-      detectedTable = urlParams.get('table');
-      console.log('📋 From search params:', detectedTable);
-
-      // Method 2: Check hash parameters
-      if (!detectedTable && window.location.hash) {
-        console.log('🔍 Checking hash...');
-        const hashContent = window.location.hash.replace('#', '');
-        // Try different hash parsing methods
-        if (hashContent.includes('table=')) {
-          const hashMatch = hashContent.match(/table=([^&]+)/);
-          detectedTable = hashMatch ? hashMatch[1] : null;
-        } else {
-          // If hash is just a table number like "#T02"
-          detectedTable = hashContent;
-        }
-        console.log('📋 From hash:', detectedTable);
-      }
-
-      // Method 3: Check path parameters (like /menu/T02)
-      if (!detectedTable) {
-        const pathMatch = window.location.pathname.match(/\/(T\d+)$/);
-        detectedTable = pathMatch ? pathMatch[1] : null;
-        console.log('📋 From path:', detectedTable);
-      }
-
-      // Method 4: Check currentTable prop from parent component
-      if (!detectedTable && currentTable) {
-        detectedTable = currentTable;
-        console.log('📋 From props:', detectedTable);
-      }
-
-      // Clean and validate the table number
-      if (detectedTable) {
-        // Remove any unwanted characters, keep only letters and numbers
-        detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        
-        // Ensure it starts with T if it's just a number
-        if (/^\d+$/.test(detectedTable)) {
-          detectedTable = 'T' + detectedTable;
-        }
-        
-        console.log('✅ Final table detected:', detectedTable);
-        setSelectedTable(detectedTable);
-        
-        // Load previous orders for this table
-        loadPreviousOrders(detectedTable);
+    if (!detectedTable && window.location.hash) {
+      const hashContent = window.location.hash.replace('#', '');
+      if (hashContent.includes('table=')) {
+        const hashMatch = hashContent.match(/table=([^&]+)/);
+        detectedTable = hashMatch ? hashMatch[1] : null;
       } else {
-        console.log('❌ No table detected in URL');
-        // DON'T set fallback - show error to user
-        setSelectedTable('');
+        detectedTable = hashContent;
       }
-    };
-
-    if (isCustomerView) {
-      // Detect immediately
-      detectTableFromURL();
-      
-      // Also detect on hash changes (for single page apps)
-      window.addEventListener('hashchange', detectTableFromURL);
-      
-      return () => {
-        window.removeEventListener('hashchange', detectTableFromURL);
-      };
     }
-  }, [isCustomerView, currentTable]);
+
+    if (detectedTable) {
+      detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      if (/^\d+$/.test(detectedTable)) {
+        detectedTable = 'T' + detectedTable;
+      }
+      
+      console.log('✅ Final table detected:', detectedTable);
+      setSelectedTable(detectedTable);
+      
+      // FIX: Wait for React to update state before loading orders
+      setTimeout(() => {
+        loadPreviousOrders(detectedTable);
+      }, 0);
+      
+    } else {
+      console.log('❌ No table detected in URL');
+      setSelectedTable('');
+    }
+  };
+
+  if (isCustomerView) {
+    detectTableFromURL();
+    window.addEventListener('hashchange', detectTableFromURL);
+    return () => window.removeEventListener('hashchange', detectTableFromURL);
+  }
+}, [isCustomerView, currentTable]);
 
   // FIXED: Original working order loading
   const loadPreviousOrders = (tableNumber) => {
