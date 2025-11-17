@@ -823,7 +823,7 @@ body {
   }
 }
 
-/* REMOVED ALL ANIMATIONS AND TRANSITIONS */
+/* REMOVED ALL ANIMATIONS */
 .simple-customer-view * {
   animation: none !important;
   transition: none !important;
@@ -838,17 +838,4 @@ body {
 .cart-button {
   animation: none !important;
   transition: none !important;
-}
-
-/* Disable any keyframe animations */
-@keyframes fadeIn {
-  from, to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from, to { transform: none; opacity: 1; }
-}
-
-@keyframes slideDown {
-  from, to { transform: none; opacity: 1; }
 }
