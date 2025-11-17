@@ -799,19 +799,58 @@ const TestComponent = () => {
   };
 
   // MAIN RENDER
-  return (
-    <div className="digital-menu-modern">
-      {isCustomerView ? (
-        viewMode === 'orderStatus' ? (
-          <OrderStatusView />
-        ) : (
-          <PremiumCustomerView />
-        )
-      ) : (
-        <AdminView />
-      )}
+  // TEMPORARY: iOS Test Version - REPLACE THE ENTIRE RETURN
+return (
+  <div style={{ 
+    padding: '20px', 
+    background: 'lightblue',
+    minHeight: '100vh',
+    fontSize: '18px'
+  }}>
+    <h1>🚨 iOS TEST PAGE 🚨</h1>
+    <p>If you can see this, React is working on iOS</p>
+    
+    <div style={{ margin: '20px 0' }}>
+      <h3>Test Search Input:</h3>
+      <input
+        type="text"
+        placeholder="Type here to test keyboard..."
+        style={{ 
+          padding: '15px', 
+          fontSize: '18px',
+          width: '100%',
+          border: '2px solid #333'
+        }}
+        onChange={(e) => console.log('Typed:', e.target.value)}
+      />
     </div>
-  );
+    
+    <div style={{ margin: '20px 0' }}>
+      <h3>Test Cart Delete:</h3>
+      <button 
+        onClick={() => {
+          const testCart = [{id: 1, name: 'Test'}, {id: 2, name: 'Test2'}];
+          const updated = testCart.filter(item => item.id !== 1);
+          console.log('Delete test:', updated);
+        }}
+        style={{ 
+          padding: '15px', 
+          fontSize: '18px',
+          background: 'green',
+          color: 'white'
+        }}
+      >
+        Test Delete Button
+      </button>
+    </div>
+    
+    <div style={{ margin: '20px 0' }}>
+      <h3>Environment Info:</h3>
+      <p>User Agent: {navigator.userAgent}</p>
+      <p>iOS: {/iPad|iPhone|iPod/.test(navigator.userAgent) ? 'Yes' : 'No'}</p>
+    </div>
+  </div>
+);
 };
 
 export default DigitalMenu;
