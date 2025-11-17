@@ -8,38 +8,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [cartOpen, setCartOpen] = useState(false);
   const [previousOrders, setPreviousOrders] = useState([]);
 
+  // ORIGINAL WORKING TABLE DETECTION
   useEffect(() => {
-  if (isCustomerView && selectedTable) {
-    console.log('🔄 Loading orders for table:', selectedTable);
-    const storedOrders = localStorage.getItem(`flavorflow_orders_${selectedTable}`);
-    if (storedOrders) {
-      try {
-        const orders = JSON.parse(storedOrders);
-        setPreviousOrders(Array.isArray(orders) ? orders : []);
-      } catch (error) {
-        console.error('Error loading orders:', error);
-        setPreviousOrders([]);
-      }
-    }
-  }
-}, [selectedTable, isCustomerView]); // THIS DEPENDENCY ARRAY IS CRITICAL
-  const [isLoading, setIsLoading] = useState(false);
-
-  // FIXED: Reliable table detection with persistent order history
-  useEffect(() => {
-    if (!isCustomerView) return;
-
-    console.log('🔍 Starting table detection...');
-    
     const detectTableFromURL = () => {
+      console.log('🔄 Detecting table from URL...');
+      
       let detectedTable = null;
 
-      // Method 1: URL search params (most reliable)
+      // Method 1: Check URL search params
       const urlParams = new URLSearchParams(window.location.search);
       detectedTable = urlParams.get('table');
-      console.log('📋 From URL params:', detectedTable);
 
-      // Method 2: Hash parameters
+      // Method 2: Check hash parameters  
       if (!detectedTable && window.location.hash) {
         const hashContent = window.location.hash.replace('#', '');
         if (hashContent.includes('table=')) {
@@ -48,122 +28,85 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         } else {
           detectedTable = hashContent;
         }
-        console.log('📋 From hash:', detectedTable);
       }
 
-      // Method 3: Path parameters
+      // Method 3: Check path parameters
       if (!detectedTable) {
-        const pathMatch = window.location.pathname.match(/\/(T\d+)/i);
+        const pathMatch = window.location.pathname.match(/\/(T\d+)$/);
         detectedTable = pathMatch ? pathMatch[1] : null;
-        console.log('📋 From path:', detectedTable);
       }
 
-      // Method 4: Props
+      // Method 4: Check currentTable prop
       if (!detectedTable && currentTable) {
         detectedTable = currentTable;
-        console.log('📋 From props:', detectedTable);
       }
 
       // Clean and validate table number
       if (detectedTable) {
-        detectedTable = detectedTable.toString().toUpperCase().trim();
+        detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         
-        // Ensure it starts with T if it's a number
         if (/^\d+$/.test(detectedTable)) {
           detectedTable = 'T' + detectedTable;
         }
         
-        // Clean any unwanted characters
-        detectedTable = detectedTable.replace(/[^T0-9]/gi, '');
-        
         console.log('✅ Final table detected:', detectedTable);
-        
-        // Set table and load orders
         setSelectedTable(detectedTable);
+        
+        // ORIGINAL WORKING ORDER LOADING
         loadPreviousOrders(detectedTable);
       } else {
         console.log('❌ No table detected in URL');
         setSelectedTable('');
-        setPreviousOrders([]);
       }
     };
 
-    // Add small delay to ensure DOM is ready
-    const timer = setTimeout(() => {
+    if (isCustomerView) {
       detectTableFromURL();
-    }, 100);
-
-    // Listen for hash changes
-    window.addEventListener('hashchange', detectTableFromURL);
-    
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('hashchange', detectTableFromURL);
-    };
+      window.addEventListener('hashchange', detectTableFromURL);
+      
+      return () => {
+        window.removeEventListener('hashchange', detectTableFromURL);
+      };
+    }
   }, [isCustomerView, currentTable]);
 
-  // FIXED: Reliable order loading
+  // ORIGINAL WORKING ORDER LOADING
   const loadPreviousOrders = (tableNumber) => {
     try {
-      console.log('📦 Loading orders for table:', tableNumber);
-      
-      const storageKey = `flavorflow_orders_${tableNumber}`;
-      const storedData = localStorage.getItem(storageKey);
-      
-      console.log('📦 Storage key:', storageKey);
-      console.log('📦 Raw data from storage:', storedData);
-      
-      if (!storedData) {
-        console.log('📦 No orders found in storage');
-        setPreviousOrders([]);
-        return;
+      const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
+      if (storedOrders) {
+        const orders = JSON.parse(storedOrders);
+        setPreviousOrders(orders);
       }
-
-      const orders = JSON.parse(storedData);
-      console.log('📦 Parsed orders:', orders);
-      
-      if (Array.isArray(orders) && orders.length > 0) {
-        // Sort by timestamp (newest first)
-        const sortedOrders = orders.sort((a, b) => 
-          new Date(b.timestamp) - new Date(a.timestamp)
-        );
-        console.log('📦 Sorted orders to display:', sortedOrders);
-        setPreviousOrders(sortedOrders);
-      } else {
-        console.log('📦 Invalid or empty orders array');
-        setPreviousOrders([]);
-      }
-      
     } catch (error) {
-      console.error('❌ Error loading orders:', error);
+      console.error('Error loading previous orders:', error);
       setPreviousOrders([]);
     }
   };
 
- // REPLACE your existing saveOrderToHistory with this:
-const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
-  try {
-    const orderRecord = {
-      orderNumber: orderNumber || `ORDER-${Date.now()}`,
-      items: orderData,
-      total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      timestamp: new Date().toISOString(),
-      table: tableNumber
-    };
+  // ORIGINAL WORKING ORDER SAVING
+  const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
+    try {
+      const orderRecord = {
+        orderNumber,
+        items: orderData,
+        total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        timestamp: new Date().toISOString(),
+        table: tableNumber
+      };
 
-    const storageKey = `flavorflow_orders_${tableNumber}`;
-    const existingOrders = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10);
-    
-    localStorage.setItem(storageKey, JSON.stringify(updatedOrders));
-    setPreviousOrders(updatedOrders); // THIS LINE UPDATES THE STATE IMMEDIATELY
-    
-  } catch (error) {
-    console.error('Error saving order:', error);
-  }
-};
+      const existingOrders = JSON.parse(localStorage.getItem(`flavorflow_orders_${tableNumber}`) || '[]');
+      const updatedOrders = [orderRecord, ...existingOrders];
+      
+      localStorage.setItem(`flavorflow_orders_${tableNumber}`, JSON.stringify(updatedOrders));
+      setPreviousOrders(updatedOrders);
+      
+    } catch (error) {
+      console.error('Error saving order history:', error);
+    }
+  };
 
-  // View previous order details
+  // ORIGINAL WORKING VIEW ORDER DETAILS
   const viewPreviousOrderDetails = (previousOrder) => {
     const orderDetails = previousOrder.items.map(item => 
       `• ${item.name} x${item.quantity} - RM ${(item.price * item.quantity).toFixed(2)}`
@@ -172,53 +115,15 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     alert(`Order #${previousOrder.orderNumber}\n\nItems:\n${orderDetails}\n\nTotal: RM ${previousOrder.total.toFixed(2)}\nDate: ${new Date(previousOrder.timestamp).toLocaleString()}`);
   };
 
-  // Menu data - ready for CMS integration
+  // ORIGINAL MENU DATA
   const displayMenu = menu && menu.length > 0 ? menu : [
-    { 
-      id: '1', 
-      name: 'Teh Tarik', 
-      price: 4.50, 
-      category: 'drinks', 
-      description: 'Famous Malaysian pulled tea'
-    },
-    { 
-      id: '2', 
-      name: 'Nasi Lemak', 
-      price: 12.90, 
-      category: 'main', 
-      description: 'Coconut rice with sambal'
-    },
-    { 
-      id: '3', 
-      name: 'Roti Canai', 
-      price: 3.50, 
-      category: 'main', 
-      description: 'Flaky flatbread with curry'
-    },
-    { 
-      id: '4', 
-      name: 'Cendol', 
-      price: 6.90, 
-      category: 'desserts', 
-      description: 'Shaved ice dessert'
-    },
-    { 
-      id: '5', 
-      name: 'Satay', 
-      price: 8.90, 
-      category: 'main', 
-      description: 'Grilled meat skewers with peanut sauce'
-    },
-    { 
-      id: '6', 
-      name: 'Laksa', 
-      price: 10.90, 
-      category: 'main', 
-      description: 'Spicy noodle soup'
-    }
+    { id: '1', name: 'Teh Tarik', price: 4.50, category: 'drinks', description: 'Famous Malaysian pulled tea' },
+    { id: '2', name: 'Nasi Lemak', price: 12.90, category: 'main', description: 'Coconut rice with sambal' },
+    { id: '3', name: 'Roti Canai', price: 3.50, category: 'main', description: 'Flaky flatbread with curry' },
+    { id: '4', name: 'Cendol', price: 6.90, category: 'desserts', description: 'Shaved ice dessert' }
   ];
 
-  // Add to cart function
+  // ORIGINAL ADD TO CART
   const addToCart = (item) => {
     const cartItem = {
       id: item.id || item._id,
@@ -246,12 +151,12 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     }
   };
 
-  // Remove from cart
+  // ORIGINAL REMOVE FROM CART
   const removeFromCart = (itemId) => {
     setCart(cart.filter(item => item.id !== itemId));
   };
 
-  // Update quantity
+  // ORIGINAL UPDATE QUANTITY
   const updateQuantity = (id, change) => {
     const updatedCart = cart.map(item =>
       item.id === id
@@ -262,7 +167,7 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     setCart(updatedCart);
   };
 
-  // FIXED: Place order with reliable history saving
+  // ORIGINAL PLACE ORDER
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -274,9 +179,6 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
       return;
     }
 
-    console.log('🛒 Starting order placement...');
-    setIsLoading(true);
-
     try {
       const orderData = cart.map(item => ({
         menuItemId: item.id,
@@ -286,44 +188,34 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
         category: item.category
       }));
 
-      console.log('🛒 Order data prepared');
-
-      // Create the order
       const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
       
-      console.log('🛒 Order created, saving to history...');
-
-      // Save to history - this is crucial
+      // ORIGINAL WORKING ORDER SAVING CALL
       saveOrderToHistory(selectedTable, orderData, result.orderNumber);
       
-      // Clear cart and close
       setCart([]);
       setCartOpen(false);
-      
-      alert(`✅ Order placed successfully for Table ${selectedTable}!`);
+      alert(`Order placed successfully for Table ${selectedTable}! Order number: ${result.orderNumber || 'N/A'}`);
       
     } catch (error) {
-      console.error('❌ Order failed:', error);
-      alert('Failed to place order. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error('Order failed:', error);
+      alert('Failed to place order: ' + (error.message || 'Unknown error'));
     }
   };
 
-  // Categories and filtering
+  // ORIGINAL CATEGORIES AND FILTERING
   const categories = ['all', ...new Set(displayMenu.map(item => item.category))];
-  
   const filteredItems = displayMenu.filter(item => {
     const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
-  // Totals
+  // ORIGINAL TOTALS
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Table Status Component
+  // ORIGINAL TABLE STATUS
   const TableStatus = () => {
     if (!selectedTable) {
       return (
@@ -348,24 +240,9 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     );
   };
 
-  // Previous Orders Component
+  // ORIGINAL PREVIOUS ORDERS COMPONENT
   const PreviousOrdersSection = () => {
-    if (!selectedTable) return null;
-
-    console.log('📋 Rendering PreviousOrdersSection');
-    console.log('📋 previousOrders count:', previousOrders.length);
-
-    if (previousOrders.length === 0) {
-      return (
-        <div className="previous-orders-section">
-          <h3>📋 Your Order History</h3>
-          <div className="no-previous-orders">
-            <p>No previous orders found for Table {selectedTable}</p>
-            <small>Orders will appear here after you place them</small>
-          </div>
-        </div>
-      );
-    }
+    if (!selectedTable || previousOrders.length === 0) return null;
 
     return (
       <div className="previous-orders-section">
@@ -390,7 +267,7 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
                 )}
               </div>
               <div className="order-footer">
-                <span className="order-total">RM {order.total?.toFixed(2)}</span>
+                <span className="order-total">RM {order.total.toFixed(2)}</span>
                 <button 
                   className="view-order-btn"
                   onClick={() => viewPreviousOrderDetails(order)}
@@ -405,11 +282,10 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     );
   };
 
-  // CUSTOMER VIEW
+  // ORIGINAL CUSTOMER VIEW (EXACTLY AS IT WAS WORKING)
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
-        {/* Header */}
         <header className="simple-header">
           <h1>FlavorFlow</h1>
           <div className="header-actions">
@@ -417,24 +293,21 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
             <button 
               className="cart-button"
               onClick={() => setCartOpen(true)}
-              disabled={!selectedTable || isLoading}
+              disabled={!selectedTable}
             >
-              {isLoading ? 'Loading...' : `Cart (${itemCount})`}
+              Cart ({itemCount})
             </button>
           </div>
         </header>
 
-        {/* Warning banner */}
         {!selectedTable && (
           <div className="warning-banner">
             <p>📱 Please scan your table's QR code to start ordering</p>
           </div>
         )}
 
-        {/* Previous orders */}
         {selectedTable && <PreviousOrdersSection />}
 
-        {/* Search */}
         <div className="simple-search">
           <input
             type="text"
@@ -446,7 +319,6 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
           />
         </div>
 
-        {/* Categories */}
         <div className="simple-categories">
           {categories.map(category => (
             <button
@@ -460,7 +332,6 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
           ))}
         </div>
 
-        {/* Menu Items */}
         <div className="simple-menu">
           {!selectedTable ? (
             <div className="disabled-overlay">
@@ -485,7 +356,6 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
                 <button 
                   className="add-btn"
                   onClick={() => addToCart(item)}
-                  disabled={isLoading}
                 >
                   Add +
                 </button>
@@ -494,32 +364,16 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
           )}
         </div>
 
-        {/* Cart Overlay */}
         {cartOpen && (
-          <div className="simple-cart-overlay" onClick={() => !isLoading && setCartOpen(false)}>
+          <div className="simple-cart-overlay" onClick={() => setCartOpen(false)}>
             <div className="simple-cart" onClick={(e) => e.stopPropagation()}>
               <div className="cart-header">
                 <h2>Your Order - Table {selectedTable}</h2>
-                <button 
-                  onClick={() => setCartOpen(false)}
-                  disabled={isLoading}
-                >
-                  Close
-                </button>
+                <button onClick={() => setCartOpen(false)}>Close</button>
               </div>
               
               {cart.length === 0 ? (
-                <div className="empty-cart">
-                  <p>Your cart is empty</p>
-                  {previousOrders.length > 0 && (
-                    <button 
-                      className="view-previous-orders-btn"
-                      onClick={() => setCartOpen(false)}
-                    >
-                      View Order History
-                    </button>
-                  )}
-                </div>
+                <p>Your cart is empty</p>
               ) : (
                 <>
                   <div className="cart-items">
@@ -531,23 +385,12 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
                           <div>RM {item.price} each</div>
                         </div>
                         <div className="item-controls">
-                          <button 
-                            onClick={() => updateQuantity(item.id, -1)}
-                            disabled={isLoading}
-                          >
-                            -
-                          </button>
+                          <button onClick={() => updateQuantity(item.id, -1)}>-</button>
                           <span>{item.quantity}</span>
-                          <button 
-                            onClick={() => updateQuantity(item.id, 1)}
-                            disabled={isLoading}
-                          >
-                            +
-                          </button>
+                          <button onClick={() => updateQuantity(item.id, 1)}>+</button>
                           <button 
                             className="remove-btn"
                             onClick={() => removeFromCart(item.id)}
-                            disabled={isLoading}
                           >
                             Remove
                           </button>
@@ -566,9 +409,8 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
                   <button 
                     className="place-order-btn"
                     onClick={handlePlaceOrder}
-                    disabled={isLoading}
                   >
-                    {isLoading ? 'Placing Order...' : `Place Order for Table ${selectedTable}`}
+                    Place Order for Table {selectedTable}
                   </button>
                 </>
               )}
@@ -576,21 +418,19 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
           </div>
         )}
 
-        {/* Mobile Cart Button */}
         {isMobile && cart.length > 0 && !cartOpen && selectedTable && (
           <button 
             className="mobile-cart-btn"
             onClick={() => setCartOpen(true)}
-            disabled={isLoading}
           >
-            🛒 {itemCount} items - RM {total.toFixed(2)}
+            View Cart ({itemCount}) - RM {total.toFixed(2)}
           </button>
         )}
       </div>
     );
   }
 
-  // ADMIN VIEW
+  // ORIGINAL ADMIN VIEW (UNCHANGED)
   return (
     <div className="simple-admin-view">
       <h2>Menu Management - Staff View</h2>
@@ -615,7 +455,6 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
         </div>
       </div>
       
-      {/* Menu display */}
       <div className="simple-menu">
         {displayMenu.map(item => (
           <div key={item.id} className="menu-item">
@@ -634,7 +473,6 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
         ))}
       </div>
 
-      {/* Admin Cart */}
       {cart.length > 0 && (
         <div className="admin-cart">
           <h3>Current Order ({itemCount} items) - Table {selectedTable}</h3>
@@ -650,7 +488,7 @@ const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
           <button 
             className="place-order-btn"
             onClick={handlePlaceOrder}
-            disabled={!selectedTable || isLoading}
+            disabled={!selectedTable}
           >
             {selectedTable ? `Place Order for Table ${selectedTable}` : 'Select a table first'}
           </button>
