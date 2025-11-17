@@ -114,39 +114,89 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   };
 
   // SIMPLE WORKING SEARCH - No focus management
-  const SearchComponent = () => {
-    if (!showSearch) return null;
+ // SIMPLE SEARCH COMPONENT - Add this to your DigitalMenu.jsx
+const SearchComponent = () => {
+  const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
 
-    return (
-      <div className="search-section">
-        <div className="search-container">
-          <input
-            type="text"
-            placeholder="Search for dishes, ingredients..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-          {searchTerm && (
-            <button 
-              className="clear-search"
-              onClick={() => setSearchTerm('')}
-              type="button"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+  // Use useRef to maintain input reference without causing re-renders
+  const inputRef = useRef(null);
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setLocalSearchTerm(value);
+    setSearchTerm(value);
+  };
+
+  const handleClearSearch = () => {
+    setLocalSearchTerm('');
+    setSearchTerm('');
+  };
+
+  if (!showSearch) return null;
+
+  return (
+    <div className="search-section" onClick={(e) => e.stopPropagation()}>
+      <div className="search-container">
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Search for dishes, ingredients..."
+          value={localSearchTerm}
+          onChange={handleSearchChange}
+          className="search-input"
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+        />
+        {localSearchTerm && (
+          <button 
+            className="clear-search"
+            onClick={handleClearSearch}
+            type="button"
+          >
+            ✕
+          </button>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
+};
 
-  // WORKING DELETE FUNCTION
-  const removeFromCart = (itemId) => {
-    console.log('🗑️ Removing item ID:', itemId);
-    const updatedCart = cart.filter(item => item.id !== itemId);
-    setCart(updatedCart);
-  };
+// DEBUGGABLE DELETE FUNCTION - Replace your current removeFromCart
+const removeFromCart = React.useCallback((itemId) => {
+  console.log('=== DELETE DEBUG START ===');
+  console.log('Item ID to remove:', itemId);
+  console.log('Current cart BEFORE deletion:', cart);
+  console.log('Cart length:', cart.length);
+  
+  // Log each item for debugging
+  cart.forEach((item, index) => {
+    console.log(`Item ${index}:`, {
+      id: item.id,
+      name: item.name,
+      quantity: item.quantity
+    });
+  });
+
+  // Create a NEW array (immutable update)
+  const updatedCart = cart.filter(item => {
+    const shouldKeep = item.id !== itemId;
+    console.log(`Checking ${item.id} vs ${itemId}: ${shouldKeep ? 'KEEP' : 'REMOVE'}`);
+    return shouldKeep;
+  });
+
+  console.log('Updated cart AFTER deletion:', updatedCart);
+  console.log('Updated cart length:', updatedCart.length);
+  console.log('=== DELETE DEBUG END ===');
+
+  // Use functional update to ensure we have latest state
+  setCart(updatedCart);
+}, [cart, setCart]); // Make sure cart is in dependencies
 
   const updateQuantity = (id, change) => {
     const updatedCart = cart.map(item =>
