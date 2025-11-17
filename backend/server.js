@@ -362,6 +362,74 @@ app.post('/api/payments', (req, res) => {
   }
 });
 
+// GET /api/orders/table/:tableId - Check for active orders
+app.get('/api/orders/table/:tableId', (req, res) => {
+  try {
+    const tableId = req.params.tableId;
+    console.log('🔍 Checking active orders for table:', tableId);
+    
+    const activeOrders = orders.filter(order => 
+      order.tableId === tableId && 
+      ['pending', 'preparing', 'ready'].includes(order.status)
+    );
+    
+    // Return the most recent active order
+    const latestOrder = activeOrders.length > 0 
+      ? activeOrders.reduce((latest, order) => 
+          new Date(order.orderedAt) > new Date(latest.orderedAt) ? order : latest
+        )
+      : null;
+    
+    console.log('✅ Active order check result:', latestOrder ? latestOrder.orderNumber : 'No active orders');
+    res.json(latestOrder);
+  } catch (error) {
+    console.error('❌ Error checking active orders:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/orders/:id/items - Add items to existing order
+app.put('/api/orders/:id/items', (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { newItems } = req.body;
+    
+    console.log('➕ Adding items to order:', orderId, newItems);
+    
+    const orderIndex = orders.findIndex(o => o._id === orderId);
+    if (orderIndex === -1) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const order = orders[orderIndex];
+    
+    // Add new items to the order
+    const addedItems = newItems.map(item => ({
+      menuItem: menuItems.find(m => m._id === item.menuItemId) || { 
+        _id: item.menuItemId,
+        name: item.name || 'Unknown Item', 
+        price: item.price || 0 
+      },
+      quantity: item.quantity || 1,
+      price: item.price || 0,
+      status: 'pending'
+    }));
+    
+    order.items.push(...addedItems);
+    order.total = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    order.updatedAt = new Date();
+    
+    console.log('✅ Order updated with new items:', order.orderNumber);
+    
+    // Emit order update
+    io.emit('orderUpdated', order);
+    res.json(order);
+  } catch (error) {
+    console.error('❌ Error adding items to order:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Customer orders endpoint for QR codes
 app.post('/api/customer/orders', (req, res) => {
   try {
