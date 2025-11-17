@@ -16,6 +16,19 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [customerOrders, setCustomerOrders] = useState([]);
   const [tableDetected, setTableDetected] = useState(false);
 
+
+  // Add this at the top of your DigitalMenu component
+useEffect(() => {
+  console.log('📱 Device Info:', {
+    userAgent: navigator.userAgent,
+    isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent),
+    isSafari: /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)
+  });
+  
+  // Check if component mounted properly
+  console.log('✅ DigitalMenu mounted on iOS');
+}, []);
+
   // CRITICAL: Table detection from QR code
   useEffect(() => {
     const detectTableFromURL = () => {
@@ -113,14 +126,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // SIMPLE WORKING SEARCH - No focus management
- // SIMPLE SEARCH COMPONENT - Add this to your DigitalMenu.jsx
+// iOS-SAFE SEARCH COMPONENT
 const SearchComponent = () => {
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
-
-  // Use useRef to maintain input reference without causing re-renders
   const inputRef = useRef(null);
 
+  // Simple change handler - NO focus management
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setLocalSearchTerm(value);
@@ -135,23 +146,17 @@ const SearchComponent = () => {
   if (!showSearch) return null;
 
   return (
-    <div className="search-section" onClick={(e) => e.stopPropagation()}>
+    <div className="search-section">
       <div className="search-container">
         <input
           ref={inputRef}
-          type="text"
-          placeholder="Search for dishes, ingredients..."
+          type="search" // Use type="search" for better iOS handling
+          placeholder="Search menu..."
           value={localSearchTerm}
           onChange={handleSearchChange}
           className="search-input"
-          onTouchStart={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onTouchEnd={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
+          enterKeyHint="search"
+          // REMOVE all touch handlers that might interfere with iOS
         />
         {localSearchTerm && (
           <button 
@@ -168,35 +173,19 @@ const SearchComponent = () => {
 };
 
 // DEBUGGABLE DELETE FUNCTION - Replace your current removeFromCart
-const removeFromCart = React.useCallback((itemId) => {
-  console.log('=== DELETE DEBUG START ===');
-  console.log('Item ID to remove:', itemId);
-  console.log('Current cart BEFORE deletion:', cart);
-  console.log('Cart length:', cart.length);
+// SIMPLE DELETE FUNCTION (iOS Safe)
+const removeFromCart = (itemId) => {
+  console.log('iOS DELETE: Removing item', itemId);
   
-  // Log each item for debugging
-  cart.forEach((item, index) => {
-    console.log(`Item ${index}:`, {
-      id: item.id,
-      name: item.name,
-      quantity: item.quantity
-    });
-  });
-
-  // Create a NEW array (immutable update)
+  // Simple immutable update
   const updatedCart = cart.filter(item => {
-    const shouldKeep = item.id !== itemId;
-    console.log(`Checking ${item.id} vs ${itemId}: ${shouldKeep ? 'KEEP' : 'REMOVE'}`);
-    return shouldKeep;
+    console.log(`Checking: ${item.id} === ${itemId}? ${item.id === itemId}`);
+    return item.id !== itemId;
   });
-
-  console.log('Updated cart AFTER deletion:', updatedCart);
-  console.log('Updated cart length:', updatedCart.length);
-  console.log('=== DELETE DEBUG END ===');
-
-  // Use functional update to ensure we have latest state
+  
+  console.log('Cart before:', cart.length, 'Cart after:', updatedCart.length);
   setCart(updatedCart);
-}, [cart, setCart]); // Make sure cart is in dependencies
+};
 // TEST COMPONENT - Add this temporarily to verify functionality
 const TestComponent = () => {
   const [testCart, setTestCart] = useState([

@@ -2816,3 +2816,31 @@ body.cart-open {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 }
+
+/* CRITICAL iOS SAFARI FIXES */
+.search-input {
+  /* iOS Safari specific fixes */
+  -webkit-appearance: none;
+  -webkit-border-radius: 0;
+  border-radius: 8px;
+  font-size: 16px !important; /* Prevent zoom */
+  transform: none !important;
+  background-color: white !important;
+}
+
+/* Prevent iOS from adding its own styles */
+input[type="search"] {
+  -webkit-appearance: none;
+}
+
+/* Fix for iOS viewport issues */
+.premium-customer-view {
+  min-height: -webkit-fill-available;
+  height: 100vh;
+  height: -webkit-fill-available;
+}
+
+/* Ensure content doesn't get hidden by iOS UI */
+.menu-main {
+  padding-bottom: env(safe-area-inset-bottom);
+}
