@@ -590,3 +590,374 @@
 .cart-items-scrollable::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+/* Add these new styles to your existing DigitalMenu.css */
+
+/* Previous Orders Section - View Only */
+.previous-orders-section {
+  padding: 1rem;
+  background: white;
+  border-bottom: 1px solid #eee;
+}
+
+.previous-orders-section h3 {
+  margin-bottom: 0.75rem;
+  color: #333;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.previous-orders-list {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.previous-order-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 0.75rem;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.previous-order-card.view-only {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.order-number {
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: #2196F3;
+}
+
+.order-date {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.order-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.order-item-tag {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.7rem;
+  color: #495057;
+}
+
+.more-items {
+  font-size: 0.7rem;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.order-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-total {
+  font-weight: bold;
+  color: #4CAF50;
+  font-size: 0.9rem;
+}
+
+.view-order-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.view-order-btn:hover {
+  background: #5a6268;
+}
+
+/* Menu Items with Images */
+.menu-item-with-image {
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.item-image-container {
+  width: 100%;
+  height: 160px;
+  overflow: hidden;
+}
+
+.item-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.menu-item-with-image:hover .item-image {
+  transform: scale(1.05);
+}
+
+.item-content {
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.item-content .item-info {
+  flex: 1;
+}
+
+.item-content .item-info h3 {
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.item-content .item-info p {
+  color: #666;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.item-content .item-price {
+  font-weight: bold;
+  color: #4CAF50;
+  font-size: 1.1rem;
+}
+
+.item-content .add-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s ease;
+}
+
+.item-content .add-btn:hover {
+  background: #45a049;
+}
+
+/* Updated Cart Styles */
+.simple-cart-popup {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.cart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.close-cart-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cart-items-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  max-height: 400px;
+}
+
+.cart-footer {
+  border-top: 1px solid #eee;
+  padding-top: 1rem;
+}
+
+.empty-cart-message {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+}
+
+.view-previous-orders-btn {
+  background: #2196F3;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  margin-top: 1rem;
+  cursor: pointer;
+}
+
+/* Updated Mobile Cart Button */
+.mobile-cart-btn-fixed {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: #2196F3;
+  color: white;
+  border: none;
+  padding: 1rem 1.5rem;
+  border-radius: 25px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+  z-index: 100;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: transform 0.2s ease;
+}
+
+.mobile-cart-btn-fixed:active {
+  transform: scale(0.95);
+}
+
+.quantity-display {
+  min-width: 30px;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* Smooth animations */
+.simple-cart-overlay {
+  animation: fadeIn 0.2s ease;
+}
+
+.simple-cart-popup {
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar styling */
+.cart-items-scrollable::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cart-items-scrollable::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.cart-items-scrollable::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.cart-items-scrollable::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Mobile Responsive for Images */
+@media (max-width: 768px) {
+  .menu-item-with-image {
+    flex-direction: column;
+  }
+  
+  .item-image-container {
+    height: 140px;
+  }
+  
+  .item-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  
+  .item-content .add-btn {
+    align-self: flex-end;
+  }
+  
+  .previous-orders-list {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .previous-order-card {
+    min-width: auto;
+  }
+}
+
+/* Category buttons improvement */
+.category-btn {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.category-btn.active {
+  background: #2196F3;
+  color: white;
+  border-color: #2196F3;
+  transform: scale(1.05);
+}
+
+.category-btn:hover:not(.active) {
+  background: #f8f9fa;
+  border-color: #2196F3;
+}
