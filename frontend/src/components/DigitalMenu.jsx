@@ -8,136 +8,108 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [cartOpen, setCartOpen] = useState(false);
   const [previousOrders, setPreviousOrders] = useState([]);
 
-  // FIXED: Single useEffect for table detection and order loading
+  // Table detection - ORIGINAL WORKING VERSION
   useEffect(() => {
-    if (!isCustomerView) return;
-
-    console.log('=== TABLE DETECTION STARTED ===');
-    
-    const detectTableAndLoadOrders = () => {
-      // Get table from URL parameters
+    const detectTableFromURL = () => {
+      let detectedTable = null;
       const urlParams = new URLSearchParams(window.location.search);
-      let table = urlParams.get('table');
+      detectedTable = urlParams.get('table');
 
-      // If not in URL params, check hash
-      if (!table && window.location.hash) {
-        const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
-        table = hashParams.get('table') || window.location.hash.replace('#', '');
-      }
-
-      // Clean table number
-      if (table) {
-        table = table.toString().toUpperCase().trim();
-        if (/^\d+$/.test(table)) {
-          table = 'T' + table;
-        }
-        table = table.replace(/[^T0-9]/gi, '');
-        
-        console.log('🟢 Table detected:', table);
-        setSelectedTable(table);
-        
-        // CRITICAL: Load orders immediately after setting table
-        setTimeout(() => {
-          loadOrdersForTable(table);
-        }, 100);
-      } else {
-        console.log('🔴 No table detected');
-        setSelectedTable('');
-        setPreviousOrders([]);
-      }
-    };
-
-    const loadOrdersForTable = (tableNumber) => {
-      try {
-        console.log('📦 Loading orders for table:', tableNumber);
-        const storageKey = `flavorflow_orders_${tableNumber}`;
-        const stored = localStorage.getItem(storageKey);
-        
-        if (stored) {
-          const orders = JSON.parse(stored);
-          console.log('✅ Orders loaded:', orders);
-          setPreviousOrders(Array.isArray(orders) ? orders : []);
+      if (!detectedTable && window.location.hash) {
+        const hashContent = window.location.hash.replace('#', '');
+        if (hashContent.includes('table=')) {
+          const hashMatch = hashContent.match(/table=([^&]+)/);
+          detectedTable = hashMatch ? hashMatch[1] : null;
         } else {
-          console.log('ℹ️ No orders found for table:', tableNumber);
-          setPreviousOrders([]);
+          detectedTable = hashContent;
         }
-      } catch (error) {
-        console.error('❌ Error loading orders:', error);
-        setPreviousOrders([]);
+      }
+
+      if (detectedTable) {
+        detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        if (/^\d+$/.test(detectedTable)) {
+          detectedTable = 'T' + detectedTable;
+        }
+        setSelectedTable(detectedTable);
+        loadPreviousOrders(detectedTable);
+      } else {
+        setSelectedTable('');
       }
     };
 
-    // Run detection immediately
-    detectTableAndLoadOrders();
+    if (isCustomerView) {
+      detectTableFromURL();
+      window.addEventListener('hashchange', detectTableFromURL);
+      return () => window.removeEventListener('hashchange', detectTableFromURL);
+    }
+  }, [isCustomerView, currentTable]);
 
-    // Listen for URL changes
-    window.addEventListener('hashchange', detectTableAndLoadOrders);
-    
-    return () => window.removeEventListener('hashchange', detectTableAndLoadOrders);
-  }, [isCustomerView]);
+  // ORIGINAL working order loading
+  const loadPreviousOrders = (tableNumber) => {
+    try {
+      const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
+      if (storedOrders) {
+        setPreviousOrders(JSON.parse(storedOrders));
+      }
+    } catch (error) {
+      setPreviousOrders([]);
+    }
+  };
 
-  // FIXED: Simple and reliable order saving
+  // ORIGINAL working order saving
   const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     try {
-      console.log('💾 Saving order for table:', tableNumber);
-      
       const orderRecord = {
-        orderNumber: orderNumber || `ORDER-${Date.now()}`,
+        orderNumber,
         items: orderData,
         total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
         timestamp: new Date().toISOString(),
         table: tableNumber
       };
 
-      const storageKey = `flavorflow_orders_${tableNumber}`;
-      const existingOrders = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const existingOrders = JSON.parse(localStorage.getItem(`flavorflow_orders_${tableNumber}`) || '[]');
       const updatedOrders = [orderRecord, ...existingOrders];
       
-      localStorage.setItem(storageKey, JSON.stringify(updatedOrders));
+      localStorage.setItem(`flavorflow_orders_${tableNumber}`, JSON.stringify(updatedOrders));
       setPreviousOrders(updatedOrders);
-      
-      console.log('✅ Order saved successfully. Total orders:', updatedOrders.length);
-      
     } catch (error) {
-      console.error('❌ Error saving order:', error);
+      console.error('Error saving order history:', error);
     }
   };
 
-  // Rest of your functions remain the same
-  const viewPreviousOrderDetails = (previousOrder) => {
-    const orderDetails = previousOrder.items.map(item => 
-      `• ${item.name} x${item.quantity} - RM ${(item.price * item.quantity).toFixed(2)}`
-    ).join('\n');
-    
-    alert(`Order #${previousOrder.orderNumber}\n\nItems:\n${orderDetails}\n\nTotal: RM ${previousOrder.total.toFixed(2)}\nDate: ${new Date(previousOrder.timestamp).toLocaleString()}`);
-  };
-
-  const displayMenu = menu && menu.length > 0 ? menu : [
-    { id: '1', name: 'Teh Tarik', price: 4.50, category: 'drinks', description: 'Famous Malaysian pulled tea' },
-    { id: '2', name: 'Nasi Lemak', price: 12.90, category: 'main', description: 'Coconut rice with sambal' },
-    { id: '3', name: 'Roti Canai', price: 3.50, category: 'main', description: 'Flaky flatbread with curry' },
-    { id: '4', name: 'Cendol', price: 6.90, category: 'desserts', description: 'Shaved ice dessert' }
-  ];
-
+  // ORIGINAL working add to cart - FIXED DUPLICATE ISSUE
   const addToCart = (item) => {
-    const existingItemIndex = cart.findIndex(cartItem => cartItem.id === item.id);
-    
-    if (existingItemIndex !== -1) {
-      const updatedCart = [...cart];
-      updatedCart[existingItemIndex].quantity += 1;
-      setCart(updatedCart);
-    } else {
-      setCart([...cart, { ...item, quantity: 1 }]);
-    }
+    const cartItem = {
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: 1,
+      category: item.category,
+      description: item.description
+    };
+
+    setCart(prevCart => {
+      const existingIndex = prevCart.findIndex(cartItem => cartItem.id === item.id);
+      if (existingIndex !== -1) {
+        const updatedCart = [...prevCart];
+        updatedCart[existingIndex].quantity += 1;
+        return updatedCart;
+      } else {
+        return [...prevCart, cartItem];
+      }
+    });
   };
 
+  // Rest of ORIGINAL working functions
   const removeFromCart = (itemId) => {
     setCart(cart.filter(item => item.id !== itemId));
   };
 
   const updateQuantity = (id, change) => {
     const updatedCart = cart.map(item =>
-      item.id === id ? { ...item, quantity: Math.max(0, item.quantity + change) } : item
+      item.id === id
+        ? { ...item, quantity: Math.max(0, item.quantity + change) }
+        : item
     ).filter(item => item.quantity > 0);
     setCart(updatedCart);
   };
@@ -163,19 +135,29 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       }));
 
       const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
-      
-      // Save order history
       saveOrderToHistory(selectedTable, orderData, result.orderNumber);
-      
       setCart([]);
       setCartOpen(false);
-      alert(`Order placed successfully for Table ${selectedTable}! Order number: ${result.orderNumber || 'N/A'}`);
-      
+      alert(`Order placed successfully for Table ${selectedTable}!`);
     } catch (error) {
-      console.error('Order failed:', error);
       alert('Failed to place order: ' + (error.message || 'Unknown error'));
     }
   };
+
+  const viewPreviousOrderDetails = (previousOrder) => {
+    const orderDetails = previousOrder.items.map(item => 
+      `• ${item.name} x${item.quantity} - RM ${(item.price * item.quantity).toFixed(2)}`
+    ).join('\n');
+    
+    alert(`Order #${previousOrder.orderNumber}\n\nItems:\n${orderDetails}\n\nTotal: RM ${previousOrder.total.toFixed(2)}\nDate: ${new Date(previousOrder.timestamp).toLocaleString()}`);
+  };
+
+  const displayMenu = menu && menu.length > 0 ? menu : [
+    { id: '1', name: 'Teh Tarik', price: 4.50, category: 'drinks', description: 'Famous Malaysian pulled tea' },
+    { id: '2', name: 'Nasi Lemak', price: 12.90, category: 'main', description: 'Coconut rice with sambal' },
+    { id: '3', name: 'Roti Canai', price: 3.50, category: 'main', description: 'Flaky flatbread with curry' },
+    { id: '4', name: 'Cendol', price: 6.90, category: 'desserts', description: 'Shaved ice dessert' }
+  ];
 
   const categories = ['all', ...new Set(displayMenu.map(item => item.category))];
   const filteredItems = displayMenu.filter(item => {
@@ -212,25 +194,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   };
 
   const PreviousOrdersSection = () => {
-    if (!selectedTable) return null;
-
-    console.log('🔄 Rendering PreviousOrdersSection, orders count:', previousOrders.length);
-
-    if (previousOrders.length === 0) {
-      return (
-        <div className="previous-orders-section">
-          <h3>📋 Your Order History</h3>
-          <div className="no-previous-orders">
-            <p>No previous orders found for Table {selectedTable}</p>
-            <small>Orders will appear here after you place them</small>
-          </div>
-        </div>
-      );
-    }
+    if (!selectedTable || previousOrders.length === 0) return null;
 
     return (
       <div className="previous-orders-section">
-        <h3>📋 Your Order History ({previousOrders.length} orders)</h3>
+        <h3>📋 Your Order History</h3>
         <div className="previous-orders-list">
           {previousOrders.map((order, index) => (
             <div key={index} className="previous-order-card">
@@ -266,7 +234,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Customer View - Keep your existing JSX exactly as is
+  // ORIGINAL Customer View JSX
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
@@ -414,7 +382,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   }
 
-  // Admin View - Keep your existing JSX
+  // ORIGINAL Admin View
   return (
     <div className="simple-admin-view">
       <h2>Menu Management - Staff View</h2>
