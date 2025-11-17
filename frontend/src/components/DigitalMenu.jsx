@@ -7,13 +7,20 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [localCart, setLocalCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // FIX: Ensure menu is always an array
-  const safeMenu = menu || [];
+  // BULLETPROOF: Always ensure we have a valid menu array
+  const safeMenu = Array.isArray(menu) ? menu : [];
   
-  // Sync with parent cart if needed, but use local cart for stability
+  // Initialize with safe values
   useEffect(() => {
-    if (cart && Array.isArray(cart)) {
+    console.log('🔄 DigitalMenu mounted. Menu:', safeMenu.length, 'items');
+    setIsLoading(false);
+  }, []);
+
+  // Sync with parent cart safely
+  useEffect(() => {
+    if (Array.isArray(cart)) {
       setLocalCart(cart);
     }
   }, [cart]);
@@ -52,13 +59,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   // SIMPLE DELETE THAT WORKS
   const removeFromCart = (itemId) => {
     console.log('DELETE: Removing item with ID:', itemId);
-    const updatedCart = localCart.filter(item => {
-      console.log('Checking:', item.id, 'vs', itemId);
-      return item.id !== itemId;
-    });
-    console.log('Cart after deletion:', updatedCart);
+    const updatedCart = localCart.filter(item => item.id !== itemId);
     setLocalCart(updatedCart);
-    setCart(updatedCart); // Also update parent cart
+    setCart(updatedCart);
   };
 
   // SIMPLE ADD TO CART THAT WORKS
@@ -88,16 +91,45 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // FIX: Safe filtering with array check
+  // BULLETPROOF: Safe filtering with multiple checks
   const filteredItems = safeMenu.filter(item => {
-    if (!item) return false;
-    const matchesSearch = item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
+    if (!item || typeof item !== 'object') return false;
+    
+    const itemName = item.name || '';
+    const itemCategory = item.category || '';
+    
+    const matchesSearch = searchTerm === '' || 
+      itemName.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesCategory = activeCategory === 'all' || 
+      itemCategory === activeCategory;
+    
     return matchesSearch && matchesCategory;
   });
 
-  // Calculate total
-  const total = localCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Calculate total safely
+  const total = localCart.reduce((sum, item) => {
+    const price = item.price || 0;
+    const quantity = item.quantity || 0;
+    return sum + (price * quantity);
+  }, 0);
+
+  // LOADING STATE
+  if (isLoading) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontSize: '18px'
+      }}>
+        Loading menu...
+      </div>
+    );
+  }
 
   // SIMPLE CUSTOMER VIEW
   const SimpleCustomerView = () => (
@@ -134,7 +166,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             cursor: 'pointer'
           }}
         >
-          🛒 Cart ({localCart.reduce((sum, item) => sum + item.quantity, 0)})
+          🛒 Cart ({localCart.reduce((sum, item) => sum + (item.quantity || 0), 0)})
         </button>
       </header>
 
@@ -195,8 +227,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {filteredItems.map(item => (
-              <div key={item.id} style={{
+            {filteredItems.map((item, index) => (
+              <div key={item.id || index} style={{
                 background: 'rgba(255,255,255,0.95)',
                 padding: '20px',
                 borderRadius: '12px',
@@ -303,8 +335,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             ) : (
               <>
                 <div style={{ marginBottom: '25px' }}>
-                  {localCart.map(item => (
-                    <div key={item.id} style={{
+                  {localCart.map((item, index) => (
+                    <div key={item.id || index} style={{
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
