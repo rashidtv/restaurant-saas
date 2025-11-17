@@ -13,13 +13,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   
-  // CRITICAL FIX: Use a ref to track cart items for stable deletion
-  const cartRef = useRef(cart);
-  
-  // Keep ref in sync with cart
+  // DEBUG: Log menu data
   useEffect(() => {
-    cartRef.current = cart;
-  }, [cart]);
+    console.log('DigitalMenu - Menu data received:', menu);
+  }, [menu]);
 
   // Table detection
   useEffect(() => {
@@ -79,11 +76,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, []);
 
-  // DEBUG: Log menu data
-  useEffect(() => {
-    console.log('DigitalMenu - Menu data received:', menu);
-  }, [menu]);
-
   // FIX 1: ULTIMATE KEYBOARD STABILITY - Separate Search Component
   const SearchComponent = () => {
     const searchInputRef = useRef(null);
@@ -91,10 +83,16 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
     useEffect(() => {
       if (showSearch && searchInputRef.current) {
-        // Use setTimeout to ensure the input is rendered
-        setTimeout(() => {
-          searchInputRef.current.focus();
-        }, 150);
+        // FIX: Use requestAnimationFrame for better stability
+        const focusInput = () => {
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        };
+        
+        requestAnimationFrame(() => {
+          requestAnimationFrame(focusInput);
+        });
       }
     }, [showSearch]);
 
@@ -107,11 +105,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const handleClearSearch = () => {
       setLocalSearchTerm('');
       setSearchTerm('');
-      setTimeout(() => {
-        if (searchInputRef.current) {
-          searchInputRef.current.focus();
-        }
-      }, 50);
     };
 
     if (!showSearch) return null;
@@ -130,17 +123,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            // Critical for mobile keyboard stability
             onTouchStart={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}
           />
-          <button 
-            className="clear-search"
-            onClick={handleClearSearch}
-            type="button"
-          >
-            ✕
-          </button>
+          {localSearchTerm && (
+            <button 
+              className="clear-search"
+              onClick={handleClearSearch}
+              type="button"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
     );
@@ -150,14 +144,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setShowSearch(!showSearch);
   };
 
-  // FIX 2: BULLETPROOF DELETE FUNCTION
+  // FIX 2: BULLETPROOF DELETE FUNCTION - Use current cart state
   const removeFromCart = React.useCallback((itemId) => {
     console.log('🔄 DELETE: Removing item ID:', itemId);
-    console.log('📦 Current cart:', cartRef.current);
+    console.log('📦 Current cart:', cart);
     
-    // Use the ref to get the current cart state to avoid stale closures
-    const currentCart = cartRef.current;
-    const itemToRemove = currentCart.find(item => item.id === itemId);
+    const itemToRemove = cart.find(item => item.id === itemId);
     
     if (!itemToRemove) {
       console.log('❌ Item not found in cart');
@@ -166,8 +158,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
     console.log('🗑️ Removing item:', itemToRemove.name);
     
-    // Create a new array without the specific item
-    const updatedCart = currentCart.filter(item => {
+    const updatedCart = cart.filter(item => {
       const shouldKeep = item.id !== itemId;
       console.log(`🔍 ${item.id} === ${itemId}? ${!shouldKeep} - ${shouldKeep ? 'KEEP' : 'REMOVE'}`);
       return shouldKeep;
@@ -175,21 +166,19 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     
     console.log('✅ New cart after removal:', updatedCart);
     setCart(updatedCart);
-    
-    // Cart stays open - don't close it
-  }, [setCart]);
+  }, [cart, setCart]);
 
   const updateQuantity = React.useCallback((id, change) => {
-    const updatedCart = cartRef.current.map(item =>
+    const updatedCart = cart.map(item =>
       item.id === id
         ? { ...item, quantity: Math.max(0, item.quantity + change) }
         : item
     ).filter(item => item.quantity > 0);
     
     setCart(updatedCart);
-  }, [setCart]);
+  }, [cart, setCart]);
 
-  // Add to cart function
+  // Add to cart function - FIXED to use current cart state
   const addToCart = React.useCallback((item) => {
     console.log('🛒 Adding to cart:', item);
     
@@ -204,23 +193,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       ...item
     };
 
-    const existingItem = cartRef.current.find(cartItem => cartItem.id === item.id);
+    const existingItem = cart.find(cartItem => cartItem.id === item.id);
     
     if (existingItem) {
-      const updatedCart = cartRef.current.map(cartItem =>
+      const updatedCart = cart.map(cartItem =>
         cartItem.id === item.id
           ? { ...cartItem, quantity: cartItem.quantity + 1 }
           : cartItem
       );
       setCart(updatedCart);
     } else {
-      setCart([...cartRef.current, cartItem]);
+      setCart([...cart, cartItem]);
     }
 
     if (isMobile) {
       setCartOpen(true);
     }
-  }, [isMobile, setCart]);
+  }, [cart, isMobile, setCart]);
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -472,7 +461,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* FIX 1: SEPARATE SEARCH COMPONENT - No keyboard dismissal */}
+        {/* FIX 1: SEPARATE SEARCH COMPONENT */}
         <SearchComponent />
 
         {/* Categories */}

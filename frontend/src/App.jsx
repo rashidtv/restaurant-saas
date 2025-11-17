@@ -22,6 +22,7 @@ import './App.css';
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [cart, setCart] = useState([]);
+  const [customerCart, setCustomerCart] = useState([]); // Customer cart - ADD THIS
   const [orders, setOrders] = useState([]);
   const [tables, setTables] = useState([]);
   const [menu, setMenu] = useState([]);
