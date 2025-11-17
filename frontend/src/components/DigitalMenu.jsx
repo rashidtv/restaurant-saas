@@ -10,7 +10,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [showPreviousOrders, setShowPreviousOrders] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
-  // FIXED: Improved table detection with better debugging
+  // FIXED: Enhanced table detection
   useEffect(() => {
     const detectTableFromURL = () => {
       console.log('🔄 DigitalMenu: Detecting table from URL...');
@@ -30,16 +30,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         if (hashContent.includes('table=')) {
           const hashMatch = hashContent.match(/table=([^&]+)/);
           detectedTable = hashMatch ? hashMatch[1] : null;
-          console.log('📱 Hash match table:', detectedTable);
         } else if (hashContent.includes('/menu')) {
-          // Handle /menu?table=T01 format in hash
           const hashParams = new URLSearchParams(hashContent.split('?')[1]);
           detectedTable = hashParams.get('table');
-          console.log('📱 Hash path table:', detectedTable);
         } else {
-          // Direct hash value
           detectedTable = hashContent;
-          console.log('📱 Direct hash table:', detectedTable);
         }
       }
 
@@ -64,29 +59,72 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       detectTableFromURL();
       window.addEventListener('hashchange', detectTableFromURL);
       return () => window.removeEventListener('hashchange', detectTableFromURL);
-    } else {
-      console.log('👨‍💼 DigitalMenu: Staff view activated');
     }
   }, [isCustomerView]);
 
-  // FIXED: Load previous orders whenever selectedTable changes - MORE ROBUST
+  // FIXED: Enhanced order loading - SYNC WITH BACKEND
   useEffect(() => {
     if (selectedTable && isCustomerView) {
       console.log('📦 DigitalMenu: Loading orders for table:', selectedTable);
       setIsLoading(true);
       
-      // Small delay to ensure state is updated
-      setTimeout(() => {
-        loadPreviousOrders(selectedTable);
-        setIsLoading(false);
-      }, 100);
+      loadPreviousOrders(selectedTable);
+      
+      // Also try to sync with backend orders
+      syncWithBackendOrders(selectedTable);
     } else {
       setPreviousOrders([]);
       setShowPreviousOrders(false);
     }
   }, [selectedTable, isCustomerView]);
 
-  // FIXED: Improved order loading with better error handling
+  // NEW: Sync with backend orders
+  const syncWithBackendOrders = async (tableNumber) => {
+    try {
+      console.log('🔄 DigitalMenu: Syncing with backend orders for table:', tableNumber);
+      
+      // Try to fetch orders from backend
+      const response = await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/orders`);
+      if (response.ok) {
+        const allOrders = await response.json();
+        console.log('📊 DigitalMenu: All backend orders:', allOrders);
+        
+        // Filter orders for this table
+        const tableOrders = allOrders.filter(order => 
+          order.table && order.table.toString().toUpperCase() === tableNumber.toUpperCase()
+        );
+        
+        console.log('📊 DigitalMenu: Backend orders for table', tableNumber, ':', tableOrders);
+        
+        if (tableOrders.length > 0) {
+          // Convert backend orders to local format and save them
+          const localOrders = tableOrders.map(order => ({
+            orderNumber: order.orderNumber || order._id,
+            items: order.items || [],
+            total: order.totalAmount || (order.items ? order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) : 0),
+            timestamp: order.createdAt || new Date().toISOString(),
+            table: order.table
+          }));
+          
+          console.log('💾 DigitalMenu: Saving backend orders to localStorage:', localOrders);
+          
+          // Save to localStorage
+          const storageKey = `flavorflow_orders_${tableNumber}`;
+          localStorage.setItem(storageKey, JSON.stringify(localOrders));
+          
+          // Update state
+          setPreviousOrders(localOrders);
+          setShowPreviousOrders(true);
+          setIsLoading(false);
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ DigitalMenu: Could not sync with backend orders, using localStorage only:', error);
+      setIsLoading(false);
+    }
+  };
+
+  // FIXED: Enhanced order loading
   const loadPreviousOrders = (tableNumber) => {
     try {
       console.log('🔍 DigitalMenu: Checking localStorage for table:', tableNumber);
@@ -98,29 +136,37 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       
       if (storedOrders) {
         const orders = JSON.parse(storedOrders);
-        console.log('📦 DigitalMenu: Loaded previous orders:', orders.length, 'orders', orders);
-        setPreviousOrders(orders);
-        setShowPreviousOrders(orders.length > 0);
+        console.log('📦 DigitalMenu: Loaded previous orders from localStorage:', orders.length, 'orders', orders);
         
-        // Show welcome message if orders exist
         if (orders.length > 0) {
+          setPreviousOrders(orders);
+          setShowPreviousOrders(true);
+          setIsLoading(false);
+          
+          // Show welcome message
           setTimeout(() => {
             console.log('🎉 DigitalMenu: Showing welcome message for', orders.length, 'orders');
           }, 500);
+        } else {
+          setPreviousOrders([]);
+          setShowPreviousOrders(false);
+          setIsLoading(false);
         }
       } else {
-        console.log('📦 DigitalMenu: No previous orders found for table:', tableNumber);
+        console.log('📦 DigitalMenu: No previous orders found in localStorage for table:', tableNumber);
         setPreviousOrders([]);
         setShowPreviousOrders(false);
+        setIsLoading(false);
       }
     } catch (error) {
       console.error('❌ DigitalMenu: Error loading previous orders:', error);
       setPreviousOrders([]);
       setShowPreviousOrders(false);
+      setIsLoading(false);
     }
   };
 
-  // FIXED: Enhanced order saving with better logging
+  // FIXED: Enhanced order saving
   const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     try {
       console.log('💾 DigitalMenu: Saving order to history for table:', tableNumber);
@@ -135,14 +181,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
       const storageKey = `flavorflow_orders_${tableNumber}`;
       const existingOrders = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10); // Keep last 10 orders
       
-      localStorage.setItem(storageKey, JSON.stringify(updatedOrders));
-      setPreviousOrders(updatedOrders);
-      setShowPreviousOrders(true);
+      // Check if this order already exists (by orderNumber)
+      const orderExists = existingOrders.some(order => order.orderNumber === orderRecord.orderNumber);
       
-      console.log('💾 DigitalMenu: Saved order to history:', orderRecord);
-      console.log('💾 DigitalMenu: Total orders now:', updatedOrders.length);
+      if (!orderExists) {
+        const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10); // Keep last 10 orders
+        localStorage.setItem(storageKey, JSON.stringify(updatedOrders));
+        setPreviousOrders(updatedOrders);
+        setShowPreviousOrders(true);
+        
+        console.log('💾 DigitalMenu: Saved NEW order to history:', orderRecord);
+        console.log('💾 DigitalMenu: Total orders now:', updatedOrders.length);
+      } else {
+        console.log('ℹ️ DigitalMenu: Order already exists in history:', orderRecord.orderNumber);
+      }
       
     } catch (error) {
       console.error('❌ DigitalMenu: Error saving order history:', error);
@@ -151,16 +204,41 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
   // NEW: Debug function to check all stored orders
   const debugStoredOrders = () => {
-    console.log('🔍 DigitalMenu: Debugging stored orders...');
+    console.log('🔍 DigitalMenu: Debugging ALL stored orders...');
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('flavorflow_orders_')) {
-        console.log('📁 Storage key:', key, 'value:', localStorage.getItem(key));
+        try {
+          const value = JSON.parse(localStorage.getItem(key));
+          console.log('📁 Storage key:', key, 'value:', value);
+        } catch (e) {
+          console.log('📁 Storage key:', key, 'RAW value:', localStorage.getItem(key));
+        }
       }
+    }
+    
+    // Also show current state
+    console.log('📊 DigitalMenu Current State:', {
+      selectedTable,
+      previousOrders,
+      showPreviousOrders,
+      isLoading
+    });
+  };
+
+  // NEW: Clear orders for testing
+  const clearOrdersForTable = () => {
+    if (selectedTable) {
+      const storageKey = `flavorflow_orders_${selectedTable}`;
+      localStorage.removeItem(storageKey);
+      setPreviousOrders([]);
+      setShowPreviousOrders(false);
+      console.log('🗑️ DigitalMenu: Cleared orders for table:', selectedTable);
+      alert(`Cleared orders for Table ${selectedTable}`);
     }
   };
 
-  // NEW: Quick reorder functionality
+  // Quick reorder functionality
   const quickReorder = (previousOrder) => {
     if (!selectedTable) {
       alert('Please scan the QR code first to detect your table.');
@@ -172,7 +250,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     // Clear current cart first
     setCart([]);
     
-    // Add a small delay to ensure cart is cleared
     setTimeout(() => {
       const newCart = previousOrder.items.map(item => ({
         id: item.menuItemId || item.id || `item_${Date.now()}_${Math.random()}`,
@@ -186,7 +263,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       setCart(newCart);
       setCartOpen(true);
       
-      // Scroll to top and show confirmation
       window.scrollTo(0, 0);
       console.log('🔄 DigitalMenu: Reordered items:', newCart.length, 'items');
     }, 100);
@@ -334,9 +410,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <div className="success-text">
           <strong>Table {selectedTable}</strong>
           <small>
-            {previousOrders.length > 0 
-              ? `${previousOrders.length} previous order(s)` 
-              : 'Ready to order'
+            {isLoading ? 'Loading...' : 
+             previousOrders.length > 0 ? `${previousOrders.length} previous order(s)` : 'Ready to order'
             }
           </small>
         </div>
@@ -346,19 +421,24 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
   // FIXED: Enhanced Previous Orders Component
   const PreviousOrdersSection = () => {
-    if (!selectedTable || previousOrders.length === 0) return null;
+    if (!selectedTable) return null;
 
     return (
       <div className="previous-orders-section">
         <div className="previous-orders-header">
-          <h3>📋 Order History - Table {selectedTable}</h3>
+          <h3>
+            {isLoading ? '⏳ Loading...' : `📋 Order History - Table ${selectedTable}`}
+            {previousOrders.length > 0 && ` (${previousOrders.length})`}
+          </h3>
           <div className="order-history-controls">
-            <button 
-              className="toggle-orders-btn"
-              onClick={() => setShowPreviousOrders(!showPreviousOrders)}
-            >
-              {showPreviousOrders ? '▲ Hide' : '▼ Show'} ({previousOrders.length})
-            </button>
+            {previousOrders.length > 0 && (
+              <button 
+                className="toggle-orders-btn"
+                onClick={() => setShowPreviousOrders(!showPreviousOrders)}
+              >
+                {showPreviousOrders ? '▲ Hide' : '▼ Show'}
+              </button>
+            )}
             <button 
               className="debug-btn"
               onClick={debugStoredOrders}
@@ -366,10 +446,34 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             >
               🔍
             </button>
+            <button 
+              className="clear-btn"
+              onClick={clearOrdersForTable}
+              title="Clear orders for this table"
+            >
+              🗑️
+            </button>
+            <button 
+              className="refresh-btn"
+              onClick={() => selectedTable && loadPreviousOrders(selectedTable)}
+              title="Refresh orders"
+            >
+              🔄
+            </button>
           </div>
         </div>
         
-        {showPreviousOrders && (
+        {isLoading ? (
+          <div className="loading-orders">
+            <div className="loading-spinner-small"></div>
+            <span>Loading order history...</span>
+          </div>
+        ) : previousOrders.length === 0 ? (
+          <div className="no-previous-orders">
+            <p>No previous orders found for this table</p>
+            <small>Orders will appear here after you place them</small>
+          </div>
+        ) : showPreviousOrders && (
           <div className="previous-orders-list">
             {previousOrders.map((order, index) => (
               <div key={index} className="previous-order-card">
@@ -415,7 +519,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   };
 
   // Loading state
-  if (isLoading) {
+  if (isLoading && !selectedTable) {
     return (
       <div className="simple-customer-view">
         <div className="loading-overlay">
@@ -456,7 +560,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         {selectedTable && <PreviousOrdersSection />}
 
         {/* Welcome back message */}
-        {selectedTable && previousOrders.length > 0 && (
+        {selectedTable && !isLoading && previousOrders.length > 0 && (
           <div className="welcome-back-banner">
             <p>🎉 Welcome back to Table {selectedTable}! You have {previousOrders.length} previous order(s).</p>
           </div>
