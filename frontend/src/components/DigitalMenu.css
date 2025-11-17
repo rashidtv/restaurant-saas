@@ -836,3 +836,18 @@
     break-inside: avoid;
   }
 }
+
+/* Add to DigitalMenu.css */
+.no-previous-orders {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.no-previous-orders p {
+  margin: 0;
+  font-style: italic;
+}

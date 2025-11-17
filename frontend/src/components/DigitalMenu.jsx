@@ -71,19 +71,26 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, currentTable]);
 
-  // FIXED: Load previous orders from localStorage - CORRECTED
+  // FIXED: Properly load previous orders from localStorage
   const loadPreviousOrders = (tableNumber) => {
     try {
       console.log('📦 Loading orders for table:', tableNumber);
-      const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
-      console.log('📦 Stored orders raw:', storedOrders);
+      const storageKey = `flavorflow_orders_${tableNumber}`;
+      const storedOrders = localStorage.getItem(storageKey);
       
       if (storedOrders) {
         const orders = JSON.parse(storedOrders);
         console.log('📦 Parsed orders:', orders);
-        setPreviousOrders(Array.isArray(orders) ? orders : []);
+        
+        // Ensure it's an array and sort by timestamp (newest first)
+        const sortedOrders = Array.isArray(orders) 
+          ? orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+          : [];
+        
+        setPreviousOrders(sortedOrders);
+        console.log('📦 Final orders to display:', sortedOrders);
       } else {
-        console.log('📦 No stored orders found');
+        console.log('📦 No stored orders found for table:', tableNumber);
         setPreviousOrders([]);
       }
     } catch (error) {
@@ -92,40 +99,71 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // Save order to localStorage - CORRECTED
+  // FIXED: Properly save order to localStorage
   const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
     try {
+      console.log('💾 Starting to save order...');
+      console.log('💾 Table:', tableNumber);
+      console.log('💾 Order data:', orderData);
+      console.log('💾 Order number:', orderNumber);
+
       const orderRecord = {
         orderNumber: orderNumber || `ORDER-${Date.now()}`,
         items: orderData.map(item => ({
-          menuItemId: item.menuItemId,
+          menuItemId: item.menuItemId || item.id,
           name: item.name,
-          price: item.price,
-          quantity: item.quantity,
+          price: parseFloat(item.price),
+          quantity: parseInt(item.quantity),
           category: item.category
         })),
-        total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        total: orderData.reduce((sum, item) => sum + (parseFloat(item.price) * parseInt(item.quantity)), 0),
         timestamp: new Date().toISOString(),
         table: tableNumber
       };
 
-      console.log('💾 Saving order:', orderRecord);
+      console.log('💾 Order record to save:', orderRecord);
+
+      const storageKey = `flavorflow_orders_${tableNumber}`;
       
-      // FIXED: Properly get existing orders
-      const stored = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
-      const existingOrders = stored ? JSON.parse(stored) : [];
+      // Get existing orders
+      const stored = localStorage.getItem(storageKey);
+      console.log('💾 Existing stored data:', stored);
       
-      // Ensure it's an array
-      const updatedOrders = Array.isArray(existingOrders) 
-        ? [orderRecord, ...existingOrders].slice(0, 10) // Keep last 10 orders
-        : [orderRecord];
+      let existingOrders = [];
+      if (stored) {
+        try {
+          existingOrders = JSON.parse(stored);
+          // Ensure it's an array
+          if (!Array.isArray(existingOrders)) {
+            console.warn('💾 Existing orders is not an array, resetting...');
+            existingOrders = [];
+          }
+        } catch (parseError) {
+          console.error('💾 Error parsing existing orders:', parseError);
+          existingOrders = [];
+        }
+      }
+
+      console.log('💾 Existing orders:', existingOrders);
+
+      // Add new order and keep only last 10 orders
+      const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10);
       
-      localStorage.setItem(`flavorflow_orders_${tableNumber}`, JSON.stringify(updatedOrders));
+      console.log('💾 Updated orders to save:', updatedOrders);
+      
+      // Save to localStorage
+      localStorage.setItem(storageKey, JSON.stringify(updatedOrders));
+      
+      // Update state
       setPreviousOrders(updatedOrders);
-      console.log('💾 Orders saved to localStorage');
+      
+      console.log('💾 ✅ Order successfully saved to localStorage');
+      console.log('💾 Storage key:', storageKey);
+      console.log('💾 Total orders now:', updatedOrders.length);
       
     } catch (error) {
       console.error('❌ Error saving order history:', error);
+      alert('Error saving order history. Please contact staff.');
     }
   };
 
@@ -216,7 +254,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // EXISTING place order with history save - UNCHANGED
+  // FIXED: Place order with proper history saving
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -229,6 +267,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
 
     console.log('🛒 Placing order for table:', selectedTable);
+    console.log('🛒 Cart items:', cart);
 
     try {
       const orderData = cart.map(item => ({
@@ -239,13 +278,20 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         category: item.category
       }));
 
+      console.log('🛒 Order data prepared:', orderData);
+
+      // Call the order creation function
       const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
       
-      // Save to history before clearing cart
+      console.log('🛒 Order creation result:', result);
+
+      // FIXED: Save to history BEFORE clearing cart
       saveOrderToHistory(selectedTable, orderData, result.orderNumber);
       
+      // Clear cart and close cart modal
       setCart([]);
       setCartOpen(false);
+      
       alert(`Order placed successfully for Table ${selectedTable}! Order number: ${result.orderNumber || 'N/A'}`);
       
     } catch (error) {
@@ -292,9 +338,24 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // UPDATED: Previous Orders Component - View Only
+  // UPDATED: Previous Orders Component - View Only with Debug Info
   const PreviousOrdersSection = () => {
-    if (!selectedTable || previousOrders.length === 0) return null;
+    if (!selectedTable) return null;
+
+    console.log('📋 Rendering PreviousOrdersSection');
+    console.log('📋 previousOrders:', previousOrders);
+    console.log('📋 previousOrders length:', previousOrders.length);
+
+    if (previousOrders.length === 0) {
+      return (
+        <div className="previous-orders-section">
+          <h3>📋 Your Order History</h3>
+          <div className="no-previous-orders">
+            <p>No previous orders found for Table {selectedTable}</p>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="previous-orders-section">
@@ -319,7 +380,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 )}
               </div>
               <div className="order-footer">
-                <span className="order-total">RM {order.total.toFixed(2)}</span>
+                <span className="order-total">RM {order.total?.toFixed(2)}</span>
                 <button 
                   className="view-order-btn"
                   onClick={() => viewPreviousOrderDetails(order)}
@@ -334,11 +395,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // SIMPLE CUSTOMER VIEW - MINIMAL CHANGES
+  // Rest of the component remains exactly the same...
+  // [Keep all the existing JSX return structure from the previous working version]
+  // SIMPLE CUSTOMER VIEW - UNCHANGED STRUCTURE
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
-        {/* Header - UNCHANGED */}
         <header className="simple-header">
           <h1>FlavorFlow</h1>
           <div className="header-actions">
@@ -353,17 +415,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* Warning banner - UNCHANGED */}
         {!selectedTable && (
           <div className="warning-banner">
             <p>📱 Please scan your table's QR code to start ordering</p>
           </div>
         )}
 
-        {/* Previous orders - FIXED persistence */}
         {selectedTable && <PreviousOrdersSection />}
 
-        {/* Search - UNCHANGED */}
         <div className="simple-search">
           <input
             type="text"
@@ -375,7 +434,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           />
         </div>
 
-        {/* Categories - UNCHANGED */}
         <div className="simple-categories">
           {categories.map(category => (
             <button
@@ -389,7 +447,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           ))}
         </div>
 
-        {/* Menu Items - SIMPLE layout without breaking images */}
         <div className="simple-menu">
           {!selectedTable ? (
             <div className="disabled-overlay">
@@ -422,7 +479,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </div>
 
-        {/* Cart - UNCHANGED */}
         {cartOpen && (
           <div className="simple-cart-overlay" onClick={() => setCartOpen(false)}>
             <div className="simple-cart" onClick={(e) => e.stopPropagation()}>
@@ -477,7 +533,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         )}
 
-        {/* Mobile Cart Button - UNCHANGED */}
         {isMobile && cart.length > 0 && !cartOpen && selectedTable && (
           <button 
             className="mobile-cart-btn"
@@ -490,7 +545,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   }
 
-  // ADMIN VIEW - COMPLETELY UNCHANGED
+  // ADMIN VIEW - UNCHANGED
   return (
     <div className="simple-admin-view">
       <h2>Menu Management - Staff View</h2>
@@ -515,7 +570,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         </div>
       </div>
       
-      {/* Menu display - UNCHANGED */}
       <div className="simple-menu">
         {displayMenu.map(item => (
           <div key={item.id} className="menu-item">
@@ -534,7 +588,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         ))}
       </div>
 
-      {/* Admin Cart - UNCHANGED */}
       {cart.length > 0 && (
         <div className="admin-cart">
           <h3>Current Order ({itemCount} items) - Table {selectedTable}</h3>
