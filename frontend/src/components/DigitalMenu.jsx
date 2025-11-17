@@ -197,7 +197,55 @@ const removeFromCart = React.useCallback((itemId) => {
   // Use functional update to ensure we have latest state
   setCart(updatedCart);
 }, [cart, setCart]); // Make sure cart is in dependencies
+// TEST COMPONENT - Add this temporarily to verify functionality
+const TestComponent = () => {
+  const [testCart, setTestCart] = useState([
+    { id: 1, name: 'Test Item 1', price: 10, quantity: 1 },
+    { id: 2, name: 'Test Item 2', price: 15, quantity: 2 }
+  ]);
+  
+  const [testSearch, setTestSearch] = useState('');
+  
+  const testRemoveFromCart = (itemId) => {
+    console.log('TEST: Removing item', itemId);
+    const updated = testCart.filter(item => item.id !== itemId);
+    setTestCart(updated);
+  };
+  
+  return (
+    <div style={{ padding: '20px', background: 'white' }}>
+      <h3>TEST COMPONENT</h3>
+      
+      {/* Test Search */}
+      <input
+        type="text"
+        placeholder="Test search input..."
+        value={testSearch}
+        onChange={(e) => setTestSearch(e.target.value)}
+        style={{ padding: '10px', margin: '10px', width: '200px' }}
+      />
+      
+      {/* Test Cart */}
+      <div>
+        <h4>Test Cart Items:</h4>
+        {testCart.map(item => (
+          <div key={item.id} style={{ padding: '10px', border: '1px solid #ccc', margin: '5px' }}>
+            {item.name} - Qty: {item.quantity}
+            <button 
+              onClick={() => testRemoveFromCart(item.id)}
+              style={{ marginLeft: '10px' }}
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
+// Add this to your DigitalMenu return temporarily:
+// <TestComponent />
   const updateQuantity = (id, change) => {
     const updatedCart = cart.map(item =>
       item.id === id
