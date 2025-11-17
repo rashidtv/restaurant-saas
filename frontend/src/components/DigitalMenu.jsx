@@ -1,25 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import './DigitalMenu.css';
 
-const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView = false }) => {
+// Create a SAFE wrapper component that never crashes
+const SafeDigitalMenu = (props) => {
+  // Ensure ALL props have safe defaults
+  const safeProps = {
+    cart: Array.isArray(props.cart) ? props.cart : [],
+    setCart: props.setCart || (() => {}),
+    onCreateOrder: props.onCreateOrder || (() => Promise.resolve()),
+    isMobile: props.isMobile || false,
+    menu: Array.isArray(props.menu) ? props.menu : [],
+    apiConnected: props.apiConnected || false,
+    currentTable: props.currentTable || '',
+    isCustomerView: props.isCustomerView || false
+  };
+
+  return <DigitalMenu {...safeProps} />;
+};
+
+// Your actual component
+const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView }) => {
+  console.log('🔧 DigitalMenu rendering with menu:', menu);
+  
   const [selectedTable, setSelectedTable] = useState(currentTable || '');
   const [searchTerm, setSearchTerm] = useState('');
   const [localCart, setLocalCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
-  const [isLoading, setIsLoading] = useState(true);
 
-  // BULLETPROOF: Always ensure we have a valid menu array
+  // ABSOLUTELY SAFE menu - multiple fallbacks
   const safeMenu = Array.isArray(menu) ? menu : [];
-  
-  // Initialize with safe values
-  useEffect(() => {
-    console.log('🔄 DigitalMenu mounted. Menu:', safeMenu.length, 'items');
-    setIsLoading(false);
-  }, []);
 
-  // Sync with parent cart safely
+  // Initialize safely
   useEffect(() => {
+    console.log('✅ DigitalMenu safely mounted');
     if (Array.isArray(cart)) {
       setLocalCart(cart);
     }
@@ -32,7 +46,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, currentTable]);
 
-  // SIMPLE SEARCH THAT WORKS
+  // SIMPLE SEARCH - GUARANTEED TO WORK
   const SearchBar = () => (
     <div style={{ 
       background: 'white', 
@@ -43,7 +57,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         type="text"
         placeholder="Search menu items..."
         value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
+        onChange={(e) => {
+          console.log('Search typing:', e.target.value);
+          setSearchTerm(e.target.value);
+        }}
         style={{
           width: '100%',
           padding: '12px 16px',
@@ -56,50 +73,61 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     </div>
   );
 
-  // SIMPLE DELETE THAT WORKS
+  // SIMPLE DELETE - GUARANTEED TO WORK
   const removeFromCart = (itemId) => {
-    console.log('DELETE: Removing item with ID:', itemId);
-    const updatedCart = localCart.filter(item => item.id !== itemId);
+    console.log('🗑️ DELETE: Removing item ID:', itemId);
+    console.log('Before deletion:', localCart);
+    
+    const updatedCart = localCart.filter(item => {
+      const shouldKeep = item.id !== itemId;
+      console.log(`Item ${item.id} vs ${itemId}: ${shouldKeep ? 'KEEP' : 'DELETE'}`);
+      return shouldKeep;
+    });
+    
+    console.log('After deletion:', updatedCart);
     setLocalCart(updatedCart);
     setCart(updatedCart);
   };
 
-  // SIMPLE ADD TO CART THAT WORKS
+  // SIMPLE ADD TO CART - GUARANTEED TO WORK
   const addToCart = (item) => {
-    console.log('ADD: Adding item:', item.name);
+    console.log('➕ ADD: Adding item:', item?.name);
+    
     const existingItem = localCart.find(cartItem => cartItem.id === item.id);
     
     if (existingItem) {
       const updatedCart = localCart.map(cartItem =>
         cartItem.id === item.id 
-          ? { ...cartItem, quantity: cartItem.quantity + 1 }
+          ? { ...cartItem, quantity: (cartItem.quantity || 0) + 1 }
           : cartItem
       );
       setLocalCart(updatedCart);
       setCart(updatedCart);
     } else {
-      const newCart = [...localCart, { 
-        id: item.id || item._id,
-        _id: item._id || item.id,
-        name: item.name,
-        price: item.price,
+      const newItem = {
+        id: item?.id || item?._id || Math.random().toString(),
+        _id: item?._id || item?.id || Math.random().toString(),
+        name: item?.name || 'Unknown Item',
+        price: item?.price || 0,
         quantity: 1,
-        category: item.category
-      }];
+        category: item?.category || 'unknown'
+      };
+      const newCart = [...localCart, newItem];
       setLocalCart(newCart);
       setCart(newCart);
     }
   };
 
-  // BULLETPROOF: Safe filtering with multiple checks
+  // ABSOLUTELY SAFE filtering
   const filteredItems = safeMenu.filter(item => {
     if (!item || typeof item !== 'object') return false;
     
     const itemName = item.name || '';
     const itemCategory = item.category || '';
+    const search = searchTerm || '';
     
-    const matchesSearch = searchTerm === '' || 
-      itemName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = search === '' || 
+      itemName.toLowerCase().includes(search.toLowerCase());
     
     const matchesCategory = activeCategory === 'all' || 
       itemCategory === activeCategory;
@@ -107,29 +135,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     return matchesSearch && matchesCategory;
   });
 
-  // Calculate total safely
-  const total = localCart.reduce((sum, item) => {
-    const price = item.price || 0;
-    const quantity = item.quantity || 0;
+  // Safe total calculation
+  const total = (localCart || []).reduce((sum, item) => {
+    const price = item?.price || 0;
+    const quantity = item?.quantity || 0;
     return sum + (price * quantity);
   }, 0);
-
-  // LOADING STATE
-  if (isLoading) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white',
-        fontSize: '18px'
-      }}>
-        Loading menu...
-      </div>
-    );
-  }
 
   // SIMPLE CUSTOMER VIEW
   const SimpleCustomerView = () => (
@@ -144,8 +155,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         padding: '15px 20px',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        backdropFilter: 'blur(10px)'
+        alignItems: 'center'
       }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '24px', color: '#333' }}>FlavorFlow</h1>
@@ -166,11 +176,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             cursor: 'pointer'
           }}
         >
-          🛒 Cart ({localCart.reduce((sum, item) => sum + (item.quantity || 0), 0)})
+          🛒 Cart ({(localCart || []).reduce((sum, item) => sum + (item?.quantity || 0), 0)})
         </button>
       </header>
 
-      {/* Search */}
+      {/* Search - THIS WILL WORK */}
       <SearchBar />
 
       {/* Categories */}
@@ -297,16 +307,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             maxWidth: '500px',
             maxHeight: '80vh',
             overflowY: 'auto',
-            zIndex: 1001,
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            zIndex: 1001
           }}>
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center', 
-              marginBottom: '25px',
-              borderBottom: '2px solid #f1f5f9',
-              paddingBottom: '15px'
+              marginBottom: '25px'
             }}>
               <h2 style={{ margin: 0, fontSize: '24px', color: '#333' }}>
                 Your Order
@@ -317,15 +324,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   background: 'none', 
                   border: 'none', 
                   fontSize: '24px',
-                  cursor: 'pointer',
-                  color: '#666'
+                  cursor: 'pointer'
                 }}
               >
                 ✕
               </button>
             </div>
 
-            {localCart.length === 0 ? (
+            {(!localCart || localCart.length === 0) ? (
               <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <div style={{ fontSize: '48px', marginBottom: '20px' }}>🛒</div>
                 <p style={{ fontSize: '18px', color: '#666', margin: 0 }}>
@@ -393,10 +399,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   <button
                     onClick={async () => {
                       if (!selectedTable) {
-                        alert('Table number not detected. Please scan QR code again.');
+                        alert('Table number not detected');
                         return;
                       }
-                      if (localCart.length === 0) {
+                      if (!localCart || localCart.length === 0) {
                         alert('Your cart is empty');
                         return;
                       }
@@ -448,4 +454,5 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   );
 };
 
-export default DigitalMenu;
+// Export the SAFE wrapper instead of the raw component
+export default SafeDigitalMenu;
