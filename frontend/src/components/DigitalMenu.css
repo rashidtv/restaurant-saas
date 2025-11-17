@@ -254,3 +254,103 @@
     align-self: flex-end;
   }
 }
+/* Table Status Styles */
+.table-error, .table-success {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
+.table-error {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+}
+
+.table-success {
+  background: #d1fae5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.error-icon, .success-icon {
+  font-size: 1.2rem;
+}
+
+.error-text, .success-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.error-text strong, .success-text strong {
+  font-size: 0.9rem;
+}
+
+.error-text small, .success-text small {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+/* Warning Banner */
+.warning-banner {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  padding: 1rem;
+  text-align: center;
+  margin: 0;
+}
+
+.warning-banner p {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Disabled Overlay */
+.disabled-overlay {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50vh;
+  padding: 2rem;
+}
+
+.disabled-message {
+  text-align: center;
+  color: #666;
+}
+
+.message-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.disabled-message h3 {
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.disabled-message p {
+  color: #666;
+  line-height: 1.5;
+}
+
+/* Disabled states */
+button:disabled, input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.category-btn:disabled {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #9ca3af;
+}
+
+.search-input:disabled {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+}

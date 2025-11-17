@@ -2,49 +2,82 @@ import React, { useState, useEffect } from 'react';
 import './DigitalMenu.css';
 
 const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView = false }) => {
-  const [selectedTable, setSelectedTable] = useState(currentTable || '');
+  const [selectedTable, setSelectedTable] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
 
-  // FIXED: Better table detection
+  // FIXED: Proper table detection without fallback
   useEffect(() => {
     const detectTableFromURL = () => {
       console.log('🔄 Detecting table from URL...');
+      console.log('📍 Full URL:', window.location.href);
+      console.log('🔍 Search params:', window.location.search);
+      console.log('🎯 Hash:', window.location.hash);
       
-      // Method 1: Check URL search params
+      let detectedTable = null;
+
+      // Method 1: Check URL search params (most common for QR codes)
       const urlParams = new URLSearchParams(window.location.search);
-      let tableFromURL = urlParams.get('table');
-      
+      detectedTable = urlParams.get('table');
+      console.log('📋 From search params:', detectedTable);
+
       // Method 2: Check hash parameters
-      if (!tableFromURL && window.location.hash) {
-        const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
-        tableFromURL = hashParams.get('table');
+      if (!detectedTable && window.location.hash) {
+        console.log('🔍 Checking hash...');
+        const hashContent = window.location.hash.replace('#', '');
+        // Try different hash parsing methods
+        if (hashContent.includes('table=')) {
+          const hashMatch = hashContent.match(/table=([^&]+)/);
+          detectedTable = hashMatch ? hashMatch[1] : null;
+        } else {
+          // If hash is just a table number like "#T02"
+          detectedTable = hashContent;
+        }
+        console.log('📋 From hash:', detectedTable);
       }
-      
-      // Method 3: Check currentTable prop
-      if (!tableFromURL && currentTable) {
-        tableFromURL = currentTable;
+
+      // Method 3: Check path parameters (like /menu/T02)
+      if (!detectedTable) {
+        const pathMatch = window.location.pathname.match(/\/(T\d+)$/);
+        detectedTable = pathMatch ? pathMatch[1] : null;
+        console.log('📋 From path:', detectedTable);
       }
-      
-      if (tableFromURL) {
-        console.log('✅ Table detected:', tableFromURL);
-        setSelectedTable(tableFromURL);
+
+      // Method 4: Check currentTable prop from parent component
+      if (!detectedTable && currentTable) {
+        detectedTable = currentTable;
+        console.log('📋 From props:', detectedTable);
+      }
+
+      // Clean and validate the table number
+      if (detectedTable) {
+        // Remove any unwanted characters, keep only letters and numbers
+        detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        
+        // Ensure it starts with T if it's just a number
+        if (/^\d+$/.test(detectedTable)) {
+          detectedTable = 'T' + detectedTable;
+        }
+        
+        console.log('✅ Final table detected:', detectedTable);
+        setSelectedTable(detectedTable);
       } else {
-        console.log('❌ No table detected');
-        // For testing, set a default table
-        setSelectedTable('T01');
+        console.log('❌ No table detected in URL');
+        // DON'T set fallback - show error to user
+        setSelectedTable('');
       }
     };
 
     if (isCustomerView) {
+      // Detect immediately
       detectTableFromURL();
       
-      // Also check on page load
-      window.addEventListener('load', detectTableFromURL);
+      // Also detect on hash changes (for single page apps)
+      window.addEventListener('hashchange', detectTableFromURL);
       
       return () => {
-        window.removeEventListener('load', detectTableFromURL);
+        window.removeEventListener('hashchange', detectTableFromURL);
       };
     }
   }, [isCustomerView, currentTable]);
@@ -62,7 +95,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     console.log('➕ Adding to cart:', item.name);
     
     const cartItem = {
-      id: item.id || item._id, // Use consistent ID
+      id: item.id || item._id,
       _id: item._id || item.id,
       name: item.name,
       price: item.price,
@@ -72,25 +105,19 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     };
 
     const existingItemIndex = cart.findIndex(cartItem => 
-      cartItem.id === item.id || cartItem.id === item._id
+      cartItem.id === (item.id || item._id)
     );
     
     if (existingItemIndex !== -1) {
-      // Update existing item quantity
       const updatedCart = [...cart];
       updatedCart[existingItemIndex] = {
         ...updatedCart[existingItemIndex],
         quantity: updatedCart[existingItemIndex].quantity + 1
       };
       setCart(updatedCart);
-      console.log('📈 Increased quantity:', updatedCart[existingItemIndex].name);
     } else {
-      // Add new item
       setCart([...cart, cartItem]);
-      console.log('🆕 Added new item:', item.name);
     }
-    
-    console.log('🛒 Current cart:', cart);
   };
 
   // Simple remove from cart
@@ -109,23 +136,20 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // FIXED: Better place order with table validation
+  // FIXED: Better place order with proper table validation
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
       return;
     }
 
-    // FIXED: Better table validation
-    const finalTable = selectedTable || 'T01'; // Fallback table
-    
-    if (!finalTable) {
-      alert('Table number not detected. Please scan the QR code again or contact staff.');
+    // FIXED: No fallback table - require proper detection
+    if (!selectedTable) {
+      alert('Table number not detected. Please scan the QR code again.\n\nIf this continues, please contact staff for assistance.');
       return;
     }
 
-    console.log('🛒 Placing order for table:', finalTable);
-    console.log('📦 Order items:', cart);
+    console.log('🛒 Placing order for table:', selectedTable);
 
     try {
       const orderData = cart.map(item => ({
@@ -136,12 +160,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         category: item.category
       }));
 
-      // FIXED: Call onCreateOrder with proper parameters
-      const result = await onCreateOrder(finalTable, orderData, 'dine-in');
+      const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
       
       setCart([]);
       setCartOpen(false);
-      alert(`Order placed successfully! Order number: ${result.orderNumber || 'N/A'}`);
+      alert(`Order placed successfully for Table ${selectedTable}! Order number: ${result.orderNumber || 'N/A'}`);
       
     } catch (error) {
       console.error('❌ Order failed:', error);
@@ -163,6 +186,31 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // FIXED: Show table detection status
+  const TableStatus = () => {
+    if (!selectedTable) {
+      return (
+        <div className="table-error">
+          <div className="error-icon">⚠️</div>
+          <div className="error-text">
+            <strong>Table not detected</strong>
+            <small>Please scan the QR code again</small>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="table-success">
+        <div className="success-icon">✅</div>
+        <div className="success-text">
+          <strong>Table {selectedTable}</strong>
+          <small>Ready to order</small>
+        </div>
+      </div>
+    );
+  };
+
   // SIMPLE CUSTOMER VIEW
   if (isCustomerView) {
     return (
@@ -171,17 +219,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <header className="simple-header">
           <h1>FlavorFlow</h1>
           <div className="header-actions">
-            <div className="table-info">
-              Table: {selectedTable || 'Scan QR'}
-            </div>
+            <TableStatus />
             <button 
               className="cart-button"
               onClick={() => setCartOpen(true)}
+              disabled={!selectedTable}
             >
               Cart ({itemCount})
             </button>
           </div>
         </header>
+
+        {/* Show warning if no table detected */}
+        {!selectedTable && (
+          <div className="warning-banner">
+            <p>📱 Please scan your table's QR code to start ordering</p>
+          </div>
+        )}
 
         {/* Search */}
         <div className="simple-search">
@@ -191,6 +245,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
+            disabled={!selectedTable}
           />
         </div>
 
@@ -201,6 +256,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               key={category}
               className={`category-btn ${activeCategory === category ? 'active' : ''}`}
               onClick={() => setActiveCategory(category)}
+              disabled={!selectedTable}
             >
               {category}
             </button>
@@ -209,7 +265,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
         {/* Menu Items */}
         <div className="simple-menu">
-          {filteredItems.length === 0 ? (
+          {!selectedTable ? (
+            <div className="disabled-overlay">
+              <div className="disabled-message">
+                <div className="message-icon">📱</div>
+                <h3>Scan QR Code to Order</h3>
+                <p>Please scan your table's QR code to view the menu and place orders</p>
+              </div>
+            </div>
+          ) : filteredItems.length === 0 ? (
             <div className="no-items">
               <p>No items found. Try a different search or category.</p>
             </div>
@@ -288,7 +352,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         )}
 
         {/* Mobile Cart Button */}
-        {isMobile && cart.length > 0 && !cartOpen && (
+        {isMobile && cart.length > 0 && !cartOpen && selectedTable && (
           <button 
             className="mobile-cart-btn"
             onClick={() => setCartOpen(true)}
@@ -300,11 +364,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   }
 
-  // Simple Admin View
+  // Simple Admin View (for staff)
   return (
     <div className="simple-admin-view">
-      <h2>Menu Management</h2>
-      <p>Staff view</p>
+      <h2>Menu Management - Staff View</h2>
       <div className="admin-controls">
         <select 
           value={selectedTable}
@@ -316,6 +379,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <option value="T03">Table T03</option>
           <option value="T04">Table T04</option>
           <option value="T05">Table T05</option>
+          <option value="T06">Table T06</option>
+          <option value="T07">Table T07</option>
+          <option value="T08">Table T08</option>
         </select>
         
         <div className="table-display">
@@ -323,7 +389,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         </div>
       </div>
       
-      {/* Same menu display as customer view */}
+      {/* Menu display */}
       <div className="simple-menu">
         {displayMenu.map(item => (
           <div key={item.id} className="menu-item">
@@ -345,7 +411,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       {/* Admin Cart */}
       {cart.length > 0 && (
         <div className="admin-cart">
-          <h3>Current Order ({itemCount} items)</h3>
+          <h3>Current Order ({itemCount} items) - Table {selectedTable}</h3>
           <div className="cart-items">
             {cart.map(item => (
               <div key={item.id} className="cart-item">
