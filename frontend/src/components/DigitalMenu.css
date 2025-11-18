@@ -1350,3 +1350,205 @@ body {
     padding: 0.5rem;
   }
 }
+
+/* Enhanced Orders History Section */
+.orders-active,
+.orders-completed {
+  margin-bottom: 1.5rem;
+}
+
+.orders-active h4,
+.orders-completed h4 {
+  margin: 1rem 0 0.75rem 0;
+  color: #555;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.orders-completed {
+  opacity: 0.9;
+}
+
+.orders-completed .order-card {
+  opacity: 0.8;
+}
+
+.order-card.pending {
+  border-left: 4px solid #f59e0b;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.order-card.preparing {
+  border-left: 4px solid #3b82f6;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+}
+
+.order-card.ready {
+  border-left: 4px solid #10b981;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf5 100%);
+}
+
+.order-card.completed,
+.order-card.served {
+  border-left: 4px solid #6b7280;
+  background: linear-gradient(135deg, #fff 0%, #f9fafb 100%);
+}
+
+.status-badge {
+  padding: 0.375rem 0.875rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.refresh-orders {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.refresh-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-height: 44px;
+  transition: all 0.2s ease;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.refresh-btn:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Welcome Back Banner */
+.welcome-back-banner {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1rem;
+  text-align: center;
+  margin: 0;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.welcome-back-banner p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* Real-time status indicator */
+.realtime-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  margin-left: 0.5rem;
+}
+
+.realtime-indicator.live {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.realtime-indicator.offline {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* Enhanced order items display */
+.order-items {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+  padding: 0.5rem 0;
+}
+
+.order-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #f1f1f1;
+}
+
+.order-time {
+  font-size: 0.8rem;
+  color: #888;
+  font-style: italic;
+}
+
+.order-note {
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.order-note.ready {
+  color: #10b981;
+  font-weight: 600;
+  background: #ecfdf5;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #a7f3d0;
+}
+
+/* Mobile enhancements */
+@media (max-width: 768px) {
+  .orders-active h4,
+  .orders-completed h4 {
+    font-size: 0.95rem;
+  }
+  
+  .status-badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.625rem;
+  }
+  
+  .order-items {
+    font-size: 0.85rem;
+  }
+  
+  .welcome-back-banner p {
+    font-size: 0.9rem;
+  }
+  
+  .refresh-btn {
+    width: 100%;
+  }
+}
+
+/* Animation for new orders */
+@keyframes highlight {
+  0% { background-color: #e8f5e8; }
+  100% { background-color: transparent; }
+}
+
+.order-card.highlight {
+  animation: highlight 2s ease-in-out;
+}
