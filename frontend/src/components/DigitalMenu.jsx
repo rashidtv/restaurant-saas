@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
-// Simple Registration Form for Marketing Only
+// Points-Based Registration Form
 const RegistrationForm = ({ 
   selectedTable, 
   onRegister, 
   onClose 
 }) => {
-  const [formData, setFormData] = useState({ phone: '', name: '' });
+  const [phone, setPhone] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (formData.phone.trim()) {
-      onRegister(formData);
+    if (phone.trim()) {
+      onRegister({ phone: phone.trim() });
     }
   };
 
@@ -22,7 +22,7 @@ const RegistrationForm = ({
         <form onSubmit={handleSubmit}>
           <div className="registration-header">
             <h2>Welcome to Table {selectedTable}! 🎉</h2>
-            <p>Enter your details for special offers</p>
+            <p>Enter your phone number to earn loyalty points!</p>
           </div>
           
           <div className="form-group">
@@ -31,52 +31,47 @@ const RegistrationForm = ({
               type="tel"
               inputMode="numeric"
               placeholder="e.g., 0123456789"
-              value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               className="form-input"
               required
+              autoFocus
             />
-            <small>For promotions and special offers only</small>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="name-input">👤 Your Name (Optional)</label>
-            <input
-              type="text"
-              placeholder="e.g., John"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              className="form-input"
-            />
-            <small>So we can personalize your experience</small>
+            <small>Required to earn and track your loyalty points</small>
           </div>
           
           <div className="registration-actions">
             <button 
               type="submit"
               className="register-btn"
-              disabled={!formData.phone.trim()}
+              disabled={!phone.trim()}
             >
-              Start Ordering ✅
+              Earn Points & Order 🎯
             </button>
             <button 
               type="button"
               onClick={onClose}
               className="skip-btn"
             >
-              Maybe Later
+              Skip Points
             </button>
           </div>
         </form>
         
         <div className="registration-benefits">
-          <h4>Why share your number? 🤔</h4>
+          <h4>🎁 Loyalty Points Program</h4>
           <ul>
-            <li>🎁 <strong>Exclusive offers</strong> and discounts</li>
-            <li>📱 <strong>Loyalty rewards</strong> program</li>
-            <li>✨ <strong>Special promotions</strong> just for you</li>
-            <li>📧 <strong>Personalized service</strong> on future visits</li>
+            <li>✅ <strong>+10 points</strong> for every QR scan</li>
+            <li>✅ <strong>+1 point</strong> for every RM 1 spent</li>
+            <li>✅ <strong>Double points</strong> on weekends</li>
+            <li>✅ <strong>Redeem points</strong> for free meals</li>
+            <li>✅ <strong>Birthday bonus</strong> +100 points</li>
+            <li>✅ <strong>Refer friends</strong> +50 points each</li>
           </ul>
+          
+          <div className="points-example">
+            <strong>Example:</strong> Scan QR (+10) + Order RM 50 (+50) = <strong>60 points!</strong>
+          </div>
         </div>
       </div>
     </div>
@@ -92,33 +87,43 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [isLoading, setIsLoading] = useState(false);
   const [customerInfo, setCustomerInfo] = useState(null);
   const [showRegistration, setShowRegistration] = useState(false);
+  const [customerPoints, setCustomerPoints] = useState(0);
   
   const orderRefreshRef = useRef(null);
 
-  // Load customer info from localStorage on component mount
+  // Load customer info and points from localStorage
   useEffect(() => {
     if (isCustomerView) {
       const savedCustomer = localStorage.getItem('flavorflow_customer');
+      const savedPoints = localStorage.getItem('flavorflow_points');
+      
       if (savedCustomer) {
         try {
           const customerData = JSON.parse(savedCustomer);
           setCustomerInfo(customerData);
           console.log('✅ Loaded saved customer:', customerData);
+          
+          // Load points if available
+          if (savedPoints) {
+            setCustomerPoints(parseInt(savedPoints) || 0);
+          }
         } catch (error) {
           console.error('❌ Error loading customer data:', error);
           localStorage.removeItem('flavorflow_customer');
+          localStorage.removeItem('flavorflow_points');
         }
       }
     }
   }, [isCustomerView]);
 
-  // Save customer info to localStorage whenever it changes
+  // Save customer info and points to localStorage
   useEffect(() => {
     if (customerInfo && isCustomerView) {
       localStorage.setItem('flavorflow_customer', JSON.stringify(customerInfo));
-      console.log('💾 Saved customer info to localStorage');
+      localStorage.setItem('flavorflow_points', customerPoints.toString());
+      console.log('💾 Saved customer info and points to localStorage');
     }
-  }, [customerInfo, isCustomerView]);
+  }, [customerInfo, customerPoints, isCustomerView]);
 
   // Detect table from URL
   useEffect(() => {
@@ -127,18 +132,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         console.log('🔍 Detecting table from URL...');
         let detectedTable = null;
         
-        // Check URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         detectedTable = urlParams.get('table');
         
-        // Check hash
         if (!detectedTable && window.location.hash) {
           const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
           detectedTable = hashParams.get('table');
         }
 
         if (detectedTable) {
-          // Simple table formatting
           detectedTable = detectedTable.toString().toUpperCase();
           if (!detectedTable.startsWith('T')) {
             detectedTable = 'T' + detectedTable;
@@ -147,13 +149,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           setSelectedTable(detectedTable);
           loadTableOrders(detectedTable);
           
-          // Only show registration if no customer info exists
-          if (!customerInfo) {
-            console.log('👤 No customer info found, showing registration');
-            setShowRegistration(true);
+          // Award points for QR scan if customer is registered
+          if (customerInfo) {
+            awardQRScanPoints();
           } else {
-            console.log('👤 Customer already registered:', customerInfo.name);
-            setShowRegistration(false);
+            setShowRegistration(true);
           }
         } else {
           console.log('❌ No table detected in URL');
@@ -170,7 +170,33 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       window.addEventListener('hashchange', handleHashChange);
       return () => window.removeEventListener('hashchange', handleHashChange);
     }
-  }, [isCustomerView, customerInfo]); // Added customerInfo dependency
+  }, [isCustomerView, customerInfo]);
+
+  // Award points for QR scan
+  const awardQRScanPoints = () => {
+    const lastScanDate = localStorage.getItem('flavorflow_last_scan');
+    const today = new Date().toDateString();
+    
+    // Only award points once per day per customer
+    if (lastScanDate !== today) {
+      const pointsEarned = 10; // +10 points for QR scan
+      setCustomerPoints(prev => {
+        const newPoints = prev + pointsEarned;
+        console.log(`🎯 Awarded ${pointsEarned} points for QR scan! Total: ${newPoints}`);
+        
+        // Show points notification
+        if (typeof window !== 'undefined') {
+          setTimeout(() => {
+            alert(`🎉 You earned ${pointsEarned} loyalty points for scanning today! Total: ${newPoints} points`);
+          }, 500);
+        }
+        
+        return newPoints;
+      });
+      
+      localStorage.setItem('flavorflow_last_scan', today);
+    }
+  };
 
   // Auto-refresh orders every 10 seconds
   useEffect(() => {
@@ -187,38 +213,31 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, selectedTable, customerInfo]);
 
-  // Load ONLY active orders for the table (pending, preparing, ready)
+  // Load ONLY active orders for the table
   const loadTableOrders = async (tableNumber) => {
     if (!tableNumber) return;
     
     try {
       setIsLoading(true);
-      console.log('📦 Loading ACTIVE orders for table:', tableNumber);
-      
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders');
       
       if (response.ok) {
         const allOrders = await response.json();
         
-        // Filter by table AND only active statuses
         const activeOrders = allOrders.filter(order => {
           if (!order) return false;
-          
           const orderTable = (order.tableId || order.table || '').toString().toUpperCase();
           const targetTable = tableNumber.toUpperCase();
           const isActiveStatus = ['pending', 'preparing', 'ready'].includes(order.status);
-          
           return orderTable === targetTable && isActiveStatus;
         });
         
-        // Sort by newest first
         const sortedOrders = activeOrders.sort((a, b) => {
           const dateA = new Date(a.createdAt || a.timestamp || 0);
           const dateB = new Date(b.createdAt || b.timestamp || 0);
           return dateB - dateA;
         });
         
-        console.log('🎯 Found', sortedOrders.length, 'ACTIVE orders for table', tableNumber);
         setTableOrders(sortedOrders);
       }
     } catch (error) {
@@ -228,11 +247,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // Handle registration for marketing only
+  // Handle registration for points system
   const handleRegistrationSubmit = (formData) => {
-    const { phone, name } = formData;
+    const { phone } = formData;
     
-    // Basic phone validation
     const cleanPhone = phone.trim().replace(/\D/g, '');
     if (cleanPhone.length < 10) {
       alert('Please enter a valid phone number (at least 10 digits).');
@@ -241,23 +259,31 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     
     const customerData = {
       phone: cleanPhone,
-      name: name.trim() || 'Guest',
-      table: selectedTable,
-      registeredAt: new Date().toISOString()
+      registeredAt: new Date().toISOString(),
+      totalVisits: 1
     };
     
     setCustomerInfo(customerData);
     setShowRegistration(false);
     
-    console.log('✅ Customer registered for marketing:', customerData);
-    // Here you can send this data to your marketing system
+    // Award initial points for first registration
+    setCustomerPoints(50); // +50 points for signing up
+    console.log('✅ New customer registered with 50 bonus points:', customerData);
+    
+    // Award QR scan points for this visit
+    setTimeout(() => {
+      awardQRScanPoints();
+    }, 1000);
   };
 
-  // Clear customer info (for testing or if customer wants to change)
+  // Clear customer info
   const handleClearCustomer = () => {
     console.log('🔄 Clearing customer info...');
     setCustomerInfo(null);
+    setCustomerPoints(0);
     localStorage.removeItem('flavorflow_customer');
+    localStorage.removeItem('flavorflow_points');
+    localStorage.removeItem('flavorflow_last_scan');
     setShowRegistration(true);
     console.log('✅ Customer info cleared');
   };
@@ -314,7 +340,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // Place order with customer info for marketing
+  // Calculate points from order total
+  const calculateOrderPoints = (total) => {
+    const points = Math.floor(total); // 1 point per RM 1
+    const isWeekend = [0, 6].includes(new Date().getDay()); // Saturday or Sunday
+    return isWeekend ? points * 2 : points; // Double points on weekends
+  };
+
+  // Place order with points calculation
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -327,7 +360,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
 
     if (!customerInfo) {
-      alert('Please register with your phone number to place an order.');
+      alert('Please enter your phone number to earn points and place order.');
       setShowRegistration(true);
       return;
     }
@@ -341,32 +374,38 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         category: item.category
       }));
 
-      console.log('🛒 Placing order for table:', selectedTable);
-      console.log('📦 Order items:', orderData);
-      console.log('👤 Customer info (for marketing):', customerInfo);
+      const orderTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const pointsEarned = calculateOrderPoints(orderTotal);
+
+      console.log('🛒 Placing order for:', customerInfo.phone);
+      console.log('💰 Order total:', orderTotal, 'Points earned:', pointsEarned);
       
-      // Pass customer info for marketing (4th parameter)
       const result = await onCreateOrder(
         selectedTable, 
         orderData, 
         'dine-in',
         { 
-          customerPhone: customerInfo.phone, 
-          customerName: customerInfo.name 
+          customerPhone: customerInfo.phone
         }
       );
       
       if (result && result.success !== false) {
+        // Award points for order
+        setCustomerPoints(prev => {
+          const newPoints = prev + pointsEarned;
+          console.log(`🎯 Awarded ${pointsEarned} points for order! Total: ${newPoints}`);
+          return newPoints;
+        });
+
         setCart([]);
         setCartOpen(false);
         
-        // Reload orders to show the new one immediately
         setTimeout(() => {
           loadTableOrders(selectedTable);
         }, 1000);
         
         const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
-        alert(`Order placed successfully, ${customerInfo.name}! Order number: ${orderNumber}\n\nYour food will be served soon.`);
+        alert(`✅ Order placed successfully!\n📦 Order #: ${orderNumber}\n🎯 Points Earned: +${pointsEarned}\n💰 Total Points: ${customerPoints + pointsEarned}\n\nYour food will be served soon!`);
       } else {
         throw new Error(result?.message || 'Failed to place order');
       }
@@ -405,7 +444,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     if (!items || items.length === 0) return 'No items';
     
     const itemList = items.map(item => {
-      // Handle both item structures properly
       const itemName = item.name || 'Unknown Item';
       const quantity = item.quantity || 1;
       return `${itemName} x${quantity}`;
@@ -425,14 +463,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     try {
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return 'Invalid time';
-      
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } catch (error) {
       return 'Invalid time';
     }
   };
 
-  // Table Status Component
+  // Table Status Component with Points Display
   const TableStatus = () => {
     if (!selectedTable) {
       return (
@@ -452,7 +489,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <div className="warning-icon">📱</div>
           <div className="warning-text">
             <strong>Table {selectedTable}</strong>
-            <small>Register to start ordering</small>
+            <small>Enter phone to earn points</small>
           </div>
         </div>
       );
@@ -466,14 +503,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <div className="success-text">
           <strong>Table {selectedTable}</strong>
           <small>
-            {customerInfo.name} • {isLoading ? 'Checking...' : 
+            {customerInfo.phone} • {customerPoints} pts
+          </small>
+          <small>
+            {isLoading ? 'Checking...' : 
              activeOrderCount > 0 ? `${activeOrderCount} active order(s)` : 'Ready to order'
             }
           </small>
           <button 
             onClick={handleClearCustomer}
             className="change-customer-btn"
-            title="Change customer"
+            title="Change phone number"
           >
             🔄
           </button>
@@ -482,7 +522,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Orders History Section - Only shows active orders
+  // Orders History Section
   const OrdersHistorySection = () => {
     if (!selectedTable || !customerInfo) return null;
 
@@ -491,6 +531,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <div className="orders-header">
           <h3>📋 Active Orders - Table {selectedTable}</h3>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <div className="points-display">
+              🎯 {customerPoints} pts
+            </div>
             <button 
               onClick={() => loadTableOrders(selectedTable)}
               disabled={isLoading}
@@ -502,9 +545,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <button 
               onClick={handleClearCustomer}
               className="logout-btn"
-              title="Change customer"
+              title="Change phone"
             >
-              👤
+              📱
             </button>
           </div>
         </div>
@@ -579,7 +622,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
-        {/* Registration Form for Marketing */}
+        {/* Points-Based Registration Form */}
         {showRegistration && (
           <RegistrationForm
             selectedTable={selectedTable}
@@ -611,7 +654,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
         {!selectedTable && (
           <div className="warning-banner">
-            <p>📱 Please scan your table's QR code to start ordering</p>
+            <p>📱 Please scan your table's QR code to earn points and order</p>
           </div>
         )}
 
@@ -649,21 +692,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <div className="disabled-overlay">
               <div className="disabled-message">
                 <div className="message-icon">📱</div>
-                <h3>Scan QR Code to Order</h3>
-                <p>Please scan your table's QR code to view the menu and place orders</p>
+                <h3>Scan QR Code to Earn Points</h3>
+                <p>Scan your table's QR code to earn loyalty points and order</p>
               </div>
             </div>
           ) : !customerInfo ? (
             <div className="disabled-overlay">
               <div className="disabled-message">
-                <div className="message-icon">👤</div>
-                <h3>Register to Order</h3>
-                <p>Please register with your phone number to start ordering</p>
+                <div className="message-icon">🎯</div>
+                <h3>Earn Loyalty Points</h3>
+                <p>Enter your phone number to start earning points with every order</p>
                 <button 
                   onClick={() => setShowRegistration(true)}
                   className="register-prompt-btn"
                 >
-                  Register Now
+                  Earn Points Now
                 </button>
               </div>
             </div>
@@ -678,6 +721,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   <h3>{item.name}</h3>
                   <p>{item.description}</p>
                   <div className="item-price">RM {item.price.toFixed(2)}</div>
+                  <div className="item-points">
+                    🎯 Earn {Math.floor(item.price)} points
+                  </div>
                 </div>
                 <button 
                   className="add-btn"
@@ -701,7 +747,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               
               {customerInfo && (
                 <div className="customer-info-banner">
-                  Ordering as: <strong>{customerInfo.name}</strong> ({customerInfo.phone})
+                  <div>📱 {customerInfo.phone}</div>
+                  <div>🎯 {customerPoints} points</div>
                   <button 
                     onClick={handleClearCustomer}
                     className="change-customer-small"
@@ -722,6 +769,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                           <strong>{item.name}</strong>
                           <div>Qty: {item.quantity}</div>
                           <div>RM {item.price.toFixed(2)} each</div>
+                          <div className="item-points-small">
+                            +{Math.floor(item.price * item.quantity)} pts
+                          </div>
                         </div>
                         <div className="item-controls">
                           <button onClick={() => updateQuantity(item.id, -1)}>-</button>
@@ -741,15 +791,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                     ))}
                   </div>
                   
-                  <div className="cart-total">
-                    <strong>Total: RM {total.toFixed(2)}</strong>
+                  <div className="cart-summary">
+                    <div className="cart-total">
+                      <strong>Total: RM {total.toFixed(2)}</strong>
+                    </div>
+                    <div className="points-summary">
+                      <strong>Points to earn: +{calculateOrderPoints(total)}</strong>
+                      <small>Double points on weekends!</small>
+                    </div>
                   </div>
                   
                   <button 
                     className="place-order-btn"
                     onClick={handlePlaceOrder}
                   >
-                    Place Order for {customerInfo?.name || 'You'}
+                    🎯 Place Order & Earn Points
                   </button>
                 </>
               )}
@@ -763,7 +819,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             className="mobile-cart-btn"
             onClick={() => setCartOpen(true)}
           >
-            View Cart ({itemCount}) - RM {total.toFixed(2)}
+            View Cart ({itemCount}) - {calculateOrderPoints(total)} pts
           </button>
         )}
       </div>
