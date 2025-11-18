@@ -95,6 +95,31 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   
   const orderRefreshRef = useRef(null);
 
+  // Load customer info from localStorage on component mount
+  useEffect(() => {
+    if (isCustomerView) {
+      const savedCustomer = localStorage.getItem('flavorflow_customer');
+      if (savedCustomer) {
+        try {
+          const customerData = JSON.parse(savedCustomer);
+          setCustomerInfo(customerData);
+          console.log('✅ Loaded saved customer:', customerData);
+        } catch (error) {
+          console.error('❌ Error loading customer data:', error);
+          localStorage.removeItem('flavorflow_customer');
+        }
+      }
+    }
+  }, [isCustomerView]);
+
+  // Save customer info to localStorage whenever it changes
+  useEffect(() => {
+    if (customerInfo && isCustomerView) {
+      localStorage.setItem('flavorflow_customer', JSON.stringify(customerInfo));
+      console.log('💾 Saved customer info to localStorage');
+    }
+  }, [customerInfo, isCustomerView]);
+
   // Detect table from URL
   useEffect(() => {
     if (isCustomerView) {
@@ -122,9 +147,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           setSelectedTable(detectedTable);
           loadTableOrders(detectedTable);
           
-          // Show registration if no customer info
+          // Only show registration if no customer info exists
           if (!customerInfo) {
+            console.log('👤 No customer info found, showing registration');
             setShowRegistration(true);
+          } else {
+            console.log('👤 Customer already registered:', customerInfo.name);
+            setShowRegistration(false);
           }
         } else {
           console.log('❌ No table detected in URL');
@@ -141,11 +170,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       window.addEventListener('hashchange', handleHashChange);
       return () => window.removeEventListener('hashchange', handleHashChange);
     }
-  }, [isCustomerView, customerInfo]);
+  }, [isCustomerView, customerInfo]); // Added customerInfo dependency
 
   // Auto-refresh orders every 10 seconds
   useEffect(() => {
-    if (isCustomerView && selectedTable) {
+    if (isCustomerView && selectedTable && customerInfo) {
       orderRefreshRef.current = setInterval(() => {
         loadTableOrders(selectedTable);
       }, 10000);
@@ -156,7 +185,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         }
       };
     }
-  }, [isCustomerView, selectedTable]);
+  }, [isCustomerView, selectedTable, customerInfo]);
 
   // Load ONLY active orders for the table (pending, preparing, ready)
   const loadTableOrders = async (tableNumber) => {
@@ -222,6 +251,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     
     console.log('✅ Customer registered for marketing:', customerData);
     // Here you can send this data to your marketing system
+  };
+
+  // Clear customer info (for testing or if customer wants to change)
+  const handleClearCustomer = () => {
+    console.log('🔄 Clearing customer info...');
+    setCustomerInfo(null);
+    localStorage.removeItem('flavorflow_customer');
+    setShowRegistration(true);
+    console.log('✅ Customer info cleared');
   };
 
   // Add to cart
@@ -432,6 +470,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
              activeOrderCount > 0 ? `${activeOrderCount} active order(s)` : 'Ready to order'
             }
           </small>
+          <button 
+            onClick={handleClearCustomer}
+            className="change-customer-btn"
+            title="Change customer"
+          >
+            🔄
+          </button>
         </div>
       </div>
     );
@@ -445,14 +490,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       <div className="orders-history-section">
         <div className="orders-header">
           <h3>📋 Active Orders - Table {selectedTable}</h3>
-          <button 
-            onClick={() => loadTableOrders(selectedTable)}
-            disabled={isLoading}
-            className="refresh-orders-btn"
-            title="Refresh orders"
-          >
-            {isLoading ? '🔄' : '🔄'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button 
+              onClick={() => loadTableOrders(selectedTable)}
+              disabled={isLoading}
+              className="refresh-orders-btn"
+              title="Refresh orders"
+            >
+              {isLoading ? '🔄' : '🔄'}
+            </button>
+            <button 
+              onClick={handleClearCustomer}
+              className="logout-btn"
+              title="Change customer"
+            >
+              👤
+            </button>
+          </div>
         </div>
         
         {isLoading ? (
@@ -647,7 +701,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               
               {customerInfo && (
                 <div className="customer-info-banner">
-                  Ordering as: <strong>{customerInfo.name}</strong>
+                  Ordering as: <strong>{customerInfo.name}</strong> ({customerInfo.phone})
+                  <button 
+                    onClick={handleClearCustomer}
+                    className="change-customer-small"
+                  >
+                    Change
+                  </button>
                 </div>
               )}
               
