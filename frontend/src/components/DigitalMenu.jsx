@@ -6,21 +6,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
-  const [previousOrders, setPreviousOrders] = useState([]);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [currentOrders, setCurrentOrders] = useState([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
-  // NEW APPROACH: URL Parameter based detection
+  // Table detection - ORIGINAL WORKING VERSION
   useEffect(() => {
-    const detectTableAndRescan = () => {
-      console.log('🔄 DigitalMenu: Detecting table and rescan status...');
+    const detectTableFromURL = () => {
+      console.log('🔄 DigitalMenu: Detecting table from URL...');
       
       let detectedTable = null;
       const urlParams = new URLSearchParams(window.location.search);
       detectedTable = urlParams.get('table');
-      
-      // Check for rescan parameter
-      const isRescan = urlParams.get('rescan') === 'true';
-      console.log('📱 Rescan detected:', isRescan);
 
       if (!detectedTable && window.location.hash) {
         const hashContent = window.location.hash.replace('#', '');
@@ -38,54 +34,72 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           detectedTable = 'T' + detectedTable;
         }
         
-        console.log('✅ DigitalMenu: Final table detected:', detectedTable, 'Rescan:', isRescan);
-        
+        console.log('✅ DigitalMenu: Final table detected:', detectedTable);
         setSelectedTable(detectedTable);
         
-        // Load orders and check if we should show welcome
-        loadPreviousOrders(detectedTable, isRescan);
+        // Load current orders for this table
+        loadCurrentOrders(detectedTable);
         
       } else {
         console.log('❌ DigitalMenu: No table detected in URL');
         setSelectedTable('');
-        setShowWelcome(false);
+        setCurrentOrders([]);
       }
     };
 
     if (isCustomerView) {
-      detectTableAndRescan();
-      window.addEventListener('hashchange', detectTableAndRescan);
-      return () => window.removeEventListener('hashchange', detectTableAndRescan);
+      detectTableFromURL();
+      window.addEventListener('hashchange', detectTableFromURL);
+      return () => window.removeEventListener('hashchange', detectTableFromURL);
     }
   }, [isCustomerView]);
 
-  // SIMPLE ORDER LOADING
-  const loadPreviousOrders = (tableNumber, isRescan = false) => {
+  // NEW: Load current orders from backend for this specific table
+  const loadCurrentOrders = async (tableNumber) => {
+    if (!tableNumber) return;
+    
     try {
-      console.log('📦 DigitalMenu: Loading orders for table:', tableNumber);
-      const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
+      setIsLoadingOrders(true);
+      console.log('📦 DigitalMenu: Loading current orders for table:', tableNumber);
       
-      if (storedOrders) {
-        const orders = JSON.parse(storedOrders);
-        console.log('📦 DigitalMenu: Loaded', orders.length, 'previous orders');
-        setPreviousOrders(orders);
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders');
+      
+      if (response.ok) {
+        const allOrders = await response.json();
+        console.log('📊 DigitalMenu: All orders from backend:', allOrders.length);
         
-        // Show welcome only if this is a rescan AND we have orders
-        if (isRescan && orders.length > 0) {
-          console.log('🎉 Showing welcome message for rescan');
-          setShowWelcome(true);
-        } else {
-          setShowWelcome(false);
-        }
+        // Filter orders for this specific table
+        const tableOrders = allOrders.filter(order => {
+          if (!order.table) return false;
+          const orderTable = order.table.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const targetTable = tableNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          return orderTable === targetTable;
+        });
+        
+        console.log('📊 DigitalMenu: Orders for table', tableNumber, ':', tableOrders.length);
+        
+        // Sort by creation date (newest first) and filter out very old completed orders
+        const recentOrders = tableOrders
+          .filter(order => {
+            // Keep orders from last 4 hours or non-completed orders
+            if (order.status !== 'completed') return true;
+            const orderTime = new Date(order.createdAt || order.timestamp);
+            const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+            return orderTime > fourHoursAgo;
+          })
+          .sort((a, b) => new Date(b.createdAt || b.timestamp) - new Date(a.createdAt || a.timestamp));
+        
+        setCurrentOrders(recentOrders);
+        console.log('📦 DigitalMenu: Set current orders:', recentOrders.length);
       } else {
-        console.log('📦 DigitalMenu: No previous orders found');
-        setPreviousOrders([]);
-        setShowWelcome(false);
+        console.error('❌ DigitalMenu: Failed to fetch orders');
+        setCurrentOrders([]);
       }
     } catch (error) {
-      console.error('❌ DigitalMenu: Error loading previous orders:', error);
-      setPreviousOrders([]);
-      setShowWelcome(false);
+      console.error('❌ DigitalMenu: Error loading current orders:', error);
+      setCurrentOrders([]);
+    } finally {
+      setIsLoadingOrders(false);
     }
   };
 
@@ -106,24 +120,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10);
       
       localStorage.setItem(`flavorflow_orders_${tableNumber}`, JSON.stringify(updatedOrders));
-      setPreviousOrders(updatedOrders);
       
       console.log('💾 DigitalMenu: Saved order to history');
     } catch (error) {
       console.error('❌ DigitalMenu: Error saving order history:', error);
     }
-  };
-
-  // NEW: Function to generate QR code with rescan parameter
-  const generateRescanQR = () => {
-    if (!selectedTable) return '';
-    
-    // Add rescan=true parameter to indicate this is a rescan
-    const baseUrl = window.location.origin + window.location.pathname;
-    const qrUrl = `${baseUrl}#/menu?table=${selectedTable}&rescan=true`;
-    
-    console.log('🔗 Generated rescan QR URL:', qrUrl);
-    return qrUrl;
   };
 
   // ORIGINAL: Working add to cart
@@ -204,49 +205,198 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       // Save to history after successful order
       saveOrderToHistory(selectedTable, orderData, result.orderNumber);
       
+      // Reload current orders to show the new order
+      loadCurrentOrders(selectedTable);
+      
     } catch (error) {
       console.error('❌ DigitalMenu: Order failed:', error);
       alert('Failed to place order: ' + (error.message || 'Unknown error'));
     }
   };
 
-  // NEW: Quick reorder functionality
-  const quickReorder = (previousOrder) => {
-    if (!selectedTable) {
-      alert('Please scan the QR code first to detect your table.');
-      return;
-    }
-
-    console.log('🔄 DigitalMenu: Quick reorder for order:', previousOrder.orderNumber);
+  // NEW: Get status badge with appropriate color and icon
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      'pending': { label: 'Pending', color: '#f59e0b', icon: '⏳', bgColor: '#fffbeb' },
+      'preparing': { label: 'Preparing', color: '#3b82f6', icon: '👨‍🍳', bgColor: '#eff6ff' },
+      'ready': { label: 'Ready', color: '#10b981', icon: '✅', bgColor: '#ecfdf5' },
+      'completed': { label: 'Completed', color: '#6b7280', icon: '📦', bgColor: '#f9fafb' }
+    };
     
-    // Clear current cart first
-    setCart([]);
+    const config = statusConfig[status] || { label: status, color: '#6b7280', icon: '❓', bgColor: '#f9fafb' };
     
-    // Add a small delay to ensure cart is cleared
-    setTimeout(() => {
-      const newCart = previousOrder.items.map(item => ({
-        id: item.menuItemId || item.id,
-        _id: item.menuItemId || item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        category: item.category
-      }));
-      
-      setCart(newCart);
-      setCartOpen(true);
-      
-      console.log('🔄 DigitalMenu: Reordered', newCart.length, 'items');
-    }, 100);
+    return (
+      <span 
+        className="status-badge"
+        style={{ 
+          backgroundColor: config.bgColor,
+          color: config.color,
+          border: `1px solid ${config.color}20`
+        }}
+      >
+        {config.icon} {config.label}
+      </span>
+    );
   };
 
-  // View previous order details
-  const viewPreviousOrderDetails = (previousOrder) => {
-    const orderDetails = previousOrder.items.map(item => 
-      `• ${item.name} x${item.quantity} - RM ${(item.price * item.quantity).toFixed(2)}`
-    ).join('\n');
+  // NEW: Format order items for display
+  const formatOrderItems = (items) => {
+    if (!items || items.length === 0) return 'No items';
     
-    alert(`Order #${previousOrder.orderNumber}\n\nItems:\n${orderDetails}\n\nTotal: RM ${previousOrder.total.toFixed(2)}\nDate: ${new Date(previousOrder.timestamp).toLocaleString()}`);
+    const itemList = items.slice(0, 3).map(item => 
+      `${item.name} x${item.quantity}`
+    ).join(', ');
+    
+    if (items.length > 3) {
+      return `${itemList} +${items.length - 3} more`;
+    }
+    
+    return itemList;
+  };
+
+  // NEW: Current Orders Section
+  const CurrentOrdersSection = () => {
+    if (!selectedTable || currentOrders.length === 0) return null;
+
+    // Group orders by status
+    const ordersByStatus = {
+      'pending': currentOrders.filter(order => order.status === 'pending'),
+      'preparing': currentOrders.filter(order => order.status === 'preparing'),
+      'ready': currentOrders.filter(order => order.status === 'ready'),
+      'completed': currentOrders.filter(order => order.status === 'completed')
+    };
+
+    const hasActiveOrders = ordersByStatus.pending.length > 0 || 
+                           ordersByStatus.preparing.length > 0 || 
+                           ordersByStatus.ready.length > 0;
+
+    return (
+      <div className="current-orders-section">
+        <h3>📋 Your Orders - Table {selectedTable}</h3>
+        
+        {hasActiveOrders && (
+          <div className="orders-active">
+            <h4>🔄 Current Status</h4>
+            <div className="orders-grid">
+              {/* Pending Orders */}
+              {ordersByStatus.pending.map((order, index) => (
+                <div key={order._id || index} className="order-card pending">
+                  <div className="order-header">
+                    <span className="order-number">Order #{order.orderNumber}</span>
+                    {getStatusBadge('pending')}
+                  </div>
+                  <div className="order-items">
+                    {formatOrderItems(order.items)}
+                  </div>
+                  <div className="order-time">
+                    Ordered: {new Date(order.createdAt || order.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+              
+              {/* Preparing Orders */}
+              {ordersByStatus.preparing.map((order, index) => (
+                <div key={order._id || index} className="order-card preparing">
+                  <div className="order-header">
+                    <span className="order-number">Order #{order.orderNumber}</span>
+                    {getStatusBadge('preparing')}
+                  </div>
+                  <div className="order-items">
+                    {formatOrderItems(order.items)}
+                  </div>
+                  <div className="order-time">
+                    Started: {new Date(order.updatedAt || order.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+              
+              {/* Ready Orders */}
+              {ordersByStatus.ready.map((order, index) => (
+                <div key={order._id || index} className="order-card ready">
+                  <div className="order-header">
+                    <span className="order-number">Order #{order.orderNumber}</span>
+                    {getStatusBadge('ready')}
+                  </div>
+                  <div className="order-items">
+                    {formatOrderItems(order.items)}
+                  </div>
+                  <div className="order-time">
+                    Ready at: {new Date(order.updatedAt || order.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Recent Completed Orders */}
+        {ordersByStatus.completed.length > 0 && (
+          <div className="orders-completed">
+            <h4>📦 Recently Served</h4>
+            <div className="orders-grid">
+              {ordersByStatus.completed.slice(0, 3).map((order, index) => (
+                <div key={order._id || index} className="order-card completed">
+                  <div className="order-header">
+                    <span className="order-number">Order #{order.orderNumber}</span>
+                    {getStatusBadge('completed')}
+                  </div>
+                  <div className="order-items">
+                    {formatOrderItems(order.items)}
+                  </div>
+                  <div className="order-time">
+                    Served: {new Date(order.updatedAt || order.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Refresh Button */}
+        <div className="refresh-orders">
+          <button 
+            onClick={() => loadCurrentOrders(selectedTable)}
+            disabled={isLoadingOrders}
+            className="refresh-btn"
+          >
+            {isLoadingOrders ? '🔄 Loading...' : '🔄 Refresh Status'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // ORIGINAL: Show table detection status
+  const TableStatus = () => {
+    if (!selectedTable) {
+      return (
+        <div className="table-error">
+          <div className="error-icon">⚠️</div>
+          <div className="error-text">
+            <strong>Table not detected</strong>
+            <small>Please scan the QR code again</small>
+          </div>
+        </div>
+      );
+    }
+    
+    const activeOrders = currentOrders.filter(order => 
+      order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
+    ).length;
+    
+    return (
+      <div className="table-success">
+        <div className="success-icon">✅</div>
+        <div className="success-text">
+          <strong>Table {selectedTable}</strong>
+          <small>
+            {isLoadingOrders ? 'Checking orders...' : 
+             activeOrders > 0 ? `${activeOrders} active order(s)` : 'Ready to order'
+            }
+          </small>
+        </div>
+      </div>
+    );
   };
 
   // Simple menu data fallback
@@ -271,102 +421,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // ORIGINAL: Show table detection status
-  const TableStatus = () => {
-    if (!selectedTable) {
-      return (
-        <div className="table-error">
-          <div className="error-icon">⚠️</div>
-          <div className="error-text">
-            <strong>Table not detected</strong>
-            <small>Please scan the QR code again</small>
-          </div>
-        </div>
-      );
-    }
-    
-    return (
-      <div className="table-success">
-        <div className="success-icon">✅</div>
-        <div className="success-text">
-          <strong>Table {selectedTable}</strong>
-          <small>Ready to order</small>
-        </div>
-      </div>
-    );
-  };
-
-  // NEW: Simple Previous Orders Component
-  const PreviousOrdersSection = () => {
-    if (!selectedTable || previousOrders.length === 0) return null;
-
-    return (
-      <div className="previous-orders-section">
-        <h3>📋 Your Order History - Table {selectedTable}</h3>
-        <div className="previous-orders-list">
-          {previousOrders.map((order, index) => (
-            <div key={index} className="previous-order-card">
-              <div className="order-header">
-                <span className="order-number">Order #{order.orderNumber}</span>
-                <span className="order-date">
-                  {new Date(order.timestamp).toLocaleDateString()}
-                </span>
-              </div>
-              <div className="order-items">
-                {order.items.slice(0, 3).map((item, itemIndex) => (
-                  <span key={itemIndex} className="order-item-tag">
-                    {item.name} x{item.quantity}
-                  </span>
-                ))}
-                {order.items.length > 3 && (
-                  <span className="more-items">+{order.items.length - 3} more</span>
-                )}
-              </div>
-              <div className="order-footer">
-                <span className="order-total">RM {order.total.toFixed(2)}</span>
-                <div className="order-actions">
-                  <button 
-                    className="view-order-btn"
-                    onClick={() => viewPreviousOrderDetails(order)}
-                  >
-                    Details
-                  </button>
-                  <button 
-                    className="reorder-btn"
-                    onClick={() => quickReorder(order)}
-                  >
-                    Reorder
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // NEW: Debug component to show current state
-  const DebugInfo = () => {
-    if (!isCustomerView) return null;
-    
-    return (
-      <div style={{ 
-        background: '#f8f9fa', 
-        padding: '10px', 
-        margin: '10px', 
-        borderRadius: '5px', 
-        fontSize: '12px',
-        border: '1px solid #dee2e6'
-      }}>
-        <strong>Debug Info:</strong> Table: {selectedTable || 'None'}, 
-        Orders: {previousOrders.length}, 
-        Welcome: {showWelcome ? 'Yes' : 'No'},
-        Rescan: {new URLSearchParams(window.location.search).get('rescan') === 'true' ? 'Yes' : 'No'}
-      </div>
-    );
-  };
-
   // SIMPLE CUSTOMER VIEW
   if (isCustomerView) {
     return (
@@ -386,9 +440,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
-        {/* Debug info - remove in production */}
-        <DebugInfo />
-
         {/* Show warning if no table detected */}
         {!selectedTable && (
           <div className="warning-banner">
@@ -396,15 +447,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         )}
 
-        {/* NEW: Welcome message only shows on rescan with orders */}
-        {showWelcome && (
-          <div className="welcome-back-banner">
-            <p>🎉 Welcome back to Table {selectedTable}! You have {previousOrders.length} previous order(s).</p>
-          </div>
-        )}
-
-        {/* Show previous orders if available */}
-        {selectedTable && <PreviousOrdersSection />}
+        {/* Show current orders if available */}
+        {selectedTable && <CurrentOrdersSection />}
 
         {/* Search */}
         <div className="simple-search">
