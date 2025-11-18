@@ -6,10 +6,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
-  const [currentOrders, setCurrentOrders] = useState([]);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [tableOrders, setTableOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Table detection - ORIGINAL WORKING VERSION
+  // Table detection
   useEffect(() => {
     const detectTableFromURL = () => {
       console.log('🔄 DigitalMenu: Detecting table from URL...');
@@ -34,16 +34,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           detectedTable = 'T' + detectedTable;
         }
         
-        console.log('✅ DigitalMenu: Final table detected:', detectedTable);
+        console.log('✅ DigitalMenu: Table detected:', detectedTable);
         setSelectedTable(detectedTable);
-        
-        // Load current orders for this table
-        loadCurrentOrders(detectedTable);
+        loadTableOrders(detectedTable);
         
       } else {
-        console.log('❌ DigitalMenu: No table detected in URL');
+        console.log('❌ DigitalMenu: No table detected');
         setSelectedTable('');
-        setCurrentOrders([]);
+        setTableOrders([]);
       }
     };
 
@@ -54,13 +52,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView]);
 
-  // NEW: Load current orders from backend for this specific table
-  const loadCurrentOrders = async (tableNumber) => {
+  // Load orders from backend for this specific table
+  const loadTableOrders = async (tableNumber) => {
     if (!tableNumber) return;
     
     try {
-      setIsLoadingOrders(true);
-      console.log('📦 DigitalMenu: Loading current orders for table:', tableNumber);
+      setIsLoading(true);
+      console.log('📦 DigitalMenu: Loading orders for table:', tableNumber);
       
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders');
       
@@ -68,62 +66,40 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         const allOrders = await response.json();
         console.log('📊 DigitalMenu: All orders from backend:', allOrders.length);
         
-        // Filter orders for this specific table
-        const tableOrders = allOrders.filter(order => {
+        // Filter for this table and active statuses only
+        const filteredOrders = allOrders.filter(order => {
           if (!order.table) return false;
+          
+          // Match table (case insensitive, clean formatting)
           const orderTable = order.table.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
           const targetTable = tableNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
-          return orderTable === targetTable;
+          const tableMatches = orderTable === targetTable;
+          
+          // Only show pending, preparing, ready statuses
+          const isActiveStatus = order.status === 'pending' || 
+                                order.status === 'preparing' || 
+                                order.status === 'ready';
+          
+          return tableMatches && isActiveStatus;
         });
         
-        console.log('📊 DigitalMenu: Orders for table', tableNumber, ':', tableOrders.length);
+        // Sort by creation date (newest first)
+        const sortedOrders = filteredOrders.sort((a, b) => 
+          new Date(b.createdAt || b.timestamp) - new Date(a.createdAt || a.timestamp)
+        );
         
-        // Sort by creation date (newest first) and filter out very old completed orders
-        const recentOrders = tableOrders
-          .filter(order => {
-            // Keep orders from last 4 hours or non-completed orders
-            if (order.status !== 'completed') return true;
-            const orderTime = new Date(order.createdAt || order.timestamp);
-            const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
-            return orderTime > fourHoursAgo;
-          })
-          .sort((a, b) => new Date(b.createdAt || b.timestamp) - new Date(a.createdAt || a.timestamp));
+        console.log('🎯 DigitalMenu: Active orders for table', tableNumber, ':', sortedOrders.length);
+        setTableOrders(sortedOrders);
         
-        setCurrentOrders(recentOrders);
-        console.log('📦 DigitalMenu: Set current orders:', recentOrders.length);
       } else {
         console.error('❌ DigitalMenu: Failed to fetch orders');
-        setCurrentOrders([]);
+        setTableOrders([]);
       }
     } catch (error) {
-      console.error('❌ DigitalMenu: Error loading current orders:', error);
-      setCurrentOrders([]);
+      console.error('❌ DigitalMenu: Error loading orders:', error);
+      setTableOrders([]);
     } finally {
-      setIsLoadingOrders(false);
-    }
-  };
-
-  // ORIGINAL: Working order saving
-  const saveOrderToHistory = (tableNumber, orderData, orderNumber) => {
-    try {
-      console.log('💾 DigitalMenu: Saving order to history for table:', tableNumber);
-      
-      const orderRecord = {
-        orderNumber,
-        items: orderData,
-        total: orderData.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-        timestamp: new Date().toISOString(),
-        table: tableNumber
-      };
-
-      const existingOrders = JSON.parse(localStorage.getItem(`flavorflow_orders_${tableNumber}`) || '[]');
-      const updatedOrders = [orderRecord, ...existingOrders].slice(0, 10);
-      
-      localStorage.setItem(`flavorflow_orders_${tableNumber}`, JSON.stringify(updatedOrders));
-      
-      console.log('💾 DigitalMenu: Saved order to history');
-    } catch (error) {
-      console.error('❌ DigitalMenu: Error saving order history:', error);
+      setIsLoading(false);
     }
   };
 
@@ -202,11 +178,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       setCartOpen(false);
       alert(`Order placed successfully for Table ${selectedTable}! Order number: ${result.orderNumber || 'N/A'}`);
       
-      // Save to history after successful order
-      saveOrderToHistory(selectedTable, orderData, result.orderNumber);
-      
-      // Reload current orders to show the new order
-      loadCurrentOrders(selectedTable);
+      // Reload orders to show the new order
+      setTimeout(() => {
+        loadTableOrders(selectedTable);
+      }, 1000);
       
     } catch (error) {
       console.error('❌ DigitalMenu: Order failed:', error);
@@ -214,13 +189,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // NEW: Get status badge with appropriate color and icon
-  const getStatusBadge = (status) => {
+  // Get status display with colors and icons
+  const getStatusDisplay = (status) => {
     const statusConfig = {
       'pending': { label: 'Pending', color: '#f59e0b', icon: '⏳', bgColor: '#fffbeb' },
       'preparing': { label: 'Preparing', color: '#3b82f6', icon: '👨‍🍳', bgColor: '#eff6ff' },
-      'ready': { label: 'Ready', color: '#10b981', icon: '✅', bgColor: '#ecfdf5' },
-      'completed': { label: 'Completed', color: '#6b7280', icon: '📦', bgColor: '#f9fafb' }
+      'ready': { label: 'Ready', color: '#10b981', icon: '✅', bgColor: '#ecfdf5' }
     };
     
     const config = statusConfig[status] || { label: status, color: '#6b7280', icon: '❓', bgColor: '#f9fafb' };
@@ -239,134 +213,70 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // NEW: Format order items for display
+  // Format order items for display
   const formatOrderItems = (items) => {
     if (!items || items.length === 0) return 'No items';
     
-    const itemList = items.slice(0, 3).map(item => 
-      `${item.name} x${item.quantity}`
-    ).join(', ');
-    
-    if (items.length > 3) {
-      return `${itemList} +${items.length - 3} more`;
-    }
-    
-    return itemList;
+    return items.map(item => `${item.name} x${item.quantity}`).join(', ');
   };
 
-  // NEW: Current Orders Section
-  const CurrentOrdersSection = () => {
-    if (!selectedTable || currentOrders.length === 0) return null;
-
-    // Group orders by status
-    const ordersByStatus = {
-      'pending': currentOrders.filter(order => order.status === 'pending'),
-      'preparing': currentOrders.filter(order => order.status === 'preparing'),
-      'ready': currentOrders.filter(order => order.status === 'ready'),
-      'completed': currentOrders.filter(order => order.status === 'completed')
-    };
-
-    const hasActiveOrders = ordersByStatus.pending.length > 0 || 
-                           ordersByStatus.preparing.length > 0 || 
-                           ordersByStatus.ready.length > 0;
+  // Orders History Section
+  const OrdersHistorySection = () => {
+    if (!selectedTable) return null;
 
     return (
-      <div className="current-orders-section">
-        <h3>📋 Your Orders - Table {selectedTable}</h3>
-        
-        {hasActiveOrders && (
-          <div className="orders-active">
-            <h4>🔄 Current Status</h4>
-            <div className="orders-grid">
-              {/* Pending Orders */}
-              {ordersByStatus.pending.map((order, index) => (
-                <div key={order._id || index} className="order-card pending">
-                  <div className="order-header">
-                    <span className="order-number">Order #{order.orderNumber}</span>
-                    {getStatusBadge('pending')}
-                  </div>
-                  <div className="order-items">
-                    {formatOrderItems(order.items)}
-                  </div>
-                  <div className="order-time">
-                    Ordered: {new Date(order.createdAt || order.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              ))}
-              
-              {/* Preparing Orders */}
-              {ordersByStatus.preparing.map((order, index) => (
-                <div key={order._id || index} className="order-card preparing">
-                  <div className="order-header">
-                    <span className="order-number">Order #{order.orderNumber}</span>
-                    {getStatusBadge('preparing')}
-                  </div>
-                  <div className="order-items">
-                    {formatOrderItems(order.items)}
-                  </div>
-                  <div className="order-time">
-                    Started: {new Date(order.updatedAt || order.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              ))}
-              
-              {/* Ready Orders */}
-              {ordersByStatus.ready.map((order, index) => (
-                <div key={order._id || index} className="order-card ready">
-                  <div className="order-header">
-                    <span className="order-number">Order #{order.orderNumber}</span>
-                    {getStatusBadge('ready')}
-                  </div>
-                  <div className="order-items">
-                    {formatOrderItems(order.items)}
-                  </div>
-                  <div className="order-time">
-                    Ready at: {new Date(order.updatedAt || order.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Recent Completed Orders */}
-        {ordersByStatus.completed.length > 0 && (
-          <div className="orders-completed">
-            <h4>📦 Recently Served</h4>
-            <div className="orders-grid">
-              {ordersByStatus.completed.slice(0, 3).map((order, index) => (
-                <div key={order._id || index} className="order-card completed">
-                  <div className="order-header">
-                    <span className="order-number">Order #{order.orderNumber}</span>
-                    {getStatusBadge('completed')}
-                  </div>
-                  <div className="order-items">
-                    {formatOrderItems(order.items)}
-                  </div>
-                  <div className="order-time">
-                    Served: {new Date(order.updatedAt || order.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Refresh Button */}
-        <div className="refresh-orders">
+      <div className="orders-history-section">
+        <div className="orders-header">
+          <h3>📋 Your Orders - Table {selectedTable}</h3>
           <button 
-            onClick={() => loadCurrentOrders(selectedTable)}
-            disabled={isLoadingOrders}
-            className="refresh-btn"
+            onClick={() => loadTableOrders(selectedTable)}
+            disabled={isLoading}
+            className="refresh-orders-btn"
           >
-            {isLoadingOrders ? '🔄 Loading...' : '🔄 Refresh Status'}
+            {isLoading ? '🔄' : '🔄'}
           </button>
         </div>
+        
+        {isLoading ? (
+          <div className="orders-loading">
+            <p>Loading your orders...</p>
+          </div>
+        ) : tableOrders.length === 0 ? (
+          <div className="no-orders">
+            <p>No active orders</p>
+            <small>Your orders will appear here once placed</small>
+          </div>
+        ) : (
+          <div className="orders-list">
+            {tableOrders.map((order, index) => (
+              <div key={order._id || index} className="order-card">
+                <div className="order-header">
+                  <span className="order-number">Order #{order.orderNumber}</span>
+                  {getStatusDisplay(order.status)}
+                </div>
+                <div className="order-items">
+                  {formatOrderItems(order.items)}
+                </div>
+                <div className="order-meta">
+                  <span className="order-time">
+                    Ordered: {new Date(order.createdAt || order.timestamp).toLocaleTimeString()}
+                  </span>
+                  {order.status === 'preparing' && (
+                    <span className="order-note">Kitchen is preparing your order</span>
+                  )}
+                  {order.status === 'ready' && (
+                    <span className="order-note ready">Your order is ready! 🎉</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
 
-  // ORIGINAL: Show table detection status
+  // Table Status Component
   const TableStatus = () => {
     if (!selectedTable) {
       return (
@@ -380,9 +290,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       );
     }
     
-    const activeOrders = currentOrders.filter(order => 
-      order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
-    ).length;
+    const activeOrderCount = tableOrders.length;
     
     return (
       <div className="table-success">
@@ -390,8 +298,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <div className="success-text">
           <strong>Table {selectedTable}</strong>
           <small>
-            {isLoadingOrders ? 'Checking orders...' : 
-             activeOrders > 0 ? `${activeOrders} active order(s)` : 'Ready to order'
+            {isLoading ? 'Checking orders...' : 
+             activeOrderCount > 0 ? `${activeOrderCount} active order(s)` : 'Ready to order'
             }
           </small>
         </div>
@@ -421,7 +329,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // SIMPLE CUSTOMER VIEW
+  // CUSTOMER VIEW
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
@@ -447,8 +355,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         )}
 
-        {/* Show current orders if available */}
-        {selectedTable && <CurrentOrdersSection />}
+        {/* Orders History Section */}
+        {selectedTable && <OrdersHistorySection />}
 
         {/* Search */}
         <div className="simple-search">
@@ -509,7 +417,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           )}
         </div>
 
-        {/* Simple Cart */}
+        {/* Cart */}
         {cartOpen && (
           <div className="simple-cart-overlay" onClick={() => setCartOpen(false)}>
             <div className="simple-cart" onClick={(e) => e.stopPropagation()}>
@@ -577,7 +485,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   }
 
-  // Simple Admin View (for staff) - ORIGINAL
+  // ADMIN VIEW - ORIGINAL
   return (
     <div className="simple-admin-view">
       <h2>Menu Management - Staff View</h2>
@@ -602,7 +510,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         </div>
       </div>
       
-      {/* Menu display */}
       <div className="simple-menu">
         {displayMenu.map(item => (
           <div key={item.id} className="menu-item">
@@ -621,7 +528,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         ))}
       </div>
 
-      {/* Admin Cart */}
       {cart.length > 0 && (
         <div className="admin-cart">
           <h3>Current Order ({itemCount} items) - Table {selectedTable}</h3>
