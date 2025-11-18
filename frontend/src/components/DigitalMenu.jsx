@@ -1,18 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
-
-useEffect(() => {
-  if (customerInfo) {
-    console.log('🔍 CUSTOMER FLOW DEBUG:');
-    console.log('1. Customer Info:', customerInfo);
-    console.log('2. Selected Table:', selectedTable);
-    console.log('3. Table Orders:', tableOrders);
-    console.log('4. LocalStorage:', localStorage.getItem('restaurantCustomer'));
-    console.log('5. Cart:', cart);
-  }
-}, [customerInfo, tableOrders, selectedTable, cart]);
-
 // Separate Registration Form Component to prevent re-renders
 const RegistrationForm = ({ 
   selectedTable, 
@@ -452,75 +440,82 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-// In DigitalMenu.js - UPDATE the handlePlaceOrder function
-const handlePlaceOrder = async () => {
-  if (cart.length === 0) {
-    alert('Your cart is empty. Please add some items first.');
-    return;
-  }
-
-  if (!selectedTable) {
-    alert('Table number not detected. Please scan the QR code again.');
-    return;
-  }
-
-  if (!customerInfo) {
-    alert('Please register with your phone number to place an order.');
-    setShowRegistration(true);
-    return;
-  }
-
-  console.log('🛒 DigitalMenu: Placing order for:', customerInfo.name, 'at table:', selectedTable);
-  console.log('📦 Order items:', cart);
-  console.log('👤 Customer info:', customerInfo);
-
-  try {
-    // Prepare order data with customer info
-    const orderData = cart.map(item => ({
-      menuItemId: item.id,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      category: item.category
-    }));
-
-    console.log('📤 Sending order data to backend with customer info:', {
-      customerPhone: customerInfo.phone,
-      customerName: customerInfo.name
-    });
-
-    // 🎯 CRITICAL: Pass customer info as the 4th parameter
-    const result = await onCreateOrder(
-      selectedTable, 
-      orderData, 
-      'dine-in', 
-      { 
-        customerPhone: customerInfo.phone, 
-        customerName: customerInfo.name 
-      }
-    );
-    
-    if (result && result.success !== false) {
-      setCart([]);
-      setCartOpen(false);
-      
-      const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
-      alert(`Order placed successfully, ${customerInfo.name}! Order number: ${orderNumber}\n\nYou can track your order status by scanning the QR code again.`);
-      
-      // Reload orders to show the new order immediately
-      setTimeout(() => {
-        loadCustomerOrders(selectedTable, customerInfo.phone);
-      }, 2000);
-      
-    } else {
-      throw new Error(result?.message || 'Failed to place order');
+  // Fixed handlePlaceOrder function
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) {
+      alert('Your cart is empty. Please add some items first.');
+      return;
     }
-    
-  } catch (error) {
-    console.error('❌ DigitalMenu: Order failed:', error);
-    alert('Failed to place order: ' + (error.message || 'Unknown error. Please try again.'));
-  }
-};
+
+    if (!selectedTable) {
+      alert('Table number not detected. Please scan the QR code again.');
+      return;
+    }
+
+    if (!customerInfo) {
+      alert('Please register with your phone number to place an order.');
+      setShowRegistration(true);
+      return;
+    }
+
+    // ✅ ADD SAFETY CHECK HERE
+    if (!customerInfo || !customerInfo.phone) {
+      alert('Customer information is incomplete. Please register again.');
+      setShowRegistration(true);
+      return;
+    }
+
+    console.log('🛒 DigitalMenu: Placing order for:', customerInfo?.name || 'Customer', 'at table:', selectedTable);
+    console.log('📦 Order items:', cart);
+    console.log('👤 Customer info:', customerInfo);
+
+    try {
+      // Prepare order data with customer info
+      const orderData = cart.map(item => ({
+        menuItemId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        category: item.category
+      }));
+
+      console.log('📤 Sending order data to backend with customer info:', {
+        customerPhone: customerInfo.phone,
+        customerName: customerInfo.name
+      });
+
+      // 🎯 CRITICAL: Pass customer info as the 4th parameter
+      const result = await onCreateOrder(
+        selectedTable, 
+        orderData, 
+        'dine-in', 
+        { 
+          customerPhone: customerInfo.phone, 
+          customerName: customerInfo.name 
+        }
+      );
+      
+      if (result && result.success !== false) {
+        setCart([]);
+        setCartOpen(false);
+        
+        const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
+        alert(`Order placed successfully, ${customerInfo.name}! Order number: ${orderNumber}\n\nYou can track your order status by scanning the QR code again.`);
+        
+        // Reload orders to show the new order immediately
+        setTimeout(() => {
+          loadCustomerOrders(selectedTable, customerInfo.phone);
+        }, 2000);
+        
+      } else {
+        throw new Error(result?.message || 'Failed to place order');
+      }
+      
+    } catch (error) {
+      console.error('❌ DigitalMenu: Order failed:', error);
+      alert('Failed to place order: ' + (error.message || 'Unknown error. Please try again.'));
+    }
+  };
 
   // Get status display
   const getStatusDisplay = (status) => {
@@ -609,7 +604,7 @@ const handlePlaceOrder = async () => {
         <div className="orders-header">
           <div>
             <h3>📋 Your Orders - Table {selectedTable}</h3>
-            <p className="customer-greeting">Hello, {customerInfo.name}! 👋</p>
+            <p className="customer-greeting">Hello, {customerInfo?.name || 'Guest'}! 👋</p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <span style={{ 
@@ -648,7 +643,7 @@ const handlePlaceOrder = async () => {
           </div>
         ) : allOrders.length === 0 ? (
           <div className="no-orders">
-            <p>No orders found for {customerInfo.name}</p>
+            <p>No orders found for {customerInfo?.name || 'you'}</p>
             <small>Your orders will appear here once placed</small>
             <br />
             <small className="debug-hint">You will only see YOUR orders, not others at this table</small>
@@ -768,7 +763,7 @@ const handlePlaceOrder = async () => {
         <div className="success-text">
           <strong>Table {selectedTable}</strong>
           <small>
-            {customerInfo.name} • {isLoading ? 'Checking...' : 
+            {customerInfo?.name || 'Guest'} • {isLoading ? 'Checking...' : 
              activeOrderCount > 0 ? `${activeOrderCount} active order(s)` : 'Ready to order'
             }
           </small>
