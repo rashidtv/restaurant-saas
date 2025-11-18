@@ -1818,3 +1818,120 @@ body {
   border-radius: 4px;
   display: inline-block;
 }
+/* Registration Form Mobile Fixes */
+.registration-form form {
+  margin-bottom: 0;
+}
+
+.form-input {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 16px; /* Prevent zoom on iOS */
+  background: white;
+  transition: border-color 0.2s;
+  -webkit-appearance: none; /* Remove iOS shadow */
+  appearance: none;
+}
+
+/* Fix for mobile keyboard dismissal */
+.registration-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 2000;
+  /* Prevent re-renders that dismiss keyboard */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000;
+}
+
+.registration-form {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  /* Prevent layout shifts */
+  transform: translateZ(0);
+}
+
+/* Better input styling for mobile */
+.form-input:focus {
+  outline: none;
+  border-color: #2196F3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+/* Remove iOS input styling */
+.form-input {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.form-input:focus {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Better button styling */
+.register-btn, .skip-btn {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Prevent form container from reflowing */
+.registration-form > * {
+  transform: translateZ(0);
+}
+
+/* Mobile-specific fixes */
+@media (max-width: 768px) {
+  .registration-form {
+    padding: 1.5rem;
+    margin: 0.5rem;
+    /* Ensure form stays in place during input */
+    position: relative;
+  }
+  
+  .form-input {
+    font-size: 16px; /* Critical: prevents iOS zoom */
+    padding: 0.875rem;
+  }
+  
+  /* Fix for Android keyboard */
+  .registration-overlay {
+    align-items: flex-start;
+    padding-top: 2rem;
+  }
+}
+
+/* iOS specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .registration-form {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .form-input {
+    font-size: 16px; /* Prevent zoom */
+  }
+}
+
+/* Android specific fixes */
+@supports (not (-webkit-touch-callout: none)) {
+  .registration-overlay {
+    align-items: center;
+  }
+}

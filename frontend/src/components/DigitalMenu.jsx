@@ -508,37 +508,55 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Customer Registration Form
-  const RegistrationForm = () => {
-    if (!showRegistration) return null;
+ // Customer Registration Form - FIXED KEYBOARD ISSUE
+const RegistrationForm = () => {
+  if (!showRegistration) return null;
 
-    return (
-      <div className="registration-overlay">
-        <div className="registration-form">
+  const handlePhoneChange = (e) => {
+    setRegistrationForm({...registrationForm, phone: e.target.value});
+  };
+
+  const handleNameChange = (e) => {
+    setRegistrationForm({...registrationForm, name: e.target.value});
+  };
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault(); // Prevent form submission from refreshing
+    handleRegistration();
+  };
+
+  return (
+    <div className="registration-overlay">
+      <div className="registration-form">
+        <form onSubmit={handleFormSubmit}>
           <div className="registration-header">
             <h2>Welcome to Table {selectedTable}! 🎉</h2>
             <p>Enter your details to track your order</p>
           </div>
           
           <div className="form-group">
-            <label>📱 Phone Number *</label>
+            <label htmlFor="phone-input">📱 Phone Number *</label>
             <input
+              id="phone-input"
               type="tel"
+              inputMode="numeric"
               placeholder="e.g., 0123456789"
               value={registrationForm.phone}
-              onChange={(e) => setRegistrationForm({...registrationForm, phone: e.target.value})}
+              onChange={handlePhoneChange}
               className="form-input"
+              autoFocus
             />
             <small>Required to track your order status</small>
           </div>
           
           <div className="form-group">
-            <label>👤 Your Name (Optional)</label>
+            <label htmlFor="name-input">👤 Your Name (Optional)</label>
             <input
+              id="name-input"
               type="text"
               placeholder="e.g., John"
               value={registrationForm.name}
-              onChange={(e) => setRegistrationForm({...registrationForm, name: e.target.value})}
+              onChange={handleNameChange}
               className="form-input"
             />
             <small>So we can personalize your experience</small>
@@ -546,33 +564,35 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           
           <div className="registration-actions">
             <button 
-              onClick={handleRegistration}
+              type="submit"
               className="register-btn"
               disabled={!registrationForm.phone.trim()}
             >
               Start Ordering ✅
             </button>
             <button 
+              type="button"
               onClick={() => setShowRegistration(false)}
               className="skip-btn"
             >
               Maybe Later
             </button>
           </div>
-          
-          <div className="registration-benefits">
-            <h4>Why register? 🤔</h4>
-            <ul>
-              <li>📱 <strong>Track your order</strong> in real-time</li>
-              <li>🔔 <strong>Get notifications</strong> when order is ready</li>
-              <li>👤 <strong>Personalized service</strong> from our staff</li>
-              <li>📊 <strong>See only your orders</strong> - no confusion with others</li>
-            </ul>
-          </div>
+        </form>
+        
+        <div className="registration-benefits">
+          <h4>Why register? 🤔</h4>
+          <ul>
+            <li>📱 <strong>Track your order</strong> in real-time</li>
+            <li>🔔 <strong>Get notifications</strong> when order is ready</li>
+            <li>👤 <strong>Personalized service</strong> from our staff</li>
+            <li>📊 <strong>See only your orders</strong> - no confusion with others</li>
+          </ul>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   // Orders History Section - CUSTOMER SPECIFIC
   const OrdersHistorySection = () => {
