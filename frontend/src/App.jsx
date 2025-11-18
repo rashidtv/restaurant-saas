@@ -488,7 +488,6 @@ function App() {
       return fallbackOrder;
     }
   };
-// In App.jsx - UPDATE the handleCustomerOrder function
 const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in', customerInfo = null) => {
   console.log('🔵 handleCustomerOrder called for table:', tableNumber, 'Customer:', customerInfo);
   
@@ -502,49 +501,56 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
 
   let newOrder;
   
-  // In App.jsx - UPDATE the handleCustomerOrder function (just the API call part):
-if (apiConnected) {
-  const orderData = {
-    tableId: tableNumber,
-    items: orderItems.map(item => ({
-      menuItemId: item._id || item.id,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      specialInstructions: item.specialInstructions || ''
-    })),
-    orderType: orderType,
-    // 🎯 CRITICAL: Include customer info
-    ...(customerInfo && {
-      customerPhone: customerInfo.customerPhone,
-      customerName: customerInfo.customerName
-    })
-  };
-  
-  console.log('📤 Sending order with customer info:', orderData);
-  
-  try {
-    // Use the correct endpoint that accepts customer info
-    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customer/orders', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(orderData)
-    });
+  if (apiConnected) {
+    // ✅ CORRECTED: Use the proper order structure that matches backend expectations
+    const orderData = {
+      tableId: tableNumber,
+      table: tableNumber, // Include both tableId and table for compatibility
+      items: orderItems.map(item => ({
+        menuItemId: item.menuItemId || item._id || item.id,
+        name: item.name,
+        quantity: parseInt(item.quantity),
+        price: parseFloat(item.price),
+        category: item.category,
+        specialInstructions: item.specialInstructions || ''
+      })),
+      orderType: orderType,
+      status: 'pending', // Include initial status
+      // ✅ CORRECTED: Fix customer info structure
+      ...(customerInfo && {
+        customerPhone: customerInfo.customerPhone || customerInfo.phone,
+        customerName: customerInfo.customerName || customerInfo.name
+      })
+    };
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    console.log('📤 Sending order with customer info:', orderData);
+    
+    try {
+      // ✅ CORRECTED: Use the main orders endpoint, not customer/orders
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData)
+      });
+      
+      console.log('📡 API Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Order API Error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+      }
+      
+      newOrder = await response.json();
+      console.log('✅ Customer order created successfully:', newOrder);
+      
+    } catch (error) {
+      console.error('❌ Customer order API failed:', error);
+      throw error;
     }
-    
-    newOrder = await response.json();
-    console.log('✅ Customer order created:', newOrder);
-    
-  } catch (error) {
-    console.error('❌ Customer order API failed:', error);
-    throw error;
-  }
-} else {
+  } else {
     // Fallback for offline mode
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
     newOrder = {
@@ -560,8 +566,8 @@ if (apiConnected) {
       createdAt: new Date(),
       // Include customer info in fallback too
       ...(customerInfo && {
-        customerPhone: customerInfo.customerPhone,
-        customerName: customerInfo.customerName
+        customerPhone: customerInfo.customerPhone || customerInfo.phone,
+        customerName: customerInfo.customerName || customerInfo.name
       })
     };
 

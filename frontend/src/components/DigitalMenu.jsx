@@ -399,14 +399,16 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     console.log('➕ Adding to cart:', item.name);
     
     const cartItem = {
-      id: item.id || item._id,
-      _id: item._id || item.id,
-      name: item.name,
-      price: item.price,
-      quantity: 1,
-      category: item.category,
-      description: item.description
-    };
+  id: item.id || item._id,
+  _id: item._id || item.id,
+  name: item.name,
+  price: item.price,
+  quantity: 1,
+  category: item.category,
+  description: item.description,
+  // ✅ Make sure menuItemId is included for the backend
+  menuItemId: item.id || item._id
+};
 
     const existingItemIndex = cart.findIndex(cartItem => 
       cartItem.id === (item.id || item._id)
