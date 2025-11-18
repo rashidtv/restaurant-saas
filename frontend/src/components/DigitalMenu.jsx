@@ -1,6 +1,111 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
+// Separate Registration Form Component to prevent re-renders
+const RegistrationForm = ({ 
+  selectedTable, 
+  onRegister, 
+  onClose 
+}) => {
+  const [formData, setFormData] = useState({ phone: '', name: '' });
+  const phoneInputRef = useRef(null);
+  const nameInputRef = useRef(null);
+
+  useEffect(() => {
+    // Auto-focus phone input when form opens
+    if (phoneInputRef.current) {
+      setTimeout(() => {
+        phoneInputRef.current.focus();
+      }, 100);
+    }
+  }, []);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (formData.phone.trim()) {
+      onRegister(formData);
+    }
+  };
+
+  const handlePhoneChange = (e) => {
+    setFormData(prev => ({ ...prev, phone: e.target.value }));
+  };
+
+  const handleNameChange = (e) => {
+    setFormData(prev => ({ ...prev, name: e.target.value }));
+  };
+
+  return (
+    <div className="registration-overlay">
+      <div className="registration-form">
+        <form onSubmit={handleSubmit}>
+          <div className="registration-header">
+            <h2>Welcome to Table {selectedTable}! 🎉</h2>
+            <p>Enter your details to track your order</p>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="phone-input">📱 Phone Number *</label>
+            <input
+              ref={phoneInputRef}
+              id="phone-input"
+              type="tel"
+              inputMode="numeric"
+              placeholder="e.g., 0123456789"
+              value={formData.phone}
+              onChange={handlePhoneChange}
+              className="form-input"
+              required
+            />
+            <small>Required to track your order status</small>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="name-input">👤 Your Name (Optional)</label>
+            <input
+              ref={nameInputRef}
+              id="name-input"
+              type="text"
+              placeholder="e.g., John"
+              value={formData.name}
+              onChange={handleNameChange}
+              className="form-input"
+            />
+            <small>So we can personalize your experience</small>
+          </div>
+          
+          <div className="registration-actions">
+            <button 
+              type="submit"
+              className="register-btn"
+              disabled={!formData.phone.trim()}
+            >
+              Start Ordering ✅
+            </button>
+            <button 
+              type="button"
+              onClick={onClose}
+              className="skip-btn"
+            >
+              Maybe Later
+            </button>
+          </div>
+        </form>
+        
+        <div className="registration-benefits">
+          <h4>Why register? 🤔</h4>
+          <ul>
+            <li>📱 <strong>Track your order</strong> in real-time</li>
+            <li>🔔 <strong>Get notifications</strong> when order is ready</li>
+            <li>👤 <strong>Personalized service</strong> from our staff</li>
+            <li>📊 <strong>See only your orders</strong> - no confusion with others</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView = false }) => {
   const [selectedTable, setSelectedTable] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -12,37 +117,30 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [lastUpdate, setLastUpdate] = useState(Date.now());
   const [customerInfo, setCustomerInfo] = useState(null);
   const [showRegistration, setShowRegistration] = useState(false);
-  const [registrationForm, setRegistrationForm] = useState({ phone: '', name: '' });
   
   const wsRef = useRef(null);
   const orderRefreshRef = useRef(null);
 
-  // Load customer info from localStorage - FIXED
+  // Load customer info from localStorage
   useEffect(() => {
     if (isCustomerView) {
       console.log('🔍 Checking for saved customer data...');
       const savedCustomer = localStorage.getItem('restaurantCustomer');
-      console.log('📦 Saved customer data:', savedCustomer);
       
       if (savedCustomer) {
         try {
           const customerData = JSON.parse(savedCustomer);
           setCustomerInfo(customerData);
           console.log('✅ Loaded saved customer:', customerData);
-          
-          // If we have a table detected, load orders immediately
-          if (selectedTable) {
-            loadCustomerOrders(selectedTable, customerData.phone);
-          }
         } catch (error) {
           console.error('❌ Error loading customer data:', error);
-          localStorage.removeItem('restaurantCustomer'); // Clear corrupted data
+          localStorage.removeItem('restaurantCustomer');
         }
       }
     }
   }, [isCustomerView]);
 
-  // Save customer info to localStorage when it changes - FIXED
+  // Save customer info to localStorage
   useEffect(() => {
     if (customerInfo && isCustomerView) {
       console.log('💾 Saving customer info:', customerInfo);
@@ -55,12 +153,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     if (isCustomerView && selectedTable && customerInfo) {
       console.log('🔌 DigitalMenu: Setting up WebSocket for customer:', customerInfo.phone);
       
-      // Clear any existing interval
       if (orderRefreshRef.current) {
         clearInterval(orderRefreshRef.current);
       }
       
-      // Set up WebSocket connection
       const setupWebSocket = () => {
         try {
           const websocket = new WebSocket('wss://restaurant-saas-backend-hbdz.onrender.com');
@@ -75,7 +171,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               const data = JSON.parse(event.data);
               console.log('📦 DigitalMenu: WebSocket message:', data);
               
-              // Handle different message types
               if (data.type === 'orderUpdate' || data.type === 'newOrder' || data.type === 'statusUpdate') {
                 console.log('🔄 DigitalMenu: Order update received, reloading orders...');
                 setLastUpdate(Date.now());
@@ -95,7 +190,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             console.log('🔌 DigitalMenu: WebSocket disconnected');
             wsRef.current = null;
             
-            // Attempt reconnect after delay
             setTimeout(() => {
               if (isCustomerView && selectedTable && customerInfo) {
                 console.log('🔄 DigitalMenu: Attempting WebSocket reconnection...');
@@ -111,13 +205,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       
       setupWebSocket();
       
-      // Set up periodic refresh as backup
       orderRefreshRef.current = setInterval(() => {
         console.log('🔄 DigitalMenu: Periodic order refresh for customer:', customerInfo.phone);
         loadCustomerOrders(selectedTable, customerInfo.phone);
       }, 8000);
       
-      // Load initial orders
       loadCustomerOrders(selectedTable, customerInfo.phone);
       
       return () => {
@@ -132,14 +224,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, selectedTable, customerInfo]);
 
-  // Table detection from URL - IMPROVED
+  // Table detection from URL
   useEffect(() => {
     const detectTableFromURL = () => {
       console.log('🔄 DigitalMenu: Detecting table from URL...');
       
       let detectedTable = null;
       
-      // Check hash route (/#/menu?table=T01)
       if (window.location.hash) {
         const hashPath = window.location.hash.substring(1);
         if (hashPath.includes('/menu')) {
@@ -148,14 +239,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         }
       }
       
-      // Check regular query params as fallback
       if (!detectedTable) {
         const urlParams = new URLSearchParams(window.location.search);
         detectedTable = urlParams.get('table');
       }
 
       if (detectedTable) {
-        // Clean and format table number
         detectedTable = detectedTable.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
         
         if (/^T\d+$/.test(detectedTable)) {
@@ -169,13 +258,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         console.log('✅ DigitalMenu: Table detected:', detectedTable);
         setSelectedTable(detectedTable);
         
-        // Show registration if no customer info
         if (isCustomerView && !customerInfo) {
           console.log('👤 No customer info, showing registration form');
           setShowRegistration(true);
         } else if (isCustomerView && customerInfo) {
           console.log('👤 Customer found, loading their orders:', customerInfo.phone);
-          // Load orders for existing customer
           loadCustomerOrders(detectedTable, customerInfo.phone);
         }
         
@@ -200,7 +287,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, customerInfo]);
 
-  // Load orders for specific customer at table - IMPROVED
+  // Load orders for specific customer
   const loadCustomerOrders = async (tableNumber, customerPhone) => {
     if (!tableNumber || !customerPhone) {
       console.log('❌ DigitalMenu: Missing table or customer phone');
@@ -220,10 +307,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         const allOrders = await response.json();
         console.log('📊 DigitalMenu: Received', allOrders.length, 'total orders from backend');
         
-        // Debug: Log all orders to see what's available
-        console.log('🔍 All orders for debugging:', allOrders);
-        
-        // Filter orders for this specific customer at this table
+        // Filter orders for this customer at this table
         const filteredOrders = allOrders.filter(order => {
           if (!order) return false;
           
@@ -244,9 +328,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         });
         
         console.log('🎯 DigitalMenu: Found', filteredOrders.length, 'orders for customer', customerPhone, 'at table', tableNumber);
-        console.log('📝 Filtered orders:', filteredOrders);
         
-        // Sort by creation date (newest first)
         const sortedOrders = filteredOrders.sort((a, b) => {
           const dateA = new Date(a.createdAt || a.updatedAt || a.timestamp || 0);
           const dateB = new Date(b.createdAt || b.updatedAt || b.timestamp || 0);
@@ -257,9 +339,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         setDebugInfo(`Found ${sortedOrders.length} orders for ${customerInfo?.name || 'you'}. Last update: ${new Date().toLocaleTimeString()}`);
         
       } else {
-        console.error('❌ DigitalMenu: Failed to fetch orders, status:', response.status);
+        console.error('❌ DigitalMenu: Failed to fetch orders');
         setTableOrders([]);
-        setDebugInfo(`Failed to load orders: ${response.status}`);
+        setDebugInfo('Failed to load orders from server');
       }
     } catch (error) {
       console.error('❌ DigitalMenu: Error loading orders:', error);
@@ -270,14 +352,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // Handle customer registration - FIXED
-  const handleRegistration = () => {
-    const { phone, name } = registrationForm;
-    
-    if (!phone.trim()) {
-      alert('Please enter your phone number to track your order.');
-      return;
-    }
+  // Handle registration from the separate form component
+  const handleRegistrationSubmit = (formData) => {
+    const { phone, name } = formData;
     
     // Basic phone validation
     const cleanPhone = phone.trim().replace(/\D/g, '');
@@ -295,7 +372,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     
     setCustomerInfo(customerData);
     setShowRegistration(false);
-    setRegistrationForm({ phone: '', name: '' });
     
     console.log('✅ Customer registered:', customerData);
     
@@ -303,7 +379,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     loadCustomerOrders(selectedTable, cleanPhone);
   };
 
-  // Clear customer info (logout) - FIXED
+  // Clear customer info
   const handleClearCustomer = () => {
     console.log('🔄 Clearing customer info...');
     setCustomerInfo(null);
@@ -313,7 +389,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     console.log('✅ Customer info cleared');
   };
 
-  // Add to cart function
+  // Add to cart
   const addToCart = (item) => {
     if (!customerInfo) {
       setShowRegistration(true);
@@ -364,7 +440,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // Place order function - FIXED to include customer info
+  // Place order - FIXED: Ensure customer info is sent
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -387,6 +463,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     console.log('👤 Customer info:', customerInfo);
 
     try {
+      // Prepare order data with customer info
       const orderData = {
         items: cart.map(item => ({
           menuItemId: item.id,
@@ -403,12 +480,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
       console.log('📤 Sending order data to backend:', orderData);
 
-      // Call onCreateOrder with customer info - THIS IS THE KEY FIX
+      // Call onCreateOrder with ALL customer info
       const result = await onCreateOrder(
         selectedTable, 
         orderData.items, 
         'dine-in', 
-        { customerPhone: customerInfo.phone, customerName: customerInfo.name }
+        { 
+          customerPhone: customerInfo.phone, 
+          customerName: customerInfo.name 
+        }
       );
       
       if (result && result.success !== false) {
@@ -433,14 +513,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // Get status display with colors and icons
+  // Get status display
   const getStatusDisplay = (status) => {
     const statusConfig = {
       'pending': { label: 'Pending', color: '#f59e0b', icon: '⏳', bgColor: '#fffbeb' },
       'preparing': { label: 'Preparing', color: '#3b82f6', icon: '👨‍🍳', bgColor: '#eff6ff' },
       'ready': { label: 'Ready', color: '#10b981', icon: '✅', bgColor: '#ecfdf5' },
-      'completed': { label: 'Completed', color: '#6b7280', icon: '📦', bgColor: '#f9fafb' },
-      'served': { label: 'Served', color: '#6b7280', icon: '🍽️', bgColor: '#f9fafb' }
+      'completed': { label: 'Completed', color: '#6b7280', icon: '📦', bgColor: '#f9fafb' }
     };
     
     const config = statusConfig[status] || { label: status, color: '#6b7280', icon: '❓', bgColor: '#f9fafb' };
@@ -459,7 +538,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Format order items for display
+  // Format order items
   const formatOrderItems = (items) => {
     if (!items || items.length === 0) return 'No items';
     
@@ -476,7 +555,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // Get active orders (pending, preparing, ready)
+  // Get active orders
   const getActiveOrders = () => {
     return tableOrders.filter(order => 
       order && ['pending', 'preparing', 'ready'].includes(order.status)
@@ -490,7 +569,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Debug Info Component
+  // Debug Info
   const DebugInfo = () => {
     if (!isCustomerView) return null;
     
@@ -508,93 +587,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
- // Customer Registration Form - FIXED KEYBOARD ISSUE
-const RegistrationForm = () => {
-  if (!showRegistration) return null;
-
-  const handlePhoneChange = (e) => {
-    setRegistrationForm({...registrationForm, phone: e.target.value});
-  };
-
-  const handleNameChange = (e) => {
-    setRegistrationForm({...registrationForm, name: e.target.value});
-  };
-
-  const handleFormSubmit = (e) => {
-    e.preventDefault(); // Prevent form submission from refreshing
-    handleRegistration();
-  };
-
-  return (
-    <div className="registration-overlay">
-      <div className="registration-form">
-        <form onSubmit={handleFormSubmit}>
-          <div className="registration-header">
-            <h2>Welcome to Table {selectedTable}! 🎉</h2>
-            <p>Enter your details to track your order</p>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="phone-input">📱 Phone Number *</label>
-            <input
-              id="phone-input"
-              type="tel"
-              inputMode="numeric"
-              placeholder="e.g., 0123456789"
-              value={registrationForm.phone}
-              onChange={handlePhoneChange}
-              className="form-input"
-              autoFocus
-            />
-            <small>Required to track your order status</small>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="name-input">👤 Your Name (Optional)</label>
-            <input
-              id="name-input"
-              type="text"
-              placeholder="e.g., John"
-              value={registrationForm.name}
-              onChange={handleNameChange}
-              className="form-input"
-            />
-            <small>So we can personalize your experience</small>
-          </div>
-          
-          <div className="registration-actions">
-            <button 
-              type="submit"
-              className="register-btn"
-              disabled={!registrationForm.phone.trim()}
-            >
-              Start Ordering ✅
-            </button>
-            <button 
-              type="button"
-              onClick={() => setShowRegistration(false)}
-              className="skip-btn"
-            >
-              Maybe Later
-            </button>
-          </div>
-        </form>
-        
-        <div className="registration-benefits">
-          <h4>Why register? 🤔</h4>
-          <ul>
-            <li>📱 <strong>Track your order</strong> in real-time</li>
-            <li>🔔 <strong>Get notifications</strong> when order is ready</li>
-            <li>👤 <strong>Personalized service</strong> from our staff</li>
-            <li>📊 <strong>See only your orders</strong> - no confusion with others</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-  // Orders History Section - CUSTOMER SPECIFIC
+  // Orders History Section
   const OrdersHistorySection = () => {
     if (!selectedTable || !customerInfo) return null;
 
@@ -653,7 +646,6 @@ const RegistrationForm = () => {
           </div>
         ) : (
           <>
-            {/* Active Orders */}
             {activeOrders.length > 0 && (
               <div className="orders-active">
                 <h4>🟡 Active Orders ({activeOrders.length})</h4>
@@ -672,7 +664,7 @@ const RegistrationForm = () => {
                           Ordered: {new Date(order.createdAt || order.timestamp).toLocaleTimeString()}
                         </span>
                         {order.status === 'pending' && (
-                          <span className="order-note">Order received, waiting for kitchen confirmation</span>
+                          <span className="order-note">Order received, waiting for kitchen</span>
                         )}
                         {order.status === 'preparing' && (
                           <span className="order-note">👨‍🍳 Kitchen is preparing your order</span>
@@ -687,7 +679,6 @@ const RegistrationForm = () => {
               </div>
             )}
             
-            {/* Completed Orders */}
             {completedOrders.length > 0 && (
               <div className="orders-completed">
                 <h4>✅ Order History ({completedOrders.length})</h4>
@@ -703,7 +694,7 @@ const RegistrationForm = () => {
                       </div>
                       <div className="order-meta">
                         <span className="order-time">
-                          {order.status === 'completed' ? 'Completed' : 'Served'}: {new Date(order.updatedAt || order.createdAt || order.timestamp).toLocaleTimeString()}
+                          Completed: {new Date(order.updatedAt || order.createdAt || order.timestamp).toLocaleTimeString()}
                         </span>
                         <span className="order-note">
                           Total: RM {(order.total || order.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0) || 0).toFixed(2)}
@@ -715,10 +706,9 @@ const RegistrationForm = () => {
               </div>
             )}
             
-            {/* Refresh reminder */}
             <div className="refresh-orders">
               <small style={{ color: '#666', display: 'block', marginBottom: '0.5rem' }}>
-                💡 Orders update automatically. Last refresh: {new Date().toLocaleTimeString()}
+                💡 Orders update automatically
               </small>
               <button 
                 onClick={() => loadCustomerOrders(selectedTable, customerInfo.phone)}
@@ -804,8 +794,14 @@ const RegistrationForm = () => {
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
-        {/* Registration Form Overlay */}
-        <RegistrationForm />
+        {/* Separate Registration Form Component */}
+        {showRegistration && (
+          <RegistrationForm
+            selectedTable={selectedTable}
+            onRegister={handleRegistrationSubmit}
+            onClose={() => setShowRegistration(false)}
+          />
+        )}
 
         {/* Header */}
         <header className="simple-header">
@@ -828,21 +824,18 @@ const RegistrationForm = () => {
           </div>
         </header>
 
-        {/* Show warning if no table detected */}
         {!selectedTable && (
           <div className="warning-banner">
             <p>📱 Please scan your table's QR code to start ordering</p>
           </div>
         )}
 
-        {/* Welcome back banner if returning customer */}
         {selectedTable && customerInfo && tableOrders.length > 0 && (
           <div className="welcome-back-banner">
             <p>Welcome back, {customerInfo.name}! 🎉</p>
           </div>
         )}
 
-        {/* Orders History Section */}
         {selectedTable && customerInfo && <OrdersHistorySection />}
 
         {/* Search */}
