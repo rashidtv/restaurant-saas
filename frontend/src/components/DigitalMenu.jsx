@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
 const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView = false }) => {
@@ -9,63 +9,119 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [tableOrders, setTableOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [debugInfo, setDebugInfo] = useState('');
-  const [ws, setWs] = useState(null);
-  const [lastOrderUpdate, setLastOrderUpdate] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+  const [customerInfo, setCustomerInfo] = useState(null);
+  const [showRegistration, setShowRegistration] = useState(false);
+  const [registrationForm, setRegistrationForm] = useState({ phone: '', name: '' });
+  
+  const wsRef = useRef(null);
+  const orderRefreshRef = useRef(null);
 
-  // WebSocket connection for real-time updates
+  // Load customer info from localStorage on component mount
   useEffect(() => {
-    if (isCustomerView && selectedTable) {
-      console.log('🔌 DigitalMenu: Setting up WebSocket for real-time updates');
-      
-      const websocket = new WebSocket('wss://restaurant-saas-backend-hbdz.onrender.com');
-      
-      websocket.onopen = () => {
-        console.log('✅ DigitalMenu: WebSocket connected');
-        setWs(websocket);
-      };
-      
-      websocket.onmessage = (event) => {
+    if (isCustomerView) {
+      const savedCustomer = localStorage.getItem('restaurantCustomer');
+      if (savedCustomer) {
         try {
-          const data = JSON.parse(event.data);
-          console.log('📦 DigitalMenu: WebSocket message received:', data);
-          
-          if (data.type === 'orderUpdate' || data.type === 'newOrder') {
-            console.log('🔄 DigitalMenu: Order update received via WebSocket');
-            setLastOrderUpdate(Date.now());
-            // Reload orders to get latest status
-            loadTableOrders(selectedTable);
-          }
-          
-          if (data.type === 'tableUpdate') {
-            console.log('🔄 DigitalMenu: Table update received via WebSocket');
-            setLastOrderUpdate(Date.now());
-          }
+          const customerData = JSON.parse(savedCustomer);
+          setCustomerInfo(customerData);
+          console.log('✅ Loaded saved customer:', customerData);
         } catch (error) {
-          console.error('❌ DigitalMenu: WebSocket message parsing error:', error);
+          console.error('❌ Error loading customer data:', error);
+        }
+      }
+    }
+  }, [isCustomerView]);
+
+  // Save customer info to localStorage when it changes
+  useEffect(() => {
+    if (customerInfo && isCustomerView) {
+      localStorage.setItem('restaurantCustomer', JSON.stringify(customerInfo));
+      console.log('💾 Saved customer info:', customerInfo);
+    }
+  }, [customerInfo, isCustomerView]);
+
+  // WebSocket for real-time order updates
+  useEffect(() => {
+    if (isCustomerView && selectedTable && customerInfo) {
+      console.log('🔌 DigitalMenu: Setting up WebSocket for customer:', customerInfo.phone);
+      
+      // Clear any existing interval
+      if (orderRefreshRef.current) {
+        clearInterval(orderRefreshRef.current);
+      }
+      
+      // Set up WebSocket connection
+      const setupWebSocket = () => {
+        try {
+          const websocket = new WebSocket('wss://restaurant-saas-backend-hbdz.onrender.com');
+          
+          websocket.onopen = () => {
+            console.log('✅ DigitalMenu: WebSocket connected for customer:', customerInfo.phone);
+            wsRef.current = websocket;
+          };
+          
+          websocket.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              console.log('📦 DigitalMenu: WebSocket message:', data);
+              
+              // Handle different message types
+              if (data.type === 'orderUpdate' || data.type === 'newOrder' || data.type === 'statusUpdate') {
+                console.log('🔄 DigitalMenu: Order update received, reloading orders...');
+                setLastUpdate(Date.now());
+                loadCustomerOrders(selectedTable, customerInfo.phone);
+              }
+              
+            } catch (error) {
+              console.error('❌ DigitalMenu: WebSocket message error:', error);
+            }
+          };
+          
+          websocket.onerror = (error) => {
+            console.error('❌ DigitalMenu: WebSocket error:', error);
+          };
+          
+          websocket.onclose = (event) => {
+            console.log('🔌 DigitalMenu: WebSocket disconnected');
+            wsRef.current = null;
+            
+            // Attempt reconnect after delay
+            setTimeout(() => {
+              if (isCustomerView && selectedTable && customerInfo) {
+                console.log('🔄 DigitalMenu: Attempting WebSocket reconnection...');
+                setupWebSocket();
+              }
+            }, 3000);
+          };
+          
+        } catch (error) {
+          console.error('❌ DigitalMenu: WebSocket setup failed:', error);
         }
       };
       
-      websocket.onerror = (error) => {
-        console.error('❌ DigitalMenu: WebSocket error:', error);
-      };
+      setupWebSocket();
       
-      websocket.onclose = () => {
-        console.log('🔌 DigitalMenu: WebSocket disconnected');
-        // Attempt reconnect after 5 seconds
-        setTimeout(() => {
-          if (isCustomerView && selectedTable) {
-            console.log('🔄 DigitalMenu: Attempting WebSocket reconnection...');
-            setWs(null);
-          }
-        }, 5000);
-      };
+      // Set up periodic refresh as backup
+      orderRefreshRef.current = setInterval(() => {
+        console.log('🔄 DigitalMenu: Periodic order refresh for customer:', customerInfo.phone);
+        loadCustomerOrders(selectedTable, customerInfo.phone);
+      }, 8000);
+      
+      // Load initial orders
+      loadCustomerOrders(selectedTable, customerInfo.phone);
       
       return () => {
-        console.log('🔌 DigitalMenu: Cleaning up WebSocket');
-        websocket.close();
+        console.log('🔌 DigitalMenu: Cleaning up WebSocket and intervals');
+        if (wsRef.current) {
+          wsRef.current.close();
+        }
+        if (orderRefreshRef.current) {
+          clearInterval(orderRefreshRef.current);
+        }
       };
     }
-  }, [isCustomerView, selectedTable]);
+  }, [isCustomerView, selectedTable, customerInfo]);
 
   // Table detection from URL
   useEffect(() => {
@@ -74,128 +130,115 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       
       let detectedTable = null;
       
-      // Check URL hash for menu view with table parameter
-      if (window.location.hash.includes('/menu')) {
-        const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
-        detectedTable = hashParams.get('table');
+      // Check hash route (/#/menu?table=T01)
+      if (window.location.hash) {
+        const hashPath = window.location.hash.substring(1);
+        if (hashPath.includes('/menu')) {
+          const hashParams = new URLSearchParams(hashPath.split('?')[1]);
+          detectedTable = hashParams.get('table');
+        }
       }
       
-      // Also check regular query parameters as fallback
+      // Check regular query params as fallback
       if (!detectedTable) {
         const urlParams = new URLSearchParams(window.location.search);
         detectedTable = urlParams.get('table');
       }
-      
-      // Check hash directly as last resort
-      if (!detectedTable && window.location.hash) {
-        const hashContent = window.location.hash.replace('#/', '');
-        if (hashContent.includes('table=')) {
-          const hashMatch = hashContent.match(/table=([^&]+)/);
-          detectedTable = hashMatch ? hashMatch[1] : null;
-        }
-      }
 
       if (detectedTable) {
-        detectedTable = detectedTable.toString().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        if (/^\d+$/.test(detectedTable)) {
+        // Clean and format table number
+        detectedTable = detectedTable.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        
+        if (/^T\d+$/.test(detectedTable)) {
+          // Already in correct format
+        } else if (/^\d+$/.test(detectedTable)) {
           detectedTable = 'T' + detectedTable.padStart(2, '0');
+        } else {
+          detectedTable = 'T' + detectedTable.replace(/[^0-9]/g, '').padStart(2, '0');
         }
         
         console.log('✅ DigitalMenu: Table detected:', detectedTable);
         setSelectedTable(detectedTable);
-        loadTableOrders(detectedTable);
+        
+        // Show registration if no customer info
+        if (isCustomerView && !customerInfo) {
+          setShowRegistration(true);
+        }
         
       } else {
         console.log('❌ DigitalMenu: No table detected in URL');
         setSelectedTable('');
         setTableOrders([]);
-        setDebugInfo('No table detected in URL. Please scan QR code again.');
+        setDebugInfo('No table detected. Please scan QR code again.');
       }
     };
 
     if (isCustomerView) {
       detectTableFromURL();
-      window.addEventListener('hashchange', detectTableFromURL);
-      return () => window.removeEventListener('hashchange', detectTableFromURL);
-    }
-  }, [isCustomerView]);
-
-  // Auto-refresh orders periodically and on WebSocket updates
-  useEffect(() => {
-    if (isCustomerView && selectedTable) {
-      const interval = setInterval(() => {
-        console.log('🔄 DigitalMenu: Auto-refreshing orders...');
-        loadTableOrders(selectedTable);
-      }, 10000); // Refresh every 10 seconds
       
-      return () => clearInterval(interval);
+      const handleHashChange = () => {
+        console.log('🔗 DigitalMenu: Hash changed, detecting table...');
+        detectTableFromURL();
+      };
+      
+      window.addEventListener('hashchange', handleHashChange);
+      return () => window.removeEventListener('hashchange', handleHashChange);
     }
-  }, [isCustomerView, selectedTable]);
+  }, [isCustomerView, customerInfo]);
 
-  // Load orders from backend for this specific table
-  const loadTableOrders = async (tableNumber) => {
-    if (!tableNumber) return;
+  // Load orders for specific customer at table
+  const loadCustomerOrders = async (tableNumber, customerPhone) => {
+    if (!tableNumber || !customerPhone) {
+      console.log('❌ DigitalMenu: Missing table or customer phone');
+      return;
+    }
     
     try {
       setIsLoading(true);
-      setDebugInfo(`Loading orders for table: ${tableNumber}`);
-      console.log('📦 DigitalMenu: Loading orders for table:', tableNumber);
+      const debugMsg = `Loading orders for ${customerInfo?.name || 'customer'} (${customerPhone}) at table ${tableNumber}`;
+      setDebugInfo(debugMsg);
+      console.log('📦 DigitalMenu:', debugMsg);
       
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders');
       
       if (response.ok) {
         const allOrders = await response.json();
-        console.log('📊 DigitalMenu: ALL ORDERS FROM BACKEND:', allOrders);
+        console.log('📊 DigitalMenu: Received', allOrders.length, 'total orders from backend');
         
-        // Debug: Log each order's table and status
-        allOrders.forEach((order, index) => {
-          console.log(`📝 Order ${index}:`, {
-            id: order._id,
-            orderNumber: order.orderNumber,
-            tableId: order.tableId,
-            table: order.table,
-            status: order.status,
-            items: order.items?.length || 0,
-            createdAt: order.createdAt
-          });
-        });
-        
-        // Filter for this table - check both tableId and table fields
+        // Filter orders for this specific customer at this table
         const filteredOrders = allOrders.filter(order => {
-          if (!order.tableId && !order.table) {
-            console.log('❌ Order has no table info:', order._id);
-            return false;
-          }
+          if (!order) return false;
           
-          const orderTable = (order.tableId || order.table || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+          // Check table match
+          const orderTableId = (order.tableId || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const orderTable = (order.table || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
           const targetTable = tableNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
-          const tableMatches = orderTable === targetTable;
           
-          console.log(`🔍 Checking order ${order._id}:`, {
-            orderTable,
-            targetTable,
-            tableMatches,
-            status: order.status
-          });
+          const tableMatches = orderTableId === targetTable || orderTable === targetTable;
           
-          return tableMatches;
+          // Check customer phone match
+          const orderCustomerPhone = (order.customerPhone || '').toString().trim();
+          const phoneMatches = orderCustomerPhone === customerPhone;
+          
+          return tableMatches && phoneMatches;
         });
         
-        console.log('🎯 DigitalMenu: FILTERED ORDERS for table', tableNumber, ':', filteredOrders);
+        console.log('🎯 DigitalMenu: Found', filteredOrders.length, 'orders for customer', customerPhone, 'at table', tableNumber);
         
         // Sort by creation date (newest first)
-        const sortedOrders = filteredOrders.sort((a, b) => 
-          new Date(b.createdAt || b.timestamp || 0) - new Date(a.createdAt || a.timestamp || 0)
-        );
+        const sortedOrders = filteredOrders.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.updatedAt || a.timestamp || 0);
+          const dateB = new Date(b.createdAt || b.updatedAt || b.timestamp || 0);
+          return dateB - dateA;
+        });
         
-        console.log('📦 DigitalMenu: FINAL ORDERS TO DISPLAY:', sortedOrders);
         setTableOrders(sortedOrders);
-        setDebugInfo(`Found ${sortedOrders.length} orders for table ${tableNumber}. Last update: ${new Date().toLocaleTimeString()}`);
+        setDebugInfo(`Found ${sortedOrders.length} orders for ${customerInfo?.name || 'you'}. Last update: ${new Date().toLocaleTimeString()}`);
         
       } else {
-        console.error('❌ DigitalMenu: Failed to fetch orders');
+        console.error('❌ DigitalMenu: Failed to fetch orders, status:', response.status);
         setTableOrders([]);
-        setDebugInfo('Failed to fetch orders from backend');
+        setDebugInfo(`Failed to load orders: ${response.status}`);
       }
     } catch (error) {
       console.error('❌ DigitalMenu: Error loading orders:', error);
@@ -206,8 +249,55 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
+  // Handle customer registration
+  const handleRegistration = () => {
+    const { phone, name } = registrationForm;
+    
+    if (!phone.trim()) {
+      alert('Please enter your phone number to track your order.');
+      return;
+    }
+    
+    // Basic phone validation
+    const cleanPhone = phone.trim().replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      alert('Please enter a valid phone number.');
+      return;
+    }
+    
+    const customerData = {
+      phone: cleanPhone,
+      name: name.trim() || 'Guest',
+      table: selectedTable,
+      registeredAt: new Date().toISOString()
+    };
+    
+    setCustomerInfo(customerData);
+    setShowRegistration(false);
+    setRegistrationForm({ phone: '', name: '' });
+    
+    console.log('✅ Customer registered:', customerData);
+    
+    // Load orders for this customer
+    loadCustomerOrders(selectedTable, cleanPhone);
+  };
+
+  // Clear customer info (logout)
+  const handleClearCustomer = () => {
+    setCustomerInfo(null);
+    setTableOrders([]);
+    localStorage.removeItem('restaurantCustomer');
+    setShowRegistration(true);
+    console.log('✅ Customer info cleared');
+  };
+
   // Add to cart function
   const addToCart = (item) => {
+    if (!customerInfo) {
+      setShowRegistration(true);
+      return;
+    }
+    
     console.log('➕ Adding to cart:', item.name);
     
     const cartItem = {
@@ -252,7 +342,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // Place order function
+  // Place order function - ENHANCED with customer info
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -260,32 +350,46 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
 
     if (!selectedTable) {
-      alert('Table number not detected. Please scan the QR code again.\n\nIf this continues, please contact staff for assistance.');
+      alert('Table number not detected. Please scan the QR code again.');
       return;
     }
 
-    console.log('🛒 DigitalMenu: Placing order for table:', selectedTable);
+    if (!customerInfo) {
+      alert('Please register with your phone number to place an order.');
+      setShowRegistration(true);
+      return;
+    }
+
+    console.log('🛒 DigitalMenu: Placing order for:', customerInfo.name, 'at table:', selectedTable);
 
     try {
-      const orderData = cart.map(item => ({
-        menuItemId: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        category: item.category
-      }));
+      const orderData = {
+        items: cart.map(item => ({
+          menuItemId: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          category: item.category
+        })),
+        customerPhone: customerInfo.phone,
+        customerName: customerInfo.name,
+        tableId: selectedTable,
+        type: 'dine-in'
+      };
 
-      const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
+      const result = await onCreateOrder(selectedTable, orderData.items, 'dine-in', customerInfo);
       
-      if (result && result.success) {
+      if (result && result.success !== false) {
         setCart([]);
         setCartOpen(false);
-        alert(`Order placed successfully for Table ${selectedTable}! Order number: ${result.orderNumber || 'N/A'}`);
+        
+        const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
+        alert(`Order placed successfully, ${customerInfo.name}! Order number: ${orderNumber}\n\nYou can track your order status by scanning the QR code again.`);
         
         // Reload orders to show the new order immediately
         setTimeout(() => {
-          loadTableOrders(selectedTable);
-        }, 1000);
+          loadCustomerOrders(selectedTable, customerInfo.phone);
+        }, 1500);
         
       } else {
         throw new Error(result?.message || 'Failed to place order');
@@ -293,7 +397,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       
     } catch (error) {
       console.error('❌ DigitalMenu: Order failed:', error);
-      alert('Failed to place order: ' + (error.message || 'Unknown error'));
+      alert('Failed to place order: ' + (error.message || 'Unknown error. Please try again.'));
     }
   };
 
@@ -327,9 +431,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const formatOrderItems = (items) => {
     if (!items || items.length === 0) return 'No items';
     
-    const itemList = items.map(item => `${item.name} x${item.quantity}`);
+    const itemList = items.map(item => {
+      const itemName = item.name || 'Unknown Item';
+      const quantity = item.quantity || 1;
+      return `${itemName} x${quantity}`;
+    });
     
-    // Show first 3 items, then "and X more..." if there are more
     if (itemList.length <= 3) {
       return itemList.join(', ');
     } else {
@@ -340,14 +447,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   // Get active orders (pending, preparing, ready)
   const getActiveOrders = () => {
     return tableOrders.filter(order => 
-      ['pending', 'preparing', 'ready'].includes(order.status)
+      order && ['pending', 'preparing', 'ready'].includes(order.status)
     );
   };
 
   // Get completed orders
   const getCompletedOrders = () => {
     return tableOrders.filter(order => 
-      ['completed', 'served'].includes(order.status)
+      order && ['completed', 'served'].includes(order.status)
     );
   };
 
@@ -355,41 +462,125 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const DebugInfo = () => {
     if (!isCustomerView) return null;
     
+    const activeOrders = getActiveOrders();
+    const completedOrders = getCompletedOrders();
+    
     return (
       <div className="debug-info">
-        <strong>Debug Info:</strong> {debugInfo || 'No debug info available'}
-        <br />
-        <strong>Table:</strong> {selectedTable || 'None'} | 
-        <strong> Active Orders:</strong> {getActiveOrders().length} | 
-        <strong> Completed:</strong> {getCompletedOrders().length} |
-        <strong> WS:</strong> {ws ? '✅' : '❌'} |
-        <strong> Loading:</strong> {isLoading ? 'Yes' : 'No'}
+        <strong>Customer:</strong> {customerInfo?.name || 'Not registered'} | 
+        <strong> Phone:</strong> {customerInfo?.phone ? `${customerInfo.phone.substring(0, 4)}***` : 'None'} | 
+        <strong> Table:</strong> {selectedTable || 'None'} | 
+        <strong> Orders:</strong> {activeOrders.length} active, {completedOrders.length} completed
       </div>
     );
   };
 
-  // Orders History Section - Enhanced with real-time updates
+  // Customer Registration Form
+  const RegistrationForm = () => {
+    if (!showRegistration) return null;
+
+    return (
+      <div className="registration-overlay">
+        <div className="registration-form">
+          <div className="registration-header">
+            <h2>Welcome to Table {selectedTable}! 🎉</h2>
+            <p>Enter your details to track your order</p>
+          </div>
+          
+          <div className="form-group">
+            <label>📱 Phone Number *</label>
+            <input
+              type="tel"
+              placeholder="e.g., 0123456789"
+              value={registrationForm.phone}
+              onChange={(e) => setRegistrationForm({...registrationForm, phone: e.target.value})}
+              className="form-input"
+            />
+            <small>Required to track your order status</small>
+          </div>
+          
+          <div className="form-group">
+            <label>👤 Your Name (Optional)</label>
+            <input
+              type="text"
+              placeholder="e.g., John"
+              value={registrationForm.name}
+              onChange={(e) => setRegistrationForm({...registrationForm, name: e.target.value})}
+              className="form-input"
+            />
+            <small>So we can personalize your experience</small>
+          </div>
+          
+          <div className="registration-actions">
+            <button 
+              onClick={handleRegistration}
+              className="register-btn"
+              disabled={!registrationForm.phone.trim()}
+            >
+              Start Ordering ✅
+            </button>
+            <button 
+              onClick={() => setShowRegistration(false)}
+              className="skip-btn"
+            >
+              Maybe Later
+            </button>
+          </div>
+          
+          <div className="registration-benefits">
+            <h4>Why register? 🤔</h4>
+            <ul>
+              <li>📱 <strong>Track your order</strong> in real-time</li>
+              <li>🔔 <strong>Get notifications</strong> when order is ready</li>
+              <li>👤 <strong>Personalized service</strong> from our staff</li>
+              <li>📊 <strong>See only your orders</strong> - no confusion with others</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Orders History Section - CUSTOMER SPECIFIC
   const OrdersHistorySection = () => {
-    if (!selectedTable) return null;
+    if (!selectedTable || !customerInfo) return null;
 
     const activeOrders = getActiveOrders();
     const completedOrders = getCompletedOrders();
+    const allOrders = [...activeOrders, ...completedOrders];
 
     return (
       <div className="orders-history-section">
         <div className="orders-header">
-          <h3>📋 Your Orders - Table {selectedTable}</h3>
+          <div>
+            <h3>📋 Your Orders - Table {selectedTable}</h3>
+            <p className="customer-greeting">Hello, {customerInfo.name}! 👋</p>
+          </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', color: '#666' }}>
-              {ws ? '🟢 Live' : '🔴 Offline'}
+            <span style={{ 
+              fontSize: '0.7rem', 
+              color: wsRef.current ? '#10b981' : '#dc2626',
+              background: wsRef.current ? '#ecfdf5' : '#fef2f2',
+              padding: '0.25rem 0.5rem',
+              borderRadius: '4px',
+              border: `1px solid ${wsRef.current ? '#a7f3d0' : '#fecaca'}`
+            }}>
+              {wsRef.current ? '🟢 LIVE' : '🔴 OFFLINE'}
             </span>
             <button 
-              onClick={() => loadTableOrders(selectedTable)}
+              onClick={() => loadCustomerOrders(selectedTable, customerInfo.phone)}
               disabled={isLoading}
               className="refresh-orders-btn"
               title="Refresh orders"
             >
               {isLoading ? '🔄' : '🔄'}
+            </button>
+            <button 
+              onClick={handleClearCustomer}
+              className="logout-btn"
+              title="Switch customer"
+            >
+              🔄
             </button>
           </div>
         </div>
@@ -400,19 +591,19 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <div className="orders-loading">
             <p>Loading your orders...</p>
           </div>
-        ) : tableOrders.length === 0 ? (
+        ) : allOrders.length === 0 ? (
           <div className="no-orders">
-            <p>No orders found for this table</p>
-            <small>Orders will appear here once placed</small>
+            <p>No orders found for {customerInfo.name}</p>
+            <small>Your orders will appear here once placed</small>
             <br />
-            <small className="debug-hint">Status updates automatically every 10 seconds</small>
+            <small className="debug-hint">You will only see YOUR orders, not others at this table</small>
           </div>
         ) : (
           <>
             {/* Active Orders */}
             {activeOrders.length > 0 && (
               <div className="orders-active">
-                <h4>🟡 Active Orders</h4>
+                <h4>🟡 Active Orders ({activeOrders.length})</h4>
                 <div className="orders-list">
                   {activeOrders.map((order, index) => (
                     <div key={order._id || index} className={`order-card ${order.status}`}>
@@ -428,13 +619,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                           Ordered: {new Date(order.createdAt || order.timestamp).toLocaleTimeString()}
                         </span>
                         {order.status === 'pending' && (
-                          <span className="order-note">Order received, waiting for kitchen</span>
+                          <span className="order-note">Order received, waiting for kitchen confirmation</span>
                         )}
                         {order.status === 'preparing' && (
-                          <span className="order-note">Kitchen is preparing your order 👨‍🍳</span>
+                          <span className="order-note">👨‍🍳 Kitchen is preparing your order</span>
                         )}
                         {order.status === 'ready' && (
-                          <span className="order-note ready">Your order is ready for serving! 🎉</span>
+                          <span className="order-note ready">🎉 Your order is ready for serving!</span>
                         )}
                       </div>
                     </div>
@@ -446,7 +637,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             {/* Completed Orders */}
             {completedOrders.length > 0 && (
               <div className="orders-completed">
-                <h4>✅ Order History</h4>
+                <h4>✅ Order History ({completedOrders.length})</h4>
                 <div className="orders-list">
                   {completedOrders.map((order, index) => (
                     <div key={order._id || index} className={`order-card ${order.status}`}>
@@ -462,7 +653,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                           {order.status === 'completed' ? 'Completed' : 'Served'}: {new Date(order.updatedAt || order.createdAt || order.timestamp).toLocaleTimeString()}
                         </span>
                         <span className="order-note">
-                          Total: RM {(order.total || order.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0).toFixed(2)}
+                          Total: RM {(order.total || order.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0) || 0).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -477,7 +668,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 💡 Orders update automatically. Last refresh: {new Date().toLocaleTimeString()}
               </small>
               <button 
-                onClick={() => loadTableOrders(selectedTable)}
+                onClick={() => loadCustomerOrders(selectedTable, customerInfo.phone)}
                 disabled={isLoading}
                 className="refresh-btn"
               >
@@ -504,6 +695,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       );
     }
     
+    if (!customerInfo) {
+      return (
+        <div className="table-warning">
+          <div className="warning-icon">📱</div>
+          <div className="warning-text">
+            <strong>Table {selectedTable}</strong>
+            <small>Register to start ordering</small>
+          </div>
+        </div>
+      );
+    }
+    
     const activeOrders = getActiveOrders();
     const activeOrderCount = activeOrders.length;
     
@@ -513,7 +716,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <div className="success-text">
           <strong>Table {selectedTable}</strong>
           <small>
-            {isLoading ? 'Checking orders...' : 
+            {customerInfo.name} • {isLoading ? 'Checking...' : 
              activeOrderCount > 0 ? `${activeOrderCount} active order(s)` : 'Ready to order'
             }
           </small>
@@ -522,7 +725,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Simple menu data fallback
+  // Menu data
   const displayMenu = menu && menu.length > 0 ? menu : [
     { id: '1', name: 'Teh Tarik', price: 4.50, category: 'drinks', description: 'Famous Malaysian pulled tea' },
     { id: '2', name: 'Nasi Lemak', price: 12.90, category: 'main', description: 'Coconut rice with sambal' },
@@ -530,17 +733,17 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     { id: '4', name: 'Cendol', price: 6.90, category: 'desserts', description: 'Shaved ice dessert' }
   ];
 
-  // Simple categories
+  // Categories
   const categories = ['all', ...new Set(displayMenu.map(item => item.category))];
   
-  // Simple filtered items
+  // Filtered items
   const filteredItems = displayMenu.filter(item => {
     const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
-  // Simple totals
+  // Cart totals
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -548,6 +751,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
+        {/* Registration Form Overlay */}
+        <RegistrationForm />
+
         {/* Header */}
         <header className="simple-header">
           <h1>FlavorFlow</h1>
@@ -555,8 +761,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <TableStatus />
             <button 
               className="cart-button"
-              onClick={() => setCartOpen(true)}
-              disabled={!selectedTable}
+              onClick={() => {
+                if (!customerInfo) {
+                  setShowRegistration(true);
+                  return;
+                }
+                setCartOpen(true);
+              }}
+              disabled={!selectedTable || !customerInfo}
             >
               Cart ({itemCount})
             </button>
@@ -571,14 +783,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         )}
 
         {/* Welcome back banner if returning customer */}
-        {selectedTable && tableOrders.length > 0 && (
+        {selectedTable && customerInfo && tableOrders.length > 0 && (
           <div className="welcome-back-banner">
-            <p>Welcome back to Table {selectedTable}! 🎉</p>
+            <p>Welcome back, {customerInfo.name}! 🎉</p>
           </div>
         )}
 
         {/* Orders History Section */}
-        {selectedTable && <OrdersHistorySection />}
+        {selectedTable && customerInfo && <OrdersHistorySection />}
 
         {/* Search */}
         <div className="simple-search">
@@ -588,7 +800,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
-            disabled={!selectedTable}
+            disabled={!selectedTable || !customerInfo}
           />
         </div>
 
@@ -599,7 +811,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               key={category}
               className={`category-btn ${activeCategory === category ? 'active' : ''}`}
               onClick={() => setActiveCategory(category)}
-              disabled={!selectedTable}
+              disabled={!selectedTable || !customerInfo}
             >
               {category.charAt(0).toUpperCase() + category.slice(1)}
             </button>
@@ -614,6 +826,20 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 <div className="message-icon">📱</div>
                 <h3>Scan QR Code to Order</h3>
                 <p>Please scan your table's QR code to view the menu and place orders</p>
+              </div>
+            </div>
+          ) : !customerInfo ? (
+            <div className="disabled-overlay">
+              <div className="disabled-message">
+                <div className="message-icon">👤</div>
+                <h3>Register to Order</h3>
+                <p>Please register with your phone number to start ordering</p>
+                <button 
+                  onClick={() => setShowRegistration(true)}
+                  className="register-prompt-btn"
+                >
+                  Register Now
+                </button>
               </div>
             </div>
           ) : filteredItems.length === 0 ? (
@@ -647,6 +873,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 <h2>Your Order - Table {selectedTable}</h2>
                 <button onClick={() => setCartOpen(false)}>Close</button>
               </div>
+              
+              {customerInfo && (
+                <div className="customer-info-banner">
+                  Ordering as: <strong>{customerInfo.name}</strong> ({customerInfo.phone})
+                </div>
+              )}
               
               {cart.length === 0 ? (
                 <p>Your cart is empty</p>
@@ -686,7 +918,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                     className="place-order-btn"
                     onClick={handlePlaceOrder}
                   >
-                    Place Order for Table {selectedTable}
+                    Place Order for {customerInfo?.name || 'You'}
                   </button>
                 </>
               )}
@@ -695,7 +927,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         )}
 
         {/* Mobile Cart Button */}
-        {isMobile && cart.length > 0 && !cartOpen && selectedTable && (
+        {isMobile && cart.length > 0 && !cartOpen && selectedTable && customerInfo && (
           <button 
             className="mobile-cart-btn"
             onClick={() => setCartOpen(true)}
@@ -707,7 +939,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   }
 
-  // ADMIN VIEW
+  // ADMIN VIEW (unchanged)
   return (
     <div className="simple-admin-view">
       <h2>Menu Management - Staff View</h2>
