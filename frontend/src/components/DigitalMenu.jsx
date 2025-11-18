@@ -1,22 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
-// Add this temporary debug function to DigitalMenu.js
-const debugCustomerFlow = () => {
-  console.log('🔍 CUSTOMER FLOW DEBUG:');
-  console.log('1. Customer Info:', customerInfo);
-  console.log('2. Selected Table:', selectedTable);
-  console.log('3. Table Orders:', tableOrders);
-  console.log('4. LocalStorage:', localStorage.getItem('restaurantCustomer'));
-  console.log('5. Cart:', cart);
-};
 
-// Call this in useEffect after customerInfo changes
 useEffect(() => {
   if (customerInfo) {
-    debugCustomerFlow();
+    console.log('🔍 CUSTOMER FLOW DEBUG:');
+    console.log('1. Customer Info:', customerInfo);
+    console.log('2. Selected Table:', selectedTable);
+    console.log('3. Table Orders:', tableOrders);
+    console.log('4. LocalStorage:', localStorage.getItem('restaurantCustomer'));
+    console.log('5. Cart:', cart);
   }
-}, [customerInfo, tableOrders]);
+}, [customerInfo, tableOrders, selectedTable, cart]);
 
 // Separate Registration Form Component to prevent re-renders
 const RegistrationForm = ({ 
