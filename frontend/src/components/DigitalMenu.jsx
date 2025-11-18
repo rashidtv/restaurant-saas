@@ -9,14 +9,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [previousOrders, setPreviousOrders] = useState([]);
   const [showWelcome, setShowWelcome] = useState(false);
 
-  // SIMPLE TABLE DETECTION - ORIGINAL WORKING VERSION
+  // NEW APPROACH: URL Parameter based detection
   useEffect(() => {
-    const detectTableFromURL = () => {
-      console.log('🔄 DigitalMenu: Detecting table from URL...');
+    const detectTableAndRescan = () => {
+      console.log('🔄 DigitalMenu: Detecting table and rescan status...');
       
       let detectedTable = null;
       const urlParams = new URLSearchParams(window.location.search);
       detectedTable = urlParams.get('table');
+      
+      // Check for rescan parameter
+      const isRescan = urlParams.get('rescan') === 'true';
+      console.log('📱 Rescan detected:', isRescan);
 
       if (!detectedTable && window.location.hash) {
         const hashContent = window.location.hash.replace('#', '');
@@ -34,27 +38,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           detectedTable = 'T' + detectedTable;
         }
         
-        console.log('✅ DigitalMenu: Final table detected:', detectedTable);
-        
-        // NEW APPROACH: Check if this is a return visit using sessionStorage
-        const lastTable = sessionStorage.getItem('lastTable');
-        const hasOrders = checkIfTableHasOrders(detectedTable);
-        
-        console.log('📊 Session check - Last table:', lastTable, 'Current table:', detectedTable, 'Has orders:', hasOrders);
-        
-        // Show welcome if returning to same table with orders
-        if (lastTable === detectedTable && hasOrders) {
-          console.log('🎉 Showing welcome message for return visit');
-          setShowWelcome(true);
-        } else {
-          setShowWelcome(false);
-        }
-        
-        // Store current table in session
-        sessionStorage.setItem('lastTable', detectedTable);
+        console.log('✅ DigitalMenu: Final table detected:', detectedTable, 'Rescan:', isRescan);
         
         setSelectedTable(detectedTable);
-        loadPreviousOrders(detectedTable);
+        
+        // Load orders and check if we should show welcome
+        loadPreviousOrders(detectedTable, isRescan);
         
       } else {
         console.log('❌ DigitalMenu: No table detected in URL');
@@ -64,24 +53,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     };
 
     if (isCustomerView) {
-      detectTableFromURL();
-      window.addEventListener('hashchange', detectTableFromURL);
-      return () => window.removeEventListener('hashchange', detectTableFromURL);
+      detectTableAndRescan();
+      window.addEventListener('hashchange', detectTableAndRescan);
+      return () => window.removeEventListener('hashchange', detectTableAndRescan);
     }
   }, [isCustomerView]);
 
-  // NEW: Simple check if table has orders
-  const checkIfTableHasOrders = (tableNumber) => {
-    try {
-      const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
-      return !!(storedOrders && JSON.parse(storedOrders).length > 0);
-    } catch (error) {
-      return false;
-    }
-  };
-
   // SIMPLE ORDER LOADING
-  const loadPreviousOrders = (tableNumber) => {
+  const loadPreviousOrders = (tableNumber, isRescan = false) => {
     try {
       console.log('📦 DigitalMenu: Loading orders for table:', tableNumber);
       const storedOrders = localStorage.getItem(`flavorflow_orders_${tableNumber}`);
@@ -90,13 +69,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         const orders = JSON.parse(storedOrders);
         console.log('📦 DigitalMenu: Loaded', orders.length, 'previous orders');
         setPreviousOrders(orders);
+        
+        // Show welcome only if this is a rescan AND we have orders
+        if (isRescan && orders.length > 0) {
+          console.log('🎉 Showing welcome message for rescan');
+          setShowWelcome(true);
+        } else {
+          setShowWelcome(false);
+        }
       } else {
         console.log('📦 DigitalMenu: No previous orders found');
         setPreviousOrders([]);
+        setShowWelcome(false);
       }
     } catch (error) {
       console.error('❌ DigitalMenu: Error loading previous orders:', error);
       setPreviousOrders([]);
+      setShowWelcome(false);
     }
   };
 
@@ -123,6 +112,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     } catch (error) {
       console.error('❌ DigitalMenu: Error saving order history:', error);
     }
+  };
+
+  // NEW: Function to generate QR code with rescan parameter
+  const generateRescanQR = () => {
+    if (!selectedTable) return '';
+    
+    // Add rescan=true parameter to indicate this is a rescan
+    const baseUrl = window.location.origin + window.location.pathname;
+    const qrUrl = `${baseUrl}#/menu?table=${selectedTable}&rescan=true`;
+    
+    console.log('🔗 Generated rescan QR URL:', qrUrl);
+    return qrUrl;
   };
 
   // ORIGINAL: Working add to cart
@@ -345,7 +346,28 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // SIMPLE CUSTOMER VIEW - CLEAN VERSION
+  // NEW: Debug component to show current state
+  const DebugInfo = () => {
+    if (!isCustomerView) return null;
+    
+    return (
+      <div style={{ 
+        background: '#f8f9fa', 
+        padding: '10px', 
+        margin: '10px', 
+        borderRadius: '5px', 
+        fontSize: '12px',
+        border: '1px solid #dee2e6'
+      }}>
+        <strong>Debug Info:</strong> Table: {selectedTable || 'None'}, 
+        Orders: {previousOrders.length}, 
+        Welcome: {showWelcome ? 'Yes' : 'No'},
+        Rescan: {new URLSearchParams(window.location.search).get('rescan') === 'true' ? 'Yes' : 'No'}
+      </div>
+    );
+  };
+
+  // SIMPLE CUSTOMER VIEW
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
@@ -364,6 +386,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         </header>
 
+        {/* Debug info - remove in production */}
+        <DebugInfo />
+
         {/* Show warning if no table detected */}
         {!selectedTable && (
           <div className="warning-banner">
@@ -371,7 +396,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         )}
 
-        {/* NEW: Simple welcome message - only shows on return visits */}
+        {/* NEW: Welcome message only shows on rescan with orders */}
         {showWelcome && (
           <div className="welcome-back-banner">
             <p>🎉 Welcome back to Table {selectedTable}! You have {previousOrders.length} previous order(s).</p>
