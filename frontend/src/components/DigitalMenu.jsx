@@ -17,27 +17,36 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const wsRef = useRef(null);
   const orderRefreshRef = useRef(null);
 
-  // Load customer info from localStorage on component mount
+  // Load customer info from localStorage - FIXED
   useEffect(() => {
     if (isCustomerView) {
+      console.log('🔍 Checking for saved customer data...');
       const savedCustomer = localStorage.getItem('restaurantCustomer');
+      console.log('📦 Saved customer data:', savedCustomer);
+      
       if (savedCustomer) {
         try {
           const customerData = JSON.parse(savedCustomer);
           setCustomerInfo(customerData);
           console.log('✅ Loaded saved customer:', customerData);
+          
+          // If we have a table detected, load orders immediately
+          if (selectedTable) {
+            loadCustomerOrders(selectedTable, customerData.phone);
+          }
         } catch (error) {
           console.error('❌ Error loading customer data:', error);
+          localStorage.removeItem('restaurantCustomer'); // Clear corrupted data
         }
       }
     }
   }, [isCustomerView]);
 
-  // Save customer info to localStorage when it changes
+  // Save customer info to localStorage when it changes - FIXED
   useEffect(() => {
     if (customerInfo && isCustomerView) {
+      console.log('💾 Saving customer info:', customerInfo);
       localStorage.setItem('restaurantCustomer', JSON.stringify(customerInfo));
-      console.log('💾 Saved customer info:', customerInfo);
     }
   }, [customerInfo, isCustomerView]);
 
@@ -123,7 +132,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, selectedTable, customerInfo]);
 
-  // Table detection from URL
+  // Table detection from URL - IMPROVED
   useEffect(() => {
     const detectTableFromURL = () => {
       console.log('🔄 DigitalMenu: Detecting table from URL...');
@@ -162,7 +171,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         
         // Show registration if no customer info
         if (isCustomerView && !customerInfo) {
+          console.log('👤 No customer info, showing registration form');
           setShowRegistration(true);
+        } else if (isCustomerView && customerInfo) {
+          console.log('👤 Customer found, loading their orders:', customerInfo.phone);
+          // Load orders for existing customer
+          loadCustomerOrders(detectedTable, customerInfo.phone);
         }
         
       } else {
@@ -186,10 +200,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, customerInfo]);
 
-  // Load orders for specific customer at table
+  // Load orders for specific customer at table - IMPROVED
   const loadCustomerOrders = async (tableNumber, customerPhone) => {
     if (!tableNumber || !customerPhone) {
       console.log('❌ DigitalMenu: Missing table or customer phone');
+      setDebugInfo('Missing table or customer information');
       return;
     }
     
@@ -204,6 +219,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       if (response.ok) {
         const allOrders = await response.json();
         console.log('📊 DigitalMenu: Received', allOrders.length, 'total orders from backend');
+        
+        // Debug: Log all orders to see what's available
+        console.log('🔍 All orders for debugging:', allOrders);
         
         // Filter orders for this specific customer at this table
         const filteredOrders = allOrders.filter(order => {
@@ -220,10 +238,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           const orderCustomerPhone = (order.customerPhone || '').toString().trim();
           const phoneMatches = orderCustomerPhone === customerPhone;
           
+          console.log(`🔍 Order ${order.orderNumber}: tableMatches=${tableMatches}, phoneMatches=${phoneMatches}, customerPhone=${orderCustomerPhone}`);
+          
           return tableMatches && phoneMatches;
         });
         
         console.log('🎯 DigitalMenu: Found', filteredOrders.length, 'orders for customer', customerPhone, 'at table', tableNumber);
+        console.log('📝 Filtered orders:', filteredOrders);
         
         // Sort by creation date (newest first)
         const sortedOrders = filteredOrders.sort((a, b) => {
@@ -249,7 +270,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // Handle customer registration
+  // Handle customer registration - FIXED
   const handleRegistration = () => {
     const { phone, name } = registrationForm;
     
@@ -261,7 +282,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     // Basic phone validation
     const cleanPhone = phone.trim().replace(/\D/g, '');
     if (cleanPhone.length < 10) {
-      alert('Please enter a valid phone number.');
+      alert('Please enter a valid phone number (at least 10 digits).');
       return;
     }
     
@@ -282,8 +303,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     loadCustomerOrders(selectedTable, cleanPhone);
   };
 
-  // Clear customer info (logout)
+  // Clear customer info (logout) - FIXED
   const handleClearCustomer = () => {
+    console.log('🔄 Clearing customer info...');
     setCustomerInfo(null);
     setTableOrders([]);
     localStorage.removeItem('restaurantCustomer');
@@ -342,7 +364,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // Place order function - ENHANCED with customer info
+  // Place order function - FIXED to include customer info
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -361,6 +383,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
 
     console.log('🛒 DigitalMenu: Placing order for:', customerInfo.name, 'at table:', selectedTable);
+    console.log('📦 Order items:', cart);
+    console.log('👤 Customer info:', customerInfo);
 
     try {
       const orderData = {
@@ -377,7 +401,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         type: 'dine-in'
       };
 
-      const result = await onCreateOrder(selectedTable, orderData.items, 'dine-in', customerInfo);
+      console.log('📤 Sending order data to backend:', orderData);
+
+      // Call onCreateOrder with customer info - THIS IS THE KEY FIX
+      const result = await onCreateOrder(
+        selectedTable, 
+        orderData.items, 
+        'dine-in', 
+        { customerPhone: customerInfo.phone, customerName: customerInfo.name }
+      );
       
       if (result && result.success !== false) {
         setCart([]);
@@ -389,7 +421,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         // Reload orders to show the new order immediately
         setTimeout(() => {
           loadCustomerOrders(selectedTable, customerInfo.phone);
-        }, 1500);
+        }, 2000);
         
       } else {
         throw new Error(result?.message || 'Failed to place order');
@@ -468,9 +500,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     return (
       <div className="debug-info">
         <strong>Customer:</strong> {customerInfo?.name || 'Not registered'} | 
-        <strong> Phone:</strong> {customerInfo?.phone ? `${customerInfo.phone.substring(0, 4)}***` : 'None'} | 
+        <strong> Phone:</strong> {customerInfo?.phone || 'None'} | 
         <strong> Table:</strong> {selectedTable || 'None'} | 
-        <strong> Orders:</strong> {activeOrders.length} active, {completedOrders.length} completed
+        <strong> Orders:</strong> {activeOrders.length} active, {completedOrders.length} completed |
+        <strong> Last Update:</strong> {new Date().toLocaleTimeString()}
       </div>
     );
   };
