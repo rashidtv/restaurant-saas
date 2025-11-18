@@ -8,6 +8,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [cartOpen, setCartOpen] = useState(false);
   const [tableOrders, setTableOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
 
   // Table detection
   useEffect(() => {
@@ -42,6 +43,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         console.log('❌ DigitalMenu: No table detected');
         setSelectedTable('');
         setTableOrders([]);
+        setDebugInfo('No table detected in URL');
       }
     };
 
@@ -58,46 +60,67 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     
     try {
       setIsLoading(true);
+      setDebugInfo(`Loading orders for table: ${tableNumber}`);
       console.log('📦 DigitalMenu: Loading orders for table:', tableNumber);
       
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders');
       
       if (response.ok) {
         const allOrders = await response.json();
-        console.log('📊 DigitalMenu: All orders from backend:', allOrders.length);
+        console.log('📊 DigitalMenu: ALL ORDERS FROM BACKEND:', allOrders);
         
-        // Filter for this table and active statuses only
+        // Debug: Log each order's table and status
+        allOrders.forEach((order, index) => {
+          console.log(`📝 Order ${index}:`, {
+            id: order._id,
+            orderNumber: order.orderNumber,
+            table: order.table,
+            status: order.status,
+            items: order.items?.length || 0
+          });
+        });
+        
+        // Filter for this table
         const filteredOrders = allOrders.filter(order => {
-          if (!order.table) return false;
+          if (!order.table) {
+            console.log('❌ Order has no table:', order._id);
+            return false;
+          }
           
-          // Match table (case insensitive, clean formatting)
           const orderTable = order.table.toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
           const targetTable = tableNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
           const tableMatches = orderTable === targetTable;
           
-          // Only show pending, preparing, ready statuses
-          const isActiveStatus = order.status === 'pending' || 
-                                order.status === 'preparing' || 
-                                order.status === 'ready';
+          console.log(`🔍 Checking order ${order._id}:`, {
+            orderTable,
+            targetTable,
+            tableMatches,
+            status: order.status
+          });
           
-          return tableMatches && isActiveStatus;
+          return tableMatches;
         });
+        
+        console.log('🎯 DigitalMenu: FILTERED ORDERS for table', tableNumber, ':', filteredOrders);
         
         // Sort by creation date (newest first)
         const sortedOrders = filteredOrders.sort((a, b) => 
           new Date(b.createdAt || b.timestamp) - new Date(a.createdAt || a.timestamp)
         );
         
-        console.log('🎯 DigitalMenu: Active orders for table', tableNumber, ':', sortedOrders.length);
+        console.log('📦 DigitalMenu: FINAL ORDERS TO DISPLAY:', sortedOrders);
         setTableOrders(sortedOrders);
+        setDebugInfo(`Found ${sortedOrders.length} orders for table ${tableNumber}`);
         
       } else {
         console.error('❌ DigitalMenu: Failed to fetch orders');
         setTableOrders([]);
+        setDebugInfo('Failed to fetch orders from backend');
       }
     } catch (error) {
       console.error('❌ DigitalMenu: Error loading orders:', error);
       setTableOrders([]);
+      setDebugInfo(`Error: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -181,7 +204,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       // Reload orders to show the new order
       setTimeout(() => {
         loadTableOrders(selectedTable);
-      }, 1000);
+      }, 2000);
       
     } catch (error) {
       console.error('❌ DigitalMenu: Order failed:', error);
@@ -194,7 +217,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const statusConfig = {
       'pending': { label: 'Pending', color: '#f59e0b', icon: '⏳', bgColor: '#fffbeb' },
       'preparing': { label: 'Preparing', color: '#3b82f6', icon: '👨‍🍳', bgColor: '#eff6ff' },
-      'ready': { label: 'Ready', color: '#10b981', icon: '✅', bgColor: '#ecfdf5' }
+      'ready': { label: 'Ready', color: '#10b981', icon: '✅', bgColor: '#ecfdf5' },
+      'completed': { label: 'Completed', color: '#6b7280', icon: '📦', bgColor: '#f9fafb' }
     };
     
     const config = statusConfig[status] || { label: status, color: '#6b7280', icon: '❓', bgColor: '#f9fafb' };
@@ -220,6 +244,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     return items.map(item => `${item.name} x${item.quantity}`).join(', ');
   };
 
+  // Debug Info Component
+  const DebugInfo = () => {
+    if (!isCustomerView) return null;
+    
+    return (
+      <div className="debug-info">
+        <strong>Debug Info:</strong> {debugInfo || 'No debug info available'}
+        <br />
+        <strong>Table:</strong> {selectedTable || 'None'} | 
+        <strong> Orders:</strong> {tableOrders.length} | 
+        <strong> Loading:</strong> {isLoading ? 'Yes' : 'No'}
+      </div>
+    );
+  };
+
   // Orders History Section
   const OrdersHistorySection = () => {
     if (!selectedTable) return null;
@@ -237,14 +276,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </button>
         </div>
         
+        <DebugInfo />
+        
         {isLoading ? (
           <div className="orders-loading">
             <p>Loading your orders...</p>
           </div>
         ) : tableOrders.length === 0 ? (
           <div className="no-orders">
-            <p>No active orders</p>
-            <small>Your orders will appear here once placed</small>
+            <p>No orders found for this table</p>
+            <small>Orders will appear here once placed</small>
+            <br />
+            <small className="debug-hint">Check browser console for detailed debug info</small>
           </div>
         ) : (
           <div className="orders-list">
@@ -266,6 +309,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   )}
                   {order.status === 'ready' && (
                     <span className="order-note ready">Your order is ready! 🎉</span>
+                  )}
+                  {order.status === 'completed' && (
+                    <span className="order-note">Order completed</span>
                   )}
                 </div>
               </div>
@@ -299,7 +345,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <strong>Table {selectedTable}</strong>
           <small>
             {isLoading ? 'Checking orders...' : 
-             activeOrderCount > 0 ? `${activeOrderCount} active order(s)` : 'Ready to order'
+             activeOrderCount > 0 ? `${activeOrderCount} order(s)` : 'Ready to order'
             }
           </small>
         </div>
