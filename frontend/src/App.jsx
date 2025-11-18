@@ -488,30 +488,94 @@ function App() {
       return fallbackOrder;
     }
   };
+// In App.jsx - UPDATE the handleCustomerOrder function
+const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in', customerInfo = null) => {
+  console.log('🔵 handleCustomerOrder called for table:', tableNumber, 'Customer:', customerInfo);
+  
+  if (!tableNumber) {
+    throw new Error('Table number is required');
+  }
 
-  const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-    console.log('🔵 handleCustomerOrder called for table:', tableNumber);
+  if (!orderItems || orderItems.length === 0) {
+    throw new Error('Please add items to your order');
+  }
+
+  let newOrder;
+  
+  if (apiConnected) {
+    const orderData = {
+      tableId: tableNumber,
+      items: orderItems.map(item => ({
+        menuItemId: item._id || item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        specialInstructions: item.specialInstructions || ''
+      })),
+      orderType: orderType,
+      // 🎯 CRITICAL: Include customer info
+      ...(customerInfo && {
+        customerPhone: customerInfo.customerPhone,
+        customerName: customerInfo.customerName
+      })
+    };
     
-    if (!tableNumber) {
-      throw new Error('Table number is required');
+    console.log('📤 Sending order with customer info:', orderData);
+    
+    try {
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customer/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      newOrder = await response.json();
+      console.log('✅ Customer order created:', newOrder);
+      
+    } catch (error) {
+      console.error('❌ Customer order API failed:', error);
+      throw error;
     }
+  } else {
+    // Fallback for offline mode
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+    newOrder = {
+      id: orderNumber,
+      _id: orderNumber,
+      orderNumber: orderNumber,
+      table: tableNumber,
+      tableId: tableNumber,
+      items: orderItems,
+      orderType: orderType,
+      status: 'pending',
+      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+      createdAt: new Date(),
+      // Include customer info in fallback too
+      ...(customerInfo && {
+        customerPhone: customerInfo.customerPhone,
+        customerName: customerInfo.customerName
+      })
+    };
 
-    if (!orderItems || orderItems.length === 0) {
-      throw new Error('Please add items to your order');
-    }
+    setOrders(prev => [newOrder, ...prev]);
+  }
 
-    const newOrder = await createNewOrder(tableNumber, orderItems, orderType);
-    
-    setNotifications(prev => [{
-      id: Date.now(),
-      message: `New customer QR order from Table ${tableNumber}`,
-      type: 'order',
-      time: 'Just now',
-      read: false
-    }, ...prev]);
-    
-    return newOrder;
-  };
+  setNotifications(prev => [{
+    id: Date.now(),
+    message: `New customer QR order from Table ${tableNumber}`,
+    type: 'order',
+    time: 'Just now',
+    read: false
+  }, ...prev]);
+  
+  return newOrder;
+};
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {

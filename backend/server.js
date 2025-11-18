@@ -430,12 +430,12 @@ app.put('/api/orders/:id/items', (req, res) => {
   }
 });
 
-// Customer orders endpoint for QR codes
+// In server.js - UPDATE the customer orders endpoint
 app.post('/api/customer/orders', (req, res) => {
   try {
-    const { items, orderType = 'dine-in', tableNumber } = req.body;
+    const { items, orderType = 'dine-in', tableNumber, customerPhone, customerName } = req.body;
     
-    console.log('📱 QR Order received for table:', tableNumber);
+    console.log('📱 QR Order received for table:', tableNumber, 'Customer:', customerPhone, customerName);
     
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'No items in order' });
@@ -481,7 +481,9 @@ app.post('/api/customer/orders', (req, res) => {
       total,
       status: 'pending',
       paymentStatus: 'pending',
-      customerName: 'QR Customer',
+      // 🎯 CRITICAL: Save customer info
+      customerPhone: customerPhone || 'Not provided',
+      customerName: customerName || 'QR Customer',
       orderType: orderType,
       orderedAt: new Date(),
       completedAt: null
@@ -489,7 +491,7 @@ app.post('/api/customer/orders', (req, res) => {
 
     orders.push(order);
     
-    console.log(`📱 QR Order created: ${order.orderNumber} for Table ${tableNumber}`);
+    console.log(`📱 QR Order created: ${order.orderNumber} for Table ${tableNumber}, Customer: ${customerName} (${customerPhone})`);
     
     // Update table if available
     const tableIndex = tables.findIndex(t => t.number === tableNumber);
@@ -501,7 +503,7 @@ app.post('/api/customer/orders', (req, res) => {
       io.emit('tableUpdated', tables[tableIndex]);
     }
     
-    // Emit new order
+    // Emit new order with customer info
     io.emit('newOrder', order);
     
     res.json({

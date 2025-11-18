@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
+// Add this temporary debug function to DigitalMenu.js
+const debugCustomerFlow = () => {
+  console.log('🔍 CUSTOMER FLOW DEBUG:');
+  console.log('1. Customer Info:', customerInfo);
+  console.log('2. Selected Table:', selectedTable);
+  console.log('3. Table Orders:', tableOrders);
+  console.log('4. LocalStorage:', localStorage.getItem('restaurantCustomer'));
+  console.log('5. Cart:', cart);
+};
+
+// Call this in useEffect after customerInfo changes
+useEffect(() => {
+  if (customerInfo) {
+    debugCustomerFlow();
+  }
+}, [customerInfo, tableOrders]);
+
 // Separate Registration Form Component to prevent re-renders
 const RegistrationForm = ({ 
   selectedTable, 
@@ -440,78 +457,75 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // Place order - FIXED: Ensure customer info is sent
-  const handlePlaceOrder = async () => {
-    if (cart.length === 0) {
-      alert('Your cart is empty. Please add some items first.');
-      return;
-    }
+// In DigitalMenu.js - UPDATE the handlePlaceOrder function
+const handlePlaceOrder = async () => {
+  if (cart.length === 0) {
+    alert('Your cart is empty. Please add some items first.');
+    return;
+  }
 
-    if (!selectedTable) {
-      alert('Table number not detected. Please scan the QR code again.');
-      return;
-    }
+  if (!selectedTable) {
+    alert('Table number not detected. Please scan the QR code again.');
+    return;
+  }
 
-    if (!customerInfo) {
-      alert('Please register with your phone number to place an order.');
-      setShowRegistration(true);
-      return;
-    }
+  if (!customerInfo) {
+    alert('Please register with your phone number to place an order.');
+    setShowRegistration(true);
+    return;
+  }
 
-    console.log('🛒 DigitalMenu: Placing order for:', customerInfo.name, 'at table:', selectedTable);
-    console.log('📦 Order items:', cart);
-    console.log('👤 Customer info:', customerInfo);
+  console.log('🛒 DigitalMenu: Placing order for:', customerInfo.name, 'at table:', selectedTable);
+  console.log('📦 Order items:', cart);
+  console.log('👤 Customer info:', customerInfo);
 
-    try {
-      // Prepare order data with customer info
-      const orderData = {
-        items: cart.map(item => ({
-          menuItemId: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          category: item.category
-        })),
-        customerPhone: customerInfo.phone,
-        customerName: customerInfo.name,
-        tableId: selectedTable,
-        type: 'dine-in'
-      };
+  try {
+    // Prepare order data with customer info
+    const orderData = cart.map(item => ({
+      menuItemId: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      category: item.category
+    }));
 
-      console.log('📤 Sending order data to backend:', orderData);
+    console.log('📤 Sending order data to backend with customer info:', {
+      customerPhone: customerInfo.phone,
+      customerName: customerInfo.name
+    });
 
-      // Call onCreateOrder with ALL customer info
-      const result = await onCreateOrder(
-        selectedTable, 
-        orderData.items, 
-        'dine-in', 
-        { 
-          customerPhone: customerInfo.phone, 
-          customerName: customerInfo.name 
-        }
-      );
-      
-      if (result && result.success !== false) {
-        setCart([]);
-        setCartOpen(false);
-        
-        const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
-        alert(`Order placed successfully, ${customerInfo.name}! Order number: ${orderNumber}\n\nYou can track your order status by scanning the QR code again.`);
-        
-        // Reload orders to show the new order immediately
-        setTimeout(() => {
-          loadCustomerOrders(selectedTable, customerInfo.phone);
-        }, 2000);
-        
-      } else {
-        throw new Error(result?.message || 'Failed to place order');
+    // 🎯 CRITICAL: Pass customer info as the 4th parameter
+    const result = await onCreateOrder(
+      selectedTable, 
+      orderData, 
+      'dine-in', 
+      { 
+        customerPhone: customerInfo.phone, 
+        customerName: customerInfo.name 
       }
+    );
+    
+    if (result && result.success !== false) {
+      setCart([]);
+      setCartOpen(false);
       
-    } catch (error) {
-      console.error('❌ DigitalMenu: Order failed:', error);
-      alert('Failed to place order: ' + (error.message || 'Unknown error. Please try again.'));
+      const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
+      alert(`Order placed successfully, ${customerInfo.name}! Order number: ${orderNumber}\n\nYou can track your order status by scanning the QR code again.`);
+      
+      // Reload orders to show the new order immediately
+      setTimeout(() => {
+        loadCustomerOrders(selectedTable, customerInfo.phone);
+      }, 2000);
+      
+    } else {
+      throw new Error(result?.message || 'Failed to place order');
     }
-  };
+    
+  } catch (error) {
+    console.error('❌ DigitalMenu: Order failed:', error);
+    alert('Failed to place order: ' + (error.message || 'Unknown error. Please try again.'));
+  }
+};
 
   // Get status display
   const getStatusDisplay = (status) => {
