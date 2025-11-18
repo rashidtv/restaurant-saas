@@ -488,101 +488,50 @@ function App() {
       return fallbackOrder;
     }
   };
-const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in', customerInfo = null) => {
-  console.log('🔵 handleCustomerOrder called for table:', tableNumber, 'Customer:', customerInfo);
+const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
+  console.log('🛒 Creating order for table:', tableNumber);
   
-  if (!tableNumber) {
-    throw new Error('Table number is required');
-  }
+  if (!tableNumber) throw new Error('Table number required');
+  if (!orderItems.length) throw new Error('No items in order');
 
-  if (!orderItems || orderItems.length === 0) {
-    throw new Error('Please add items to your order');
-  }
-
-  let newOrder;
-  
   if (apiConnected) {
-    // ✅ CORRECTED: Use the proper order structure that matches backend expectations
     const orderData = {
       tableId: tableNumber,
-      table: tableNumber, // Include both tableId and table for compatibility
       items: orderItems.map(item => ({
-        menuItemId: item.menuItemId || item._id || item.id,
+        menuItemId: item.menuItemId || item.id,
         name: item.name,
         quantity: parseInt(item.quantity),
-        price: parseFloat(item.price),
-        category: item.category,
-        specialInstructions: item.specialInstructions || ''
+        price: parseFloat(item.price)
       })),
       orderType: orderType,
-      status: 'pending', // Include initial status
-      // ✅ CORRECTED: Fix customer info structure
-      ...(customerInfo && {
-        customerPhone: customerInfo.customerPhone || customerInfo.phone,
-        customerName: customerInfo.customerName || customerInfo.name
-      })
+      status: 'pending'
     };
     
-    console.log('📤 Sending order with customer info:', orderData);
+    console.log('📤 Sending order:', orderData);
     
-    try {
-      // ✅ CORRECTED: Use the main orders endpoint, not customer/orders
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData)
-      });
-      
-      console.log('📡 API Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Order API Error:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-      }
-      
-      newOrder = await response.json();
-      console.log('✅ Customer order created successfully:', newOrder);
-      
-    } catch (error) {
-      console.error('❌ Customer order API failed:', error);
-      throw error;
-    }
+    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
+    
+    if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+    
+    return await response.json();
   } else {
-    // Fallback for offline mode
+    // Offline fallback
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-    newOrder = {
-      id: orderNumber,
-      _id: orderNumber,
-      orderNumber: orderNumber,
+    const newOrder = {
+      orderNumber,
       table: tableNumber,
-      tableId: tableNumber,
       items: orderItems,
-      orderType: orderType,
       status: 'pending',
-      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      createdAt: new Date(),
-      // Include customer info in fallback too
-      ...(customerInfo && {
-        customerPhone: customerInfo.customerPhone || customerInfo.phone,
-        customerName: customerInfo.customerName || customerInfo.name
-      })
+      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
     };
-
+    
     setOrders(prev => [newOrder, ...prev]);
+    return newOrder;
   }
-
-  setNotifications(prev => [{
-    id: Date.now(),
-    message: `New customer QR order from Table ${tableNumber}`,
-    type: 'order',
-    time: 'Just now',
-    read: false
-  }, ...prev]);
-  
-  return newOrder;
 };
 
   const updateOrderStatus = async (orderId, newStatus) => {
