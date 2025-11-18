@@ -1,6 +1,88 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
+// Simple Registration Form for Marketing Only
+const RegistrationForm = ({ 
+  selectedTable, 
+  onRegister, 
+  onClose 
+}) => {
+  const [formData, setFormData] = useState({ phone: '', name: '' });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (formData.phone.trim()) {
+      onRegister(formData);
+    }
+  };
+
+  return (
+    <div className="registration-overlay">
+      <div className="registration-form">
+        <form onSubmit={handleSubmit}>
+          <div className="registration-header">
+            <h2>Welcome to Table {selectedTable}! 🎉</h2>
+            <p>Enter your details for special offers</p>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="phone-input">📱 Phone Number *</label>
+            <input
+              type="tel"
+              inputMode="numeric"
+              placeholder="e.g., 0123456789"
+              value={formData.phone}
+              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              className="form-input"
+              required
+            />
+            <small>For promotions and special offers only</small>
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="name-input">👤 Your Name (Optional)</label>
+            <input
+              type="text"
+              placeholder="e.g., John"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              className="form-input"
+            />
+            <small>So we can personalize your experience</small>
+          </div>
+          
+          <div className="registration-actions">
+            <button 
+              type="submit"
+              className="register-btn"
+              disabled={!formData.phone.trim()}
+            >
+              Start Ordering ✅
+            </button>
+            <button 
+              type="button"
+              onClick={onClose}
+              className="skip-btn"
+            >
+              Maybe Later
+            </button>
+          </div>
+        </form>
+        
+        <div className="registration-benefits">
+          <h4>Why share your number? 🤔</h4>
+          <ul>
+            <li>🎁 <strong>Exclusive offers</strong> and discounts</li>
+            <li>📱 <strong>Loyalty rewards</strong> program</li>
+            <li>✨ <strong>Special promotions</strong> just for you</li>
+            <li>📧 <strong>Personalized service</strong> on future visits</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnected, currentTable, isCustomerView = false }) => {
   const [selectedTable, setSelectedTable] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -8,10 +90,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const [cartOpen, setCartOpen] = useState(false);
   const [tableOrders, setTableOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState(null);
+  const [showRegistration, setShowRegistration] = useState(false);
   
   const orderRefreshRef = useRef(null);
 
-  // SIMPLE: Detect table from URL
+  // Detect table from URL
   useEffect(() => {
     if (isCustomerView) {
       const detectTable = () => {
@@ -37,6 +121,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           console.log('✅ Table detected:', detectedTable);
           setSelectedTable(detectedTable);
           loadTableOrders(detectedTable);
+          
+          // Show registration if no customer info
+          if (!customerInfo) {
+            setShowRegistration(true);
+          }
         } else {
           console.log('❌ No table detected in URL');
           setSelectedTable('');
@@ -52,7 +141,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       window.addEventListener('hashchange', handleHashChange);
       return () => window.removeEventListener('hashchange', handleHashChange);
     }
-  }, [isCustomerView]);
+  }, [isCustomerView, customerInfo]);
 
   // Auto-refresh orders every 10 seconds
   useEffect(() => {
@@ -69,37 +158,38 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, selectedTable]);
 
-  // SIMPLE: Load ALL orders for the table
+  // Load ONLY active orders for the table (pending, preparing, ready)
   const loadTableOrders = async (tableNumber) => {
     if (!tableNumber) return;
     
     try {
       setIsLoading(true);
-      console.log('📦 Loading orders for table:', tableNumber);
+      console.log('📦 Loading ACTIVE orders for table:', tableNumber);
       
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders');
       
       if (response.ok) {
         const allOrders = await response.json();
         
-        // SIMPLE: Filter by table only (no customer phone matching)
-        const filteredOrders = allOrders.filter(order => {
+        // Filter by table AND only active statuses
+        const activeOrders = allOrders.filter(order => {
           if (!order) return false;
           
           const orderTable = (order.tableId || order.table || '').toString().toUpperCase();
           const targetTable = tableNumber.toUpperCase();
+          const isActiveStatus = ['pending', 'preparing', 'ready'].includes(order.status);
           
-          return orderTable === targetTable;
+          return orderTable === targetTable && isActiveStatus;
         });
         
         // Sort by newest first
-        const sortedOrders = filteredOrders.sort((a, b) => {
+        const sortedOrders = activeOrders.sort((a, b) => {
           const dateA = new Date(a.createdAt || a.timestamp || 0);
           const dateB = new Date(b.createdAt || b.timestamp || 0);
           return dateB - dateA;
         });
         
-        console.log('🎯 Found', sortedOrders.length, 'orders for table', tableNumber);
+        console.log('🎯 Found', sortedOrders.length, 'ACTIVE orders for table', tableNumber);
         setTableOrders(sortedOrders);
       }
     } catch (error) {
@@ -109,8 +199,38 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
+  // Handle registration for marketing only
+  const handleRegistrationSubmit = (formData) => {
+    const { phone, name } = formData;
+    
+    // Basic phone validation
+    const cleanPhone = phone.trim().replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      alert('Please enter a valid phone number (at least 10 digits).');
+      return;
+    }
+    
+    const customerData = {
+      phone: cleanPhone,
+      name: name.trim() || 'Guest',
+      table: selectedTable,
+      registeredAt: new Date().toISOString()
+    };
+    
+    setCustomerInfo(customerData);
+    setShowRegistration(false);
+    
+    console.log('✅ Customer registered for marketing:', customerData);
+    // Here you can send this data to your marketing system
+  };
+
   // Add to cart
   const addToCart = (item) => {
+    if (!customerInfo) {
+      setShowRegistration(true);
+      return;
+    }
+    
     console.log('➕ Adding to cart:', item.name);
     
     const cartItem = {
@@ -156,7 +276,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // SIMPLE: Place order without customer registration
+  // Place order with customer info for marketing
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -165,6 +285,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
     if (!selectedTable) {
       alert('Table number not detected. Please scan the QR code again.');
+      return;
+    }
+
+    if (!customerInfo) {
+      alert('Please register with your phone number to place an order.');
+      setShowRegistration(true);
       return;
     }
 
@@ -179,9 +305,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
       console.log('🛒 Placing order for table:', selectedTable);
       console.log('📦 Order items:', orderData);
+      console.log('👤 Customer info (for marketing):', customerInfo);
       
-      // Just pass table and items, no customer info needed
-      const result = await onCreateOrder(selectedTable, orderData, 'dine-in');
+      // Pass customer info for marketing (4th parameter)
+      const result = await onCreateOrder(
+        selectedTable, 
+        orderData, 
+        'dine-in',
+        { 
+          customerPhone: customerInfo.phone, 
+          customerName: customerInfo.name 
+        }
+      );
       
       if (result && result.success !== false) {
         setCart([]);
@@ -193,7 +328,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         }, 1000);
         
         const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
-        alert(`Order placed successfully! Order number: ${orderNumber}\n\nYour food will be served soon.`);
+        alert(`Order placed successfully, ${customerInfo.name}! Order number: ${orderNumber}\n\nYour food will be served soon.`);
       } else {
         throw new Error(result?.message || 'Failed to place order');
       }
@@ -208,8 +343,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const statusConfig = {
       'pending': { label: 'Pending', color: '#f59e0b', icon: '⏳' },
       'preparing': { label: 'Preparing', color: '#3b82f6', icon: '👨‍🍳' },
-      'ready': { label: 'Ready', color: '#10b981', icon: '✅' },
-      'completed': { label: 'Completed', color: '#6b7280', icon: '📦' }
+      'ready': { label: 'Ready', color: '#10b981', icon: '✅' }
     };
     
     const config = statusConfig[status] || { label: status, color: '#6b7280', icon: '❓' };
@@ -228,11 +362,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Format order items
+  // Format order items properly
   const formatOrderItems = (items) => {
     if (!items || items.length === 0) return 'No items';
     
     const itemList = items.map(item => {
+      // Handle both item structures properly
       const itemName = item.name || 'Unknown Item';
       const quantity = item.quantity || 1;
       return `${itemName} x${quantity}`;
@@ -245,18 +380,18 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // Get active orders
-  const getActiveOrders = () => {
-    return tableOrders.filter(order => 
-      order && ['pending', 'preparing', 'ready'].includes(order.status)
-    );
-  };
-
-  // Get completed orders
-  const getCompletedOrders = () => {
-    return tableOrders.filter(order => 
-      order && ['completed', 'served'].includes(order.status)
-    );
+  // Format date properly
+  const formatOrderTime = (timestamp) => {
+    if (!timestamp) return 'Unknown time';
+    
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return 'Invalid time';
+      
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (error) {
+      return 'Invalid time';
+    }
   };
 
   // Table Status Component
@@ -273,8 +408,19 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       );
     }
     
-    const activeOrders = getActiveOrders();
-    const activeOrderCount = activeOrders.length;
+    if (!customerInfo) {
+      return (
+        <div className="table-warning">
+          <div className="warning-icon">📱</div>
+          <div className="warning-text">
+            <strong>Table {selectedTable}</strong>
+            <small>Register to start ordering</small>
+          </div>
+        </div>
+      );
+    }
+    
+    const activeOrderCount = tableOrders.length;
     
     return (
       <div className="table-success">
@@ -282,7 +428,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <div className="success-text">
           <strong>Table {selectedTable}</strong>
           <small>
-            {isLoading ? 'Checking orders...' : 
+            {customerInfo.name} • {isLoading ? 'Checking...' : 
              activeOrderCount > 0 ? `${activeOrderCount} active order(s)` : 'Ready to order'
             }
           </small>
@@ -291,18 +437,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Orders History Section
+  // Orders History Section - Only shows active orders
   const OrdersHistorySection = () => {
-    if (!selectedTable) return null;
-
-    const activeOrders = getActiveOrders();
-    const completedOrders = getCompletedOrders();
-    const allOrders = [...activeOrders, ...completedOrders];
+    if (!selectedTable || !customerInfo) return null;
 
     return (
       <div className="orders-history-section">
         <div className="orders-header">
-          <h3>📋 Orders - Table {selectedTable}</h3>
+          <h3>📋 Active Orders - Table {selectedTable}</h3>
           <button 
             onClick={() => loadTableOrders(selectedTable)}
             disabled={isLoading}
@@ -317,74 +459,41 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <div className="orders-loading">
             <p>Loading orders...</p>
           </div>
-        ) : allOrders.length === 0 ? (
+        ) : tableOrders.length === 0 ? (
           <div className="no-orders">
-            <p>No orders yet for this table</p>
-            <small>Orders will appear here once placed</small>
+            <p>No active orders for this table</p>
+            <small>Active orders will appear here</small>
           </div>
         ) : (
-          <>
-            {activeOrders.length > 0 && (
-              <div className="orders-active">
-                <h4>🟡 Active Orders ({activeOrders.length})</h4>
-                <div className="orders-list">
-                  {activeOrders.map((order, index) => (
-                    <div key={order._id || index} className={`order-card ${order.status}`}>
-                      <div className="order-header">
-                        <span className="order-number">Order #{order.orderNumber}</span>
-                        {getStatusDisplay(order.status)}
-                      </div>
-                      <div className="order-items">
-                        {formatOrderItems(order.items)}
-                      </div>
-                      <div className="order-meta">
-                        <span className="order-time">
-                          Ordered: {new Date(order.createdAt || order.timestamp).toLocaleTimeString()}
-                        </span>
-                        {order.status === 'pending' && (
-                          <span className="order-note">Order received, waiting for kitchen</span>
-                        )}
-                        {order.status === 'preparing' && (
-                          <span className="order-note">👨‍🍳 Kitchen is preparing your order</span>
-                        )}
-                        {order.status === 'ready' && (
-                          <span className="order-note ready">🎉 Your order is ready for serving!</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+          <div className="orders-active">
+            <div className="orders-list">
+              {tableOrders.map((order, index) => (
+                <div key={order._id || index} className={`order-card ${order.status}`}>
+                  <div className="order-header">
+                    <span className="order-number">Order #{order.orderNumber}</span>
+                    {getStatusDisplay(order.status)}
+                  </div>
+                  <div className="order-items">
+                    {formatOrderItems(order.items)}
+                  </div>
+                  <div className="order-meta">
+                    <span className="order-time">
+                      Ordered: {formatOrderTime(order.createdAt || order.timestamp)}
+                    </span>
+                    {order.status === 'pending' && (
+                      <span className="order-note">Order received, waiting for kitchen</span>
+                    )}
+                    {order.status === 'preparing' && (
+                      <span className="order-note">👨‍🍳 Kitchen is preparing your order</span>
+                    )}
+                    {order.status === 'ready' && (
+                      <span className="order-note ready">🎉 Your order is ready for serving!</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-            
-            {completedOrders.length > 0 && (
-              <div className="orders-completed">
-                <h4>✅ Order History ({completedOrders.length})</h4>
-                <div className="orders-list">
-                  {completedOrders.map((order, index) => (
-                    <div key={order._id || index} className={`order-card ${order.status}`}>
-                      <div className="order-header">
-                        <span className="order-number">Order #{order.orderNumber}</span>
-                        {getStatusDisplay(order.status)}
-                      </div>
-                      <div className="order-items">
-                        {formatOrderItems(order.items)}
-                      </div>
-                      <div className="order-meta">
-                        <span className="order-time">
-                          {order.status === 'completed' ? 'Completed: ' : 'Served: '}
-                          {new Date(order.updatedAt || order.createdAt || order.timestamp).toLocaleTimeString()}
-                        </span>
-                        <span className="order-note">
-                          Total: RM {(order.total || order.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0) || 0).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     );
@@ -416,6 +525,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   if (isCustomerView) {
     return (
       <div className="simple-customer-view">
+        {/* Registration Form for Marketing */}
+        {showRegistration && (
+          <RegistrationForm
+            selectedTable={selectedTable}
+            onRegister={handleRegistrationSubmit}
+            onClose={() => setShowRegistration(false)}
+          />
+        )}
+
         {/* Header */}
         <header className="simple-header">
           <h1>FlavorFlow</h1>
@@ -423,8 +541,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <TableStatus />
             <button 
               className="cart-button"
-              onClick={() => setCartOpen(true)}
-              disabled={!selectedTable}
+              onClick={() => {
+                if (!customerInfo) {
+                  setShowRegistration(true);
+                  return;
+                }
+                setCartOpen(true);
+              }}
+              disabled={!selectedTable || !customerInfo}
             >
               Cart ({itemCount})
             </button>
@@ -437,7 +561,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           </div>
         )}
 
-        {selectedTable && <OrdersHistorySection />}
+        {selectedTable && customerInfo && <OrdersHistorySection />}
 
         {/* Search */}
         <div className="simple-search">
@@ -447,7 +571,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
-            disabled={!selectedTable}
+            disabled={!selectedTable || !customerInfo}
           />
         </div>
 
@@ -458,7 +582,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               key={category}
               className={`category-btn ${activeCategory === category ? 'active' : ''}`}
               onClick={() => setActiveCategory(category)}
-              disabled={!selectedTable}
+              disabled={!selectedTable || !customerInfo}
             >
               {category.charAt(0).toUpperCase() + category.slice(1)}
             </button>
@@ -473,6 +597,20 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 <div className="message-icon">📱</div>
                 <h3>Scan QR Code to Order</h3>
                 <p>Please scan your table's QR code to view the menu and place orders</p>
+              </div>
+            </div>
+          ) : !customerInfo ? (
+            <div className="disabled-overlay">
+              <div className="disabled-message">
+                <div className="message-icon">👤</div>
+                <h3>Register to Order</h3>
+                <p>Please register with your phone number to start ordering</p>
+                <button 
+                  onClick={() => setShowRegistration(true)}
+                  className="register-prompt-btn"
+                >
+                  Register Now
+                </button>
               </div>
             </div>
           ) : filteredItems.length === 0 ? (
@@ -506,6 +644,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                 <h2>Your Order - Table {selectedTable}</h2>
                 <button onClick={() => setCartOpen(false)}>Close</button>
               </div>
+              
+              {customerInfo && (
+                <div className="customer-info-banner">
+                  Ordering as: <strong>{customerInfo.name}</strong>
+                </div>
+              )}
               
               {cart.length === 0 ? (
                 <p>Your cart is empty</p>
@@ -545,7 +689,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                     className="place-order-btn"
                     onClick={handlePlaceOrder}
                   >
-                    Place Order
+                    Place Order for {customerInfo?.name || 'You'}
                   </button>
                 </>
               )}
@@ -554,7 +698,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         )}
 
         {/* Mobile Cart Button */}
-        {isMobile && cart.length > 0 && !cartOpen && selectedTable && (
+        {isMobile && cart.length > 0 && !cartOpen && selectedTable && customerInfo && (
           <button 
             className="mobile-cart-btn"
             onClick={() => setCartOpen(true)}
