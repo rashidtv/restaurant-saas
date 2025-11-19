@@ -15,6 +15,15 @@ export const CONFIG = {
     WEEKEND_DAYS: [0, 6] // Sunday, Saturday
   },
   
+  // ADD THIS: Unified order status configuration
+  ORDER_STATUS: {
+    PENDING: 'pending',
+    PREPARING: 'preparing',
+    READY: 'ready', 
+    COMPLETED: 'completed',
+    CANCELLED: 'cancelled'
+  },
+  
   TIERS: {
     MEMBER: {
       name: 'Member',
@@ -43,7 +52,7 @@ export const CONFIG = {
   }
 };
 
-// 🆕 ADD THIS MISSING EXPORT
+// Keep existing exports for backward compatibility
 export const ORDER_STATUS_CONFIG = {
   pending: {
     label: 'Pending',
@@ -82,14 +91,12 @@ export const ORDER_STATUS_CONFIG = {
   }
 };
 
-// 🆕 ADD ORDER CONFIGURATION
 export const ORDER_CONFIG = {
   DEFAULT_PREP_TIME: 15, // minutes
   STATUS_FLOW: ['pending', 'preparing', 'ready', 'completed'],
   URGENT_THRESHOLD: 30 // minutes
 };
 
-// 🆕 ADD TABLE STATUS CONFIG
 export const TABLE_STATUS_CONFIG = {
   available: {
     label: 'Available',
