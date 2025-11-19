@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 import { pointsService } from '../../services/pointsService';
 import './styles.css';
@@ -12,11 +12,42 @@ export const MenuGrid = ({
   onSearchChange, 
   onCategoryChange 
 }) => {
+  const [itemQuantities, setItemQuantities] = useState({});
+
   const filteredItems = menuItems.filter(item => {
     const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  const handleQuantityChange = (itemId, change) => {
+    setItemQuantities(prev => {
+      const currentQty = prev[itemId] || 0;
+      const newQty = Math.max(0, currentQty + change);
+      
+      if (newQty === 0) {
+        const { [itemId]: removed, ...rest } = prev;
+        return rest;
+      }
+      
+      return { ...prev, [itemId]: newQty };
+    });
+  };
+
+  const handleAddToCartWithQuantity = (item) => {
+    const quantity = itemQuantities[item.id] || 1;
+    
+    // Add the item multiple times based on quantity
+    for (let i = 0; i < quantity; i++) {
+      onAddToCart(item);
+    }
+    
+    // Reset quantity after adding to cart
+    setItemQuantities(prev => {
+      const { [item.id]: removed, ...rest } = prev;
+      return rest;
+    });
+  };
 
   return (
     <div className="menu-section">
@@ -57,7 +88,9 @@ export const MenuGrid = ({
             <MenuItem 
               key={item.id} 
               item={item} 
-              onAddToCart={onAddToCart} 
+              quantity={itemQuantities[item.id] || 0}
+              onQuantityChange={handleQuantityChange}
+              onAddToCart={handleAddToCartWithQuantity}
             />
           ))
         )}
@@ -66,8 +99,17 @@ export const MenuGrid = ({
   );
 };
 
-const MenuItem = ({ item, onAddToCart }) => {
+const MenuItem = ({ item, quantity, onQuantityChange, onAddToCart }) => {
   const pointsEarned = pointsService.calculatePointsFromOrder(item.price);
+
+  const handleAddClick = () => {
+    if (quantity > 0) {
+      onAddToCart(item);
+    } else {
+      // If no quantity selected, add one directly
+      onAddToCart(item);
+    }
+  };
 
   return (
     <div className="menu-item-card">
@@ -80,13 +122,36 @@ const MenuItem = ({ item, onAddToCart }) => {
             <span className="item-points">+{pointsEarned} pts</span>
           </div>
         </div>
-        <button 
-          className="add-to-cart-btn"
-          onClick={() => onAddToCart(item)}
-          aria-label={`Add ${item.name} to cart`}
-        >
-          Add
-        </button>
+        
+        <div className="menu-item-actions">
+          {quantity > 0 ? (
+            <div className="quantity-selector">
+              <button 
+                className="quantity-btn minus"
+                onClick={() => onQuantityChange(item.id, -1)}
+                aria-label="Decrease quantity"
+              >
+                −
+              </button>
+              <span className="quantity-display">{quantity}</span>
+              <button 
+                className="quantity-btn plus"
+                onClick={() => onQuantityChange(item.id, 1)}
+                aria-label="Increase quantity"
+              >
+                +
+              </button>
+            </div>
+          ) : null}
+          
+          <button 
+            className={`add-to-cart-btn ${quantity > 0 ? 'with-quantity' : ''}`}
+            onClick={handleAddClick}
+            aria-label={`Add ${item.name} to cart`}
+          >
+            {quantity > 0 ? `Add ${quantity}` : 'Add'}
+          </button>
+        </div>
       </div>
     </div>
   );

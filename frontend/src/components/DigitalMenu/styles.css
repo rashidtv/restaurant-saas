@@ -1371,3 +1371,210 @@ input:focus-visible {
   background: white;
   min-height: 100vh;
 }
+/* Quantity Selector Styles */
+.menu-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.quantity-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 0.25rem;
+  border: 1px solid #e2e8f0;
+}
+
+.quantity-btn {
+  background: white;
+  border: 1px solid #d1d5db;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+}
+
+.quantity-btn:hover {
+  background: #f1f5f9;
+  border-color: #9ca3af;
+}
+
+.quantity-btn.plus {
+  color: #059669;
+}
+
+.quantity-btn.minus {
+  color: #dc2626;
+}
+
+.quantity-display {
+  font-weight: 700;
+  color: #1e293b;
+  min-width: 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.add-to-cart-btn.with-quantity {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+/* Header Cart Styles */
+.header-cart {
+  display: flex;
+  align-items: center;
+}
+
+.cart-button-header {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.cart-button-header:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.cart-icon {
+  font-size: 1.25rem;
+}
+
+.cart-summary {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Fixed Cart Panel (Alternative to Header Cart) */
+.cart-panel-fixed {
+  position: fixed;
+  top: 80px;
+  right: 2rem;
+  background: white;
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border: 1px solid #e2e8f0;
+  z-index: 999;
+  min-width: 200px;
+}
+
+.cart-panel-fixed .cart-summary-small {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cart-panel-fixed .cart-items-preview {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
+.cart-panel-fixed .preview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.875rem;
+}
+
+.cart-panel-fixed .preview-item:last-child {
+  border-bottom: none;
+}
+
+/* Mobile Floating Cart Button */
+.floating-cart-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  padding: 1rem 1.5rem;
+  border-radius: 3rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 30px rgba(16, 185, 129, 0.4);
+  z-index: 1000;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-5px); }
+  60% { transform: translateY(-3px); }
+}
+
+.floating-cart-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.5);
+}
+
+/* Responsive Cart Styles */
+@media (max-width: 768px) {
+  .header-cart {
+    display: none;
+  }
+  
+  .floating-cart-btn {
+    display: flex;
+  }
+  
+  .cart-button-header .cart-summary {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .floating-cart-btn {
+    display: none;
+  }
+}
+
+/* Enhanced Menu Item Layout */
+.menu-item-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.menu-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+  flex-shrink: 0;
+}

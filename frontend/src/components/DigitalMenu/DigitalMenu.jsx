@@ -251,23 +251,44 @@ export const DigitalMenu = ({
         )}
 
         {/* Header */}
-        <header className="menu-header">
-          <div className="header-content">
-            <h1 className="restaurant-name">FlavorFlow</h1>
-            {selectedTable && (
-              <div className="table-info">Table {selectedTable}</div>
-            )}
-          </div>
-          
-          {customer && (
-            <button 
-              className="cart-button"
-              onClick={() => setIsCartOpen(true)}
-            >
-              🛒 {getItemCount() > 0 && <span className="cart-badge">{getItemCount()}</span>}
-            </button>
-          )}
-        </header>
+        // In your DigitalMenu.jsx, update the header section:
+
+{/* Header with Integrated Cart */}
+<header className="menu-header">
+  <div className="header-content">
+    <h1 className="restaurant-name">FlavorFlow</h1>
+    {selectedTable && (
+      <div className="table-info">Table {selectedTable}</div>
+    )}
+  </div>
+  
+  {/* Desktop: Cart in Header */}
+  {selectedTable && (
+    <div className="header-cart">
+      <button 
+        className="cart-button-header"
+        onClick={() => setIsCartOpen(true)}
+      >
+        <span className="cart-icon">🛒</span>
+        <span className="cart-summary">
+          {getItemCount()} items • RM {getCartTotal().toFixed(2)}
+        </span>
+        {getItemCount() > 0 && <span className="cart-badge">{getItemCount()}</span>}
+      </button>
+    </div>
+  )}
+</header>
+
+{/* Mobile: Floating Cart Button */}
+{selectedTable && getItemCount() > 0 && !isCartOpen && (
+  <button 
+    className="floating-cart-btn"
+    onClick={() => setIsCartOpen(true)}
+  >
+    <span>🛒</span>
+    <span>{getItemCount()} • RM {getCartTotal().toFixed(2)}</span>
+  </button>
+)}
 
         {/* Table Detection Prompt */}
         {!selectedTable && (
