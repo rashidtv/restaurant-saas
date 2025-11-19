@@ -89,27 +89,50 @@ async registerCustomer(phone) {
     }
   }
 
-  // 🆕 ADD THIS METHOD - Customer Orders
-  async getCustomerOrders(phone) {
-    try {
-      const response = await fetch(`${this.baseURL}/api/customers/${phone}/orders`);
-      
-      if (!response.ok) {
-        // If endpoint doesn't exist yet, return empty array
-        if (response.status === 404) {
-          console.log('Customer orders endpoint not implemented, returning empty array');
-          return [];
-        }
-        throw new Error('Failed to fetch customer orders');
+ // Update the getCustomerOrders method
+async getCustomerOrders(phone) {
+  try {
+    console.log('📋 Fetching orders for customer:', phone);
+    const response = await fetch(`${this.baseURL}/api/customers/${phone}/orders`);
+    
+    if (!response.ok) {
+      // If endpoint returns 404, try the alternative endpoint
+      if (response.status === 404) {
+        console.log('Customer orders endpoint not found, trying alternative endpoint');
+        return this.getCustomerOrdersAlternative(phone);
       }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Failed to fetch customer orders:', error);
-      // Return empty array for now since backend might not have this endpoint
-      return [];
+      throw new Error(`Failed to fetch customer orders: ${response.status}`);
     }
+
+    const orders = await response.json();
+    console.log('✅ Retrieved customer orders:', orders.length);
+    return orders;
+  } catch (error) {
+    console.error('❌ Failed to fetch customer orders:', error);
+    // Try alternative method as fallback
+    return this.getCustomerOrdersAlternative(phone);
   }
+}
+
+// Alternative method to get customer orders
+async getCustomerOrdersAlternative(phone) {
+  try {
+    // Get all orders and filter by customer phone
+    const response = await fetch(`${this.baseURL}/api/orders`);
+    if (!response.ok) throw new Error('Failed to fetch orders');
+    
+    const allOrders = await response.json();
+    const customerOrders = allOrders.filter(order => 
+      order.customerPhone === phone
+    );
+    
+    console.log('✅ Retrieved customer orders (alternative):', customerOrders.length);
+    return customerOrders;
+  } catch (error) {
+    console.error('❌ Alternative method failed:', error);
+    return [];
+  }
+}
 
   // Session management (stores only phone in localStorage)
   saveSession(phone) {

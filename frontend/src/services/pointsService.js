@@ -2,10 +2,15 @@ import { CONFIG } from '../constants/config';
 
 class PointsService {
   calculatePointsFromOrder(orderTotal) {
+    if (!orderTotal || orderTotal <= 0) return 0;
+    
     const basePoints = Math.floor(orderTotal) * CONFIG.POINTS.POINTS_PER_RINGGIT;
     const isWeekend = CONFIG.POINTS.WEEKEND_DAYS.includes(new Date().getDay());
     
-    return isWeekend ? basePoints * CONFIG.POINTS.WEEKEND_MULTIPLIER : basePoints;
+    const finalPoints = isWeekend ? basePoints * CONFIG.POINTS.WEEKEND_MULTIPLIER : basePoints;
+    
+    console.log(`🎯 Points calculation: RM${orderTotal} = ${finalPoints} points (weekend: ${isWeekend})`);
+    return finalPoints;
   }
 
   getTierInfo(points) {

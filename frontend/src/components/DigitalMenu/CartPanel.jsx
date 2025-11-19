@@ -15,7 +15,7 @@ export const CartPanel = ({
 }) => {
   if (!isOpen) return null;
 
-  // FIX: Use cart items directly with their actual quantities
+  // PERMANENT FIX: Use cart items directly - NO GROUPING
   const cartItems = cart.map(item => ({
     ...item,
     totalPrice: item.price * item.quantity
@@ -89,7 +89,7 @@ const CartItems = ({ items, onUpdateQuantity, onRemoveItem }) => (
   <div className="cart-items">
     {items.map(item => (
       <CartItem 
-        key={item.id}
+        key={`${item.id}-${item.addedAt || Date.now()}`} // Unique key for each item
         item={item}
         onUpdateQuantity={onUpdateQuantity}
         onRemoveItem={onRemoveItem}
@@ -104,7 +104,9 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => (
       <div className="cart-item-name">{item.name}</div>
       <div className="cart-item-meta">
         <span className="cart-item-price">{formatCurrency(item.price)} each</span>
-        <span className="cart-item-category">{item.category}</span>
+        {item.category && (
+          <span className="cart-item-category">{item.category}</span>
+        )}
       </div>
     </div>
     

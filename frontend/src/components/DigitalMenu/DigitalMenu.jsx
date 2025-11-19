@@ -146,6 +146,54 @@ export const DigitalMenu = ({
     }
   }, [selectedTable, customer]);
 
+  // Add this useEffect for real-time WebSocket updates
+useEffect(() => {
+  const handleOrderUpdated = (updatedOrder) => {
+    console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
+    
+    // Refresh orders when order status changes
+    if (selectedTable) {
+      loadTableOrders(selectedTable);
+    }
+    
+    // If this order belongs to current customer, refresh customer orders
+    if (customer && updatedOrder.customerPhone === customer.phone) {
+      getCustomerOrders().then(setCustomerOrders);
+    }
+  };
+
+  const handlePaymentProcessed = (payment) => {
+    console.log('💰 Payment processed via WebSocket:', payment.orderId);
+    
+    // Refresh orders when payment is completed
+    if (selectedTable) {
+      loadTableOrders(selectedTable);
+    }
+    
+    // Refresh customer data to get updated points
+    if (customer) {
+      // Re-fetch customer data to get updated points
+      customerService.getCustomer(customer.phone).then(updatedCustomer => {
+        if (updatedCustomer) {
+          setCustomer(updatedCustomer);
+          setPoints(updatedCustomer.points || 0);
+        }
+      });
+    }
+  };
+
+  // Listen for WebSocket events
+  const socket = io(CONFIG.API_BASE_URL);
+  socket.on('orderUpdated', handleOrderUpdated);
+  socket.on('paymentProcessed', handlePaymentProcessed);
+
+  return () => {
+    socket.off('orderUpdated', handleOrderUpdated);
+    socket.off('paymentProcessed', handlePaymentProcessed);
+    socket.disconnect();
+  };
+}, [selectedTable, customer, loadTableOrders, getCustomerOrders]);
+
   // FIXED: Enhanced add to cart with proper quantity handling
   const handleAddToCart = useCallback((item, quantity = 1) => {
     if (!customer) {
