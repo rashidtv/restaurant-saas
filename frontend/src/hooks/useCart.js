@@ -4,15 +4,28 @@ export const useCart = () => {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Add item to cart with optional quantity
+  // Enhanced addToCart with better validation
   const addToCart = useCallback((item, quantity = 1) => {
-    if (!item || !item.id) {
-      console.error('Invalid item provided to addToCart');
+    if (!item || typeof item !== 'object') {
+      console.error('Invalid item provided to addToCart:', item);
+      return;
+    }
+
+    // Validate required fields with fallbacks
+    const itemId = item.id || item._id || item.menuItemId;
+    const itemName = item.name || 'Unknown Item';
+    const itemPrice = parseFloat(item.price) || 0;
+    const itemCategory = item.category || 'uncategorized';
+
+    if (!itemId) {
+      console.error('Item missing ID:', item);
       return;
     }
 
     setCart(prevCart => {
-      const existingItemIndex = prevCart.findIndex(cartItem => cartItem.id === item.id);
+      const existingItemIndex = prevCart.findIndex(cartItem => 
+        cartItem.id === itemId || cartItem._id === itemId
+      );
       
       if (existingItemIndex !== -1) {
         // Update existing item quantity
@@ -23,27 +36,32 @@ export const useCart = () => {
         };
         return updatedCart;
       } else {
-        // Add new item with quantity
+        // Add new item with normalized structure
         return [...prevCart, { 
-          ...item, 
+          id: itemId,
+          _id: itemId, // Include both for compatibility
+          name: itemName,
+          price: itemPrice,
+          category: itemCategory,
+          description: item.description,
           quantity: quantity,
-          addedAt: new Date().toISOString() // Track when item was added
+          addedAt: new Date().toISOString()
         }];
       }
     });
   }, []);
 
-  // Remove item completely from cart
   const removeFromCart = useCallback((itemId) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== itemId));
+    setCart(prevCart => prevCart.filter(item => 
+      item.id !== itemId && item._id !== itemId
+    ));
   }, []);
 
-  // Update specific item quantity
   const updateQuantity = useCallback((itemId, change) => {
     setCart(prevCart => 
       prevCart
         .map(item =>
-          item.id === itemId
+          (item.id === itemId || item._id === itemId)
             ? { ...item, quantity: Math.max(0, item.quantity + change) }
             : item
         )
@@ -51,7 +69,6 @@ export const useCart = () => {
     );
   }, []);
 
-  // Set specific quantity for an item
   const setQuantity = useCallback((itemId, quantity) => {
     if (quantity <= 0) {
       removeFromCart(itemId);
@@ -60,7 +77,7 @@ export const useCart = () => {
     
     setCart(prevCart => 
       prevCart.map(item =>
-        item.id === itemId
+        (item.id === itemId || item._id === itemId)
           ? { ...item, quantity: Math.max(0, quantity) }
           : item
       )
@@ -71,7 +88,7 @@ export const useCart = () => {
     setCart([]);
   }, []);
 
-  // Memoized calculations for better performance
+  // Memoized calculations
   const getCartTotal = useCallback(() => {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   }, [cart]);
@@ -81,7 +98,9 @@ export const useCart = () => {
   }, [cart]);
 
   const getItemQuantity = useCallback((itemId) => {
-    const item = cart.find(item => item.id === itemId);
+    const item = cart.find(item => 
+      item.id === itemId || item._id === itemId
+    );
     return item ? item.quantity : 0;
   }, [cart]);
 

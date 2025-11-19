@@ -1528,3 +1528,32 @@ input:focus-visible {
 .customer-content {
   margin-top: 0;
 }
+/* Enhanced cart panel positioning */
+.cart-panel {
+  background: white;
+  border-radius: 2rem 2rem 0 0;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 2001; /* Ensure it's above other content */
+}
+
+/* Ensure cart is properly positioned on mobile */
+@media (max-width: 768px) {
+  .cart-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 90vh;
+  }
+}
+
+/* Smooth scrolling for the entire page */
+.digital-menu {
+  scroll-behavior: smooth;
+}
