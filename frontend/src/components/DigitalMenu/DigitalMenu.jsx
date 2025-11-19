@@ -86,22 +86,33 @@ export const DigitalMenu = ({
     }
   }, [selectedTable, customer, loadTableOrders]);
 
-  // Show registration if no customer when table is detected
-  useEffect(() => {
-    if (selectedTable && !customer) {
+  // Show registration only if no customer AND table is detected
+useEffect(() => {
+  if (selectedTable && !customer) {
+    // Check if we recently showed registration to avoid spam
+    const lastRegistrationPrompt = localStorage.getItem('last_registration_prompt');
+    const now = Date.now();
+    
+    if (!lastRegistrationPrompt || (now - parseInt(lastRegistrationPrompt)) > 30000) { // 30 seconds
       setShowRegistration(true);
+      localStorage.setItem('last_registration_prompt', now.toString());
     }
-  }, [selectedTable, customer]);
+  }
+}, [selectedTable, customer]);
 
-  // Event handlers
-  const handleRegistration = useCallback(async (formData) => {
-    try {
-      await registerCustomer(formData.phone);
-      setShowRegistration(false);
-    } catch (error) {
-      throw error; // Propagate to modal
-    }
-  }, [registerCustomer]);
+ const handleRegistration = useCallback(async (formData) => {
+  try {
+    await registerCustomer(formData.phone);
+    setShowRegistration(false);
+    
+    // Store registration success to prevent immediate re-prompt
+    localStorage.setItem('customer_registered', 'true');
+    
+  } catch (error) {
+    console.error('Registration failed:', error);
+    throw error;
+  }
+}, [registerCustomer]);
 
   const handleAddToCart = useCallback((item) => {
     if (!customer) {

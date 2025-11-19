@@ -8,11 +8,11 @@ const QRGenerator = ({ tables, isMobile, apiConnected }) => {
   const qrRef = useRef();
 
   // FIXED: Generate proper URL that goes directly to menu
-  const generateQRUrl = (tableNumber) => {
-    const baseUrl = window.location.origin;
-    // Use hash-based routing that works with React Router
-    return `${baseUrl}/#/menu?table=${encodeURIComponent(tableNumber)}`;
-  };
+const generateQRUrl = (tableNumber) => {
+  const baseUrl = window.location.origin;
+  // Use path-based routing that works better with deployment
+  return `${baseUrl}/#/menu?table=${encodeURIComponent(tableNumber)}&ts=${Date.now()}`;
+};
 
   const handleTableSelect = (tableNumber) => {
     console.log('🎯 Selected table for QR:', tableNumber);
