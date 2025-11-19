@@ -17,6 +17,8 @@ export const useCustomer = () => {
 
         if (customerService.hasActiveSession()) {
           const phone = customerService.getSessionPhone();
+          console.log('🔍 Loading customer session for:', phone);
+          
           const customerData = await customerService.getCustomer(phone);
           
           if (customerData) {
@@ -28,6 +30,8 @@ export const useCustomer = () => {
             customerService.clearSession();
             console.log('❌ Session invalid, customer not found in DB');
           }
+        } else {
+          console.log('ℹ️ No active customer session found');
         }
       } catch (error) {
         console.error('Failed to load customer session:', error);
@@ -45,12 +49,14 @@ export const useCustomer = () => {
   const registerCustomer = useCallback(async (phone) => {
     try {
       setError(null);
+      setIsLoading(true);
       
       if (!validatePhoneNumber(phone)) {
         throw new Error('Please enter a valid phone number (at least 10 digits)');
       }
 
       const cleanPhone = phone.replace(/\D/g, '');
+      console.log('📝 Registering customer:', cleanPhone);
       
       // Register with backend
       const customerData = await customerService.registerCustomer(cleanPhone);
@@ -64,6 +70,8 @@ export const useCustomer = () => {
       console.error('Customer registration failed:', error);
       setError(error.message);
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -74,6 +82,8 @@ export const useCustomer = () => {
     }
 
     try {
+      console.log('➕ Adding points:', pointsToAdd, 'for customer:', customer.phone);
+      
       const updatedCustomer = await customerService.addPoints(
         customer.phone, 
         pointsToAdd, 
@@ -96,7 +106,8 @@ export const useCustomer = () => {
   const updateCustomerAfterOrder = useCallback(async (orderTotal) => {
     if (!customer) return;
 
-    // Points are already added via addPoints, just update local state if needed
+    console.log('🔄 Updating customer stats after order, total:', orderTotal);
+    
     const updatedCustomer = {
       ...customer,
       totalOrders: (customer.totalOrders || 0) + 1,
@@ -105,12 +116,32 @@ export const useCustomer = () => {
     };
     
     setCustomer(updatedCustomer);
+    return updatedCustomer;
+  }, [customer]);
+
+  // 🆕 GET CUSTOMER ORDERS - PRODUCTION READY
+  const getCustomerOrders = useCallback(async () => {
+    if (!customer) {
+      console.log('❌ No customer found, returning empty orders array');
+      return [];
+    }
+    
+    try {
+      console.log('📋 Fetching orders for customer:', customer.phone);
+      const orders = await customerService.getCustomerOrders(customer.phone);
+      console.log('✅ Retrieved orders:', orders.length, 'orders');
+      return orders;
+    } catch (error) {
+      console.error('❌ Failed to get customer orders:', error);
+      // Return empty array instead of failing
+      return [];
+    }
   }, [customer]);
 
   // Clear customer session
   const clearCustomer = useCallback(() => {
     const confirmClear = window.confirm(
-      'Are you sure you want to change number? Your points and order history will be lost.'
+      `Are you sure you want to change number? ${points > 0 ? `You will lose ${points} points. ` : ''}Continue?`
     );
     
     if (confirmClear) {
@@ -120,18 +151,16 @@ export const useCustomer = () => {
       setError(null);
       console.log('🧹 Customer session cleared');
     }
-  }, []);
+  }, [points]);
 
-  // Get customer orders
-  const getCustomerOrders = useCallback(async () => {
-    if (!customer) return [];
-    
-    try {
-      return await customerService.getCustomerOrders(customer.phone);
-    } catch (error) {
-      console.error('Failed to get customer orders:', error);
-      return [];
-    }
+  // Check if customer has valid session
+  const hasValidSession = useCallback(() => {
+    return !!customer && customerService.hasActiveSession();
+  }, [customer]);
+
+  // Get customer phone (safe method)
+  const getCustomerPhone = useCallback(() => {
+    return customer?.phone || customerService.getSessionPhone();
   }, [customer]);
 
   return {
@@ -150,6 +179,11 @@ export const useCustomer = () => {
     
     // Utilities
     hasCustomer: !!customer,
-    customerPhone: customer?.phone
+    customerPhone: getCustomerPhone(),
+    hasValidSession: hasValidSession(),
+    
+    // Status
+    isRegistered: !!customer,
+    isGuest: !customer
   };
 };

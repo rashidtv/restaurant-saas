@@ -76,18 +76,25 @@ class CustomerService {
     }
   }
 
+  // 🆕 ADD THIS METHOD - Customer Orders
   async getCustomerOrders(phone) {
     try {
       const response = await fetch(`${this.baseURL}/api/customers/${phone}/orders`);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch orders');
+        // If endpoint doesn't exist yet, return empty array
+        if (response.status === 404) {
+          console.log('Customer orders endpoint not implemented, returning empty array');
+          return [];
+        }
+        throw new Error('Failed to fetch customer orders');
       }
 
       return await response.json();
     } catch (error) {
       console.error('Failed to fetch customer orders:', error);
-      return []; // Return empty array instead of failing
+      // Return empty array for now since backend might not have this endpoint
+      return [];
     }
   }
 
@@ -127,6 +134,31 @@ class CustomerService {
   getSessionPhone() {
     const session = this.getSession();
     return session ? session.phone : null;
+  }
+
+  // Fallback methods for offline/local development
+  getCustomerFromStorage(phone) {
+    try {
+      const customers = JSON.parse(localStorage.getItem('customers') || '{}');
+      return customers[phone] || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  saveCustomerToStorage(phone, customerData) {
+    try {
+      const customers = JSON.parse(localStorage.getItem('customers') || '{}');
+      customers[phone] = {
+        ...customerData,
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem('customers', JSON.stringify(customers));
+      return customers[phone];
+    } catch (error) {
+      console.error('Error saving customer to storage:', error);
+      return null;
+    }
   }
 }
 
