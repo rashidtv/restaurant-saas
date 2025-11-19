@@ -22,31 +22,21 @@ export const MenuGrid = ({
 
   const handleQuantityChange = (itemId, change) => {
     setItemQuantities(prev => {
-      const currentQty = prev[itemId] || 0;
-      const newQty = Math.max(0, currentQty + change);
-      
-      if (newQty === 0) {
-        const { [itemId]: removed, ...rest } = prev;
-        return rest;
-      }
-      
+      const currentQty = prev[itemId] || 1; // Start with 1, not 0
+      const newQty = Math.max(1, currentQty + change); // Minimum 1
       return { ...prev, [itemId]: newQty };
     });
   };
 
   const handleAddToCartWithQuantity = (item) => {
     const quantity = itemQuantities[item.id] || 1;
+    onAddToCart(item, quantity);
     
-    // Add the item multiple times based on quantity
-    for (let i = 0; i < quantity; i++) {
-      onAddToCart(item);
-    }
-    
-    // Reset quantity after adding to cart
-    setItemQuantities(prev => {
-      const { [item.id]: removed, ...rest } = prev;
-      return rest;
-    });
+    // Reset to 1 after adding
+    setItemQuantities(prev => ({
+      ...prev,
+      [item.id]: 1
+    }));
   };
 
   return (
@@ -88,7 +78,7 @@ export const MenuGrid = ({
             <MenuItem 
               key={item.id} 
               item={item} 
-              quantity={itemQuantities[item.id] || 0}
+              quantity={itemQuantities[item.id] || 1}
               onQuantityChange={handleQuantityChange}
               onAddToCart={handleAddToCartWithQuantity}
             />
@@ -100,16 +90,7 @@ export const MenuGrid = ({
 };
 
 const MenuItem = ({ item, quantity, onQuantityChange, onAddToCart }) => {
-  const pointsEarned = pointsService.calculatePointsFromOrder(item.price);
-
-  const handleAddClick = () => {
-    if (quantity > 0) {
-      onAddToCart(item);
-    } else {
-      // If no quantity selected, add one directly
-      onAddToCart(item);
-    }
-  };
+  const pointsEarned = pointsService.calculatePointsFromOrder(item.price * quantity);
 
   return (
     <div className="menu-item-card">
@@ -124,32 +105,31 @@ const MenuItem = ({ item, quantity, onQuantityChange, onAddToCart }) => {
         </div>
         
         <div className="menu-item-actions">
-          {quantity > 0 ? (
-            <div className="quantity-selector">
-              <button 
-                className="quantity-btn minus"
-                onClick={() => onQuantityChange(item.id, -1)}
-                aria-label="Decrease quantity"
-              >
-                −
-              </button>
-              <span className="quantity-display">{quantity}</span>
-              <button 
-                className="quantity-btn plus"
-                onClick={() => onQuantityChange(item.id, 1)}
-                aria-label="Increase quantity"
-              >
-                +
-              </button>
-            </div>
-          ) : null}
+          <div className="quantity-controls">
+            <button 
+              className="quantity-btn minus"
+              onClick={() => onQuantityChange(item.id, -1)}
+              disabled={quantity <= 1}
+              aria-label="Decrease quantity"
+            >
+              −
+            </button>
+            <span className="quantity-display">{quantity}</span>
+            <button 
+              className="quantity-btn plus"
+              onClick={() => onQuantityChange(item.id, 1)}
+              aria-label="Increase quantity"
+            >
+              +
+            </button>
+          </div>
           
           <button 
-            className={`add-to-cart-btn ${quantity > 0 ? 'with-quantity' : ''}`}
-            onClick={handleAddClick}
-            aria-label={`Add ${item.name} to cart`}
+            className="add-to-cart-btn"
+            onClick={() => onAddToCart(item)}
+            aria-label={`Add ${quantity} ${item.name} to cart`}
           >
-            {quantity > 0 ? `Add ${quantity}` : 'Add'}
+            Add {quantity > 1 && quantity}
           </button>
         </div>
       </div>

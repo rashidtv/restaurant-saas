@@ -652,6 +652,39 @@ app.post('/api/customers/register', (req, res) => {
   }
 });
 
+// ✅ PRODUCTION: Customer Orders Endpoint
+app.get('/api/customers/:phone/orders', (req, res) => {
+  try {
+    const { phone } = req.params;
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    console.log('📋 Fetching orders for customer:', cleanPhone);
+    
+    // Filter orders by customer phone with proper data structure
+    const customerOrders = orders
+      .filter(order => order.customerPhone === cleanPhone)
+      .map(order => ({
+        ...order,
+        // Ensure proper data structure
+        items: order.items || [],
+        total: order.total || 0,
+        status: order.status || 'pending',
+        createdAt: order.createdAt || order.orderedAt
+      }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // Newest first
+    
+    console.log(`✅ Found ${customerOrders.length} orders for customer ${cleanPhone}`);
+    
+    res.json(customerOrders);
+  } catch (error) {
+    console.error('❌ Customer orders error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch customer orders' 
+    });
+  }
+});
+
 app.get('/api/customers/:phone', async (req, res) => {
   try {
     const { phone } = req.params;
