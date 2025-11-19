@@ -6,33 +6,46 @@ class CustomerService {
     this.sessionKey = 'customer_session';
   }
 
-  // 🎯 PRODUCTION: Backend-first approach
-  async registerCustomer(phone) {
-    try {
-      const response = await fetch(`${this.baseURL}/api/customers/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone }),
-      });
+async registerCustomer(phone) {
+  try {
+    console.log('🔧 Attempting customer registration:', phone);
+    
+    const response = await fetch(`${this.baseURL}/api/customers/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone }),
+      timeout: 10000 // 10 second timeout
+    });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Registration failed');
-      }
-
-      const customer = await response.json();
-      
-      // Store session (phone only - no sensitive data)
-      this.saveSession(customer.phone);
-      
-      return customer;
-    } catch (error) {
-      console.error('Customer registration failed:', error);
-      throw new Error(error.message || 'Unable to register. Please try again.');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Registration failed: ${response.status}`);
     }
+
+    const customer = await response.json();
+    
+    // Store session (phone only)
+    this.saveSession(customer.phone);
+    
+    console.log('✅ Customer registered successfully:', phone);
+    return customer;
+  } catch (error) {
+    console.error('❌ Customer registration failed:', error);
+    
+    // 🎯 PRODUCTION: Provide specific error messages
+    if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+      throw new Error('Network error. Please check your connection and try again.');
+    }
+    
+    if (error.message.includes('404') || error.message.includes('Not Found')) {
+      throw new Error('Registration service is currently unavailable. Please contact staff.');
+    }
+    
+    throw new Error(error.message || 'Registration failed. Please try again.');
   }
+}
 
   async getCustomer(phone) {
     try {

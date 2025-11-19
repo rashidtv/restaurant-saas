@@ -1,6 +1,6 @@
 export const CONFIG = {
   API_BASE_URL: process.env.NODE_ENV === 'production' 
-    ? 'https://your-production-backend-url.com'
+    ? 'https://restaurant-saas-backend-hbdz.onrender.com'
     : 'https://restaurant-saas-backend-hbdz.onrender.com',
   
   STORAGE_KEYS: {

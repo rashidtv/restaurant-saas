@@ -5,27 +5,37 @@ import './styles.css';
 export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
   const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     
     if (!validatePhoneNumber(phone)) {
-      alert('Please enter a valid phone number (at least 10 digits)');
+      setError('Please enter a valid phone number (at least 10 digits)');
       return;
     }
 
     setIsSubmitting(true);
     try {
       await onRegister({ phone: phone.trim() });
+      // Success - modal will close automatically via parent
     } catch (error) {
-      alert(error.message);
+      console.error('Registration failed:', error);
+      setError(error.message || 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal">
         <div className="modal-header">
           <h2>Welcome to Table {selectedTable}</h2>
@@ -33,6 +43,12 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
+          {error && (
+            <div className="error-message">
+              ⚠️ {error}
+            </div>
+          )}
+          
           <div className="input-group">
             <label htmlFor="phone-input">Phone Number</label>
             <input
@@ -40,10 +56,14 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
               type="tel"
               placeholder="0123456789"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                setPhone(e.target.value);
+                setError(''); // Clear error when user types
+              }}
               className="form-input"
               required
               disabled={isSubmitting}
+              autoFocus
             />
           </div>
 
@@ -53,7 +73,14 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
               className="btn-primary"
               disabled={!phone.trim() || isSubmitting}
             >
-              {isSubmitting ? 'Registering...' : 'Start Earning Points'}
+              {isSubmitting ? (
+                <>
+                  <span className="loading-spinner"></span>
+                  Registering...
+                </>
+              ) : (
+                'Start Earning Points'
+              )}
             </button>
             <button 
               type="button" 
@@ -80,6 +107,10 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
             <div className="benefit-card">
               <div className="benefit-icon">🎁</div>
               <div className="benefit-text">Redeem points for free items</div>
+            </div>
+            <div className="benefit-card">
+              <div className="benefit-icon">📱</div>
+              <div className="benefit-text">Track orders across devices</div>
             </div>
           </div>
         </div>

@@ -601,51 +601,26 @@ app.put('/api/orders/:id/items', (req, res) => {
   }
 });
 
-// Add these endpoints to your existing backend
+
 app.get('/api/customers/:phone', async (req, res) => {
   try {
     const { phone } = req.params;
     const customer = await db.collection('customers').findOne({ phone });
     
     if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Customer not found' 
+      });
     }
     
     res.json(customer);
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/api/customers/register', async (req, res) => {
-  try {
-    const { phone } = req.body;
-    
-    if (!phone || phone.length < 10) {
-      return res.status(400).json({ error: 'Valid phone number required' });
-    }
-
-    // Check if customer exists
-    let customer = await db.collection('customers').findOne({ phone });
-    
-    if (!customer) {
-      // Create new customer
-      customer = {
-        phone,
-        points: 0,
-        totalOrders: 0,
-        totalSpent: 0,
-        tier: 'member',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      await db.collection('customers').insertOne(customer);
-    }
-    
-    res.json(customer);
-  } catch (error) {
-    res.status(500).json({ error: 'Registration failed' });
+    console.error('Get customer error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch customer data' 
+    });
   }
 });
 
@@ -658,9 +633,9 @@ app.post('/api/customers/:phone/points', async (req, res) => {
       { phone },
       { 
         $inc: { 
-          points: points,
+          points: parseInt(points) || 0,
           totalOrders: 1,
-          totalSpent: orderTotal
+          totalSpent: parseFloat(orderTotal) || 0
         },
         $set: { updatedAt: new Date() }
       },
@@ -668,27 +643,19 @@ app.post('/api/customers/:phone/points', async (req, res) => {
     );
     
     if (!result.value) {
-      return res.status(404).json({ error: 'Customer not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Customer not found' 
+      });
     }
     
     res.json(result.value);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update points' });
-  }
-});
-
-app.get('/api/customers/:phone/orders', async (req, res) => {
-  try {
-    const { phone } = req.params;
-    const orders = await db.collection('orders')
-      .find({ customerPhone: phone })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .toArray();
-    
-    res.json(orders);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch orders' });
+    console.error('Add points error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update points' 
+    });
   }
 });
 
