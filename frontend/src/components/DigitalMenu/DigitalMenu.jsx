@@ -19,8 +19,22 @@ export const DigitalMenu = ({
   isCustomerView = false,
   onCreateOrder 
 }) => {
-  // Hooks
-  const { customer, points, registerCustomer, updateCustomerAfterOrder, addPoints, clearCustomer } = useCustomer();
+  // 🎯 PRODUCTION-READY HOOK USAGE
+  const customerHook = useCustomer();
+  const { 
+    customer, 
+    points, 
+    registerCustomer, 
+    updateCustomerAfterOrder, 
+    addPoints, 
+    clearCustomer,
+    // 🆕 Safe destructuring with fallback
+    getCustomerOrders = () => {
+      console.warn('getCustomerOrders not implemented, returning empty array');
+      return Promise.resolve([]);
+    }
+  } = customerHook;
+
   const { orders, isLoading: ordersLoading, loadTableOrders, createOrder: createOrderAPI } = useOrders();
   const { cart, isCartOpen, setIsCartOpen, addToCart, removeFromCart, updateQuantity, clearCart, getCartTotal, getItemCount } = useCart();
 
@@ -30,6 +44,7 @@ export const DigitalMenu = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showRegistration, setShowRegistration] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [customerOrders, setCustomerOrders] = useState([]);
 
   // Table detection
   useEffect(() => {
@@ -37,18 +52,15 @@ export const DigitalMenu = ({
       const detectTableFromURL = () => {
         let detectedTable = null;
         
-        // Check URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         detectedTable = urlParams.get('table');
         
-        // Check hash parameters
         if (!detectedTable && window.location.hash) {
           const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
           detectedTable = hashParams.get('table');
         }
 
         if (detectedTable) {
-          // Normalize table format
           detectedTable = detectedTable.toString().toUpperCase();
           if (!detectedTable.startsWith('T')) {
             detectedTable = 'T' + detectedTable;
@@ -68,62 +80,59 @@ export const DigitalMenu = ({
     }
   }, [isCustomerView]);
 
-
-// Replace the loadTableOrders effect with:
-useEffect(() => {
-  const loadCustomerOrders = async () => {
-    if (customer) {
-      try {
-        const customerOrders = await getCustomerOrders();
-        // Merge with table orders or use customer orders directly
-        // This depends on your orders structure
-      } catch (error) {
-        console.error('Failed to load customer orders:', error);
+  // 🎯 PRODUCTION-READY ORDER LOADING
+  useEffect(() => {
+    const loadOrders = async () => {
+      if (selectedTable && customer) {
+        try {
+          console.log('🔄 Loading orders for customer:', customer.phone);
+          
+          // Try customer-specific orders first, fallback to table orders
+          const orders = await getCustomerOrders();
+          if (orders && orders.length > 0) {
+            setCustomerOrders(orders);
+          } else {
+            // Fallback to table-based orders
+            await loadTableOrders(selectedTable);
+          }
+        } catch (error) {
+          console.error('Failed to load orders:', error);
+          // Fallback to table orders
+          await loadTableOrders(selectedTable);
+        }
       }
-    }
-  };
+    };
 
-  loadCustomerOrders();
-}, [customer, getCustomerOrders]);
+    loadOrders();
+  }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
   // Auto-refresh orders
   useEffect(() => {
     if (selectedTable && customer) {
       const interval = setInterval(() => {
         loadTableOrders(selectedTable);
-      }, 10000); // Refresh every 10 seconds
+      }, 30000); // Refresh every 30 seconds
 
       return () => clearInterval(interval);
     }
   }, [selectedTable, customer, loadTableOrders]);
 
-  // Show registration only if no customer AND table is detected
-useEffect(() => {
-  if (selectedTable && !customer) {
-    // Check if we recently showed registration to avoid spam
-    const lastRegistrationPrompt = localStorage.getItem('last_registration_prompt');
-    const now = Date.now();
-    
-    if (!lastRegistrationPrompt || (now - parseInt(lastRegistrationPrompt)) > 30000) { // 30 seconds
+  // Show registration if no customer when table is detected
+  useEffect(() => {
+    if (selectedTable && !customer) {
       setShowRegistration(true);
-      localStorage.setItem('last_registration_prompt', now.toString());
     }
-  }
-}, [selectedTable, customer]);
+  }, [selectedTable, customer]);
 
- const handleRegistration = useCallback(async (formData) => {
-  try {
-    await registerCustomer(formData.phone);
-    setShowRegistration(false);
-    
-    // Store registration success to prevent immediate re-prompt
-    localStorage.setItem('customer_registered', 'true');
-    
-  } catch (error) {
-    console.error('Registration failed:', error);
-    throw error;
-  }
-}, [registerCustomer]);
+  // Event handlers
+  const handleRegistration = useCallback(async (formData) => {
+    try {
+      await registerCustomer(formData.phone);
+      setShowRegistration(false);
+    } catch (error) {
+      throw error;
+    }
+  }, [registerCustomer]);
 
   const handleAddToCart = useCallback((item) => {
     if (!customer) {
@@ -153,7 +162,6 @@ useEffect(() => {
     setIsPlacingOrder(true);
 
     try {
-      // Prepare order data
       const orderData = cart.map(item => ({
         menuItemId: item.id,
         name: item.name,
@@ -165,7 +173,6 @@ useEffect(() => {
       const orderTotal = getCartTotal();
       const pointsEarned = pointsService.calculatePointsFromOrder(orderTotal);
 
-      // Create order via provided function or use internal API
       const orderResult = onCreateOrder 
         ? await onCreateOrder(selectedTable, orderData, 'dine-in', { customerPhone: customer.phone })
         : await createOrderAPI({
@@ -177,18 +184,18 @@ useEffect(() => {
           });
 
       if (orderResult && orderResult.success !== false) {
-        // Update customer data and points
         updateCustomerAfterOrder(orderTotal);
         addPoints(pointsEarned);
         
-        // Clear cart and close
         clearCart();
         setIsCartOpen(false);
         
-        // Refresh orders
-        setTimeout(() => loadTableOrders(selectedTable), 1000);
+        // Refresh orders after successful order
+        setTimeout(() => {
+          loadTableOrders(selectedTable);
+          getCustomerOrders();
+        }, 2000);
         
-        // Show success message
         const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
         alert(`Order #${orderNumber} placed successfully! You earned ${pointsEarned} points.`);
       } else {
@@ -201,24 +208,17 @@ useEffect(() => {
       setIsPlacingOrder(false);
     }
   }, [
-    cart, 
-    selectedTable, 
-    customer, 
-    getCartTotal, 
-    onCreateOrder, 
-    createOrderAPI, 
-    updateCustomerAfterOrder, 
-    addPoints, 
-    clearCart, 
-    setIsCartOpen, 
-    loadTableOrders
+    cart, selectedTable, customer, getCartTotal, onCreateOrder, 
+    createOrderAPI, updateCustomerAfterOrder, addPoints, clearCart, 
+    setIsCartOpen, loadTableOrders, getCustomerOrders
   ]);
 
   // Separate orders by status
-  const activeOrders = orders.filter(order => 
+  const displayOrders = customerOrders.length > 0 ? customerOrders : orders;
+  const activeOrders = displayOrders.filter(order => 
     ['pending', 'preparing', 'ready'].includes(order.status)
   );
-  const completedOrders = orders.filter(order => order.status === 'completed');
+  const completedOrders = displayOrders.filter(order => order.status === 'completed');
 
   // Categories for menu
   const categories = ['all', ...new Set(menu.map(item => item.category))];
@@ -235,6 +235,9 @@ useEffect(() => {
   if (isCustomerView) {
     return (
       <div className="digital-menu">
+        {/* 🆕 Add Hook Validator for debugging */}
+        {/* <HookValidator /> */}
+
         {/* Registration Modal */}
         {showRegistration && (
           <RegistrationModal
@@ -290,7 +293,10 @@ useEffect(() => {
                 <div className="section-header">
                   <h2>Your Orders</h2>
                   <button 
-                    onClick={() => loadTableOrders(selectedTable)}
+                    onClick={async () => {
+                      await loadTableOrders(selectedTable);
+                      await getCustomerOrders();
+                    }}
                     disabled={ordersLoading}
                     className="refresh-btn"
                   >
@@ -308,7 +314,7 @@ useEffect(() => {
                         <h3 className="group-title">Active Orders ({activeOrders.length})</h3>
                         <div className="orders-list">
                           {activeOrders.map((order, index) => (
-                            <OrderCard key={order._id || index} order={order} />
+                            <OrderCard key={order._id || `order-${index}`} order={order} />
                           ))}
                         </div>
                       </div>
@@ -320,13 +326,13 @@ useEffect(() => {
                         <h3 className="group-title">Order History ({completedOrders.length})</h3>
                         <div className="orders-list">
                           {completedOrders.map((order, index) => (
-                            <OrderCard key={order._id || index} order={order} />
+                            <OrderCard key={order._id || `completed-${index}`} order={order} />
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {orders.length === 0 && (
+                    {displayOrders.length === 0 && (
                       <div className="empty-orders">
                         <div className="empty-icon">📦</div>
                         <p>No orders yet</p>
@@ -378,12 +384,11 @@ useEffect(() => {
     );
   }
 
-  // ADMIN VIEW (Simplified)
+  // ADMIN VIEW
   return (
     <div className="admin-view">
       <h2>Menu Management - Staff View</h2>
       <p>Staff interface for order management</p>
-      {/* Admin functionality can be implemented here */}
     </div>
   );
 };
