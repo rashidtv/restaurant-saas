@@ -6,8 +6,9 @@ class SocketService {
   }
 
   async connect(backendUrl) {
-    if (this.socket) {
-      this.disconnect();
+    if (this.socket && this.isConnected) {
+      console.log('🔌 WebSocket already connected');
+      return this.socket;
     }
 
     try {
