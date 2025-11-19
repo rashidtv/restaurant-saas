@@ -15,24 +15,11 @@ export const CartPanel = ({
 }) => {
   if (!isOpen) return null;
 
-  // 🎯 PRODUCTION: Group items by menu item to show individual items with quantities
-  const cartItems = cart.reduce((acc, item) => {
-    const existingItemIndex = acc.findIndex(i => i.id === item.id);
-    
-    if (existingItemIndex !== -1) {
-      // Item exists, update quantity
-      acc[existingItemIndex].quantity += 1;
-      acc[existingItemIndex].totalPrice = acc[existingItemIndex].price * acc[existingItemIndex].quantity;
-    } else {
-      // New item, add to cart
-      acc.push({
-        ...item,
-        quantity: 1,
-        totalPrice: item.price
-      });
-    }
-    return acc;
-  }, []);
+  // FIX: Use cart items directly with their actual quantities
+  const cartItems = cart.map(item => ({
+    ...item,
+    totalPrice: item.price * item.quantity
+  }));
 
   const cartTotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);

@@ -14,10 +14,12 @@ export const useOrders = () => {
     
     try {
       const tableOrders = await orderService.fetchTableOrders(tableNumber);
-      setOrders(tableOrders);
+      // FIX: Handle null/undefined response
+      setOrders(tableOrders || []);
     } catch (err) {
       setError(err.message);
       console.error('Error loading orders:', err);
+      setOrders([]); // Set empty array on error
     } finally {
       setIsLoading(false);
     }
