@@ -42,3 +42,77 @@ export const CONFIG = {
     }
   }
 };
+
+// 🆕 ADD THIS MISSING EXPORT
+export const ORDER_STATUS_CONFIG = {
+  pending: {
+    label: 'Pending',
+    color: '#f59e0b',
+    bgColor: '#fef3c7',
+    borderColor: '#f59e0b',
+    icon: '⏳'
+  },
+  preparing: {
+    label: 'Preparing',
+    color: '#3b82f6', 
+    bgColor: '#dbeafe',
+    borderColor: '#3b82f6',
+    icon: '👨‍🍳'
+  },
+  ready: {
+    label: 'Ready',
+    color: '#10b981',
+    bgColor: '#d1fae5',
+    borderColor: '#10b981',
+    icon: '✅'
+  },
+  completed: {
+    label: 'Completed',
+    color: '#6b7280',
+    bgColor: '#f3f4f6',
+    borderColor: '#6b7280',
+    icon: '📦'
+  },
+  cancelled: {
+    label: 'Cancelled',
+    color: '#ef4444',
+    bgColor: '#fef2f2',
+    borderColor: '#ef4444',
+    icon: '❌'
+  }
+};
+
+// 🆕 ADD ORDER CONFIGURATION
+export const ORDER_CONFIG = {
+  DEFAULT_PREP_TIME: 15, // minutes
+  STATUS_FLOW: ['pending', 'preparing', 'ready', 'completed'],
+  URGENT_THRESHOLD: 30 // minutes
+};
+
+// 🆕 ADD TABLE STATUS CONFIG
+export const TABLE_STATUS_CONFIG = {
+  available: {
+    label: 'Available',
+    color: '#10b981',
+    bgColor: '#d1fae5',
+    icon: '✅'
+  },
+  occupied: {
+    label: 'Occupied',
+    color: '#f59e0b',
+    bgColor: '#fef3c7',
+    icon: '🟡'
+  },
+  reserved: {
+    label: 'Reserved',
+    color: '#8b5cf6',
+    bgColor: '#ede9fe',
+    icon: '📅'
+  },
+  needs_cleaning: {
+    label: 'Needs Cleaning',
+    color: '#ef4444',
+    bgColor: '#fef2f2',
+    icon: '🧹'
+  }
+};
