@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
-// Points-Based Registration Form
+// Purchase-Based Registration Form
 const RegistrationForm = ({ 
   selectedTable, 
   onRegister, 
@@ -22,7 +22,7 @@ const RegistrationForm = ({
         <form onSubmit={handleSubmit}>
           <div className="registration-header">
             <h2>Welcome to Table {selectedTable}! 🎉</h2>
-            <p>Enter your phone number to earn loyalty points!</p>
+            <p>Enter your phone number to earn loyalty points with purchases</p>
           </div>
           
           <div className="form-group">
@@ -37,7 +37,7 @@ const RegistrationForm = ({
               required
               autoFocus
             />
-            <small>Required to earn and track your loyalty points</small>
+            <small>Required to earn points on your orders</small>
           </div>
           
           <div className="registration-actions">
@@ -46,14 +46,14 @@ const RegistrationForm = ({
               className="register-btn"
               disabled={!phone.trim()}
             >
-              Earn Points & Order 🎯
+              Start Earning Points 🎯
             </button>
             <button 
               type="button"
               onClick={onClose}
               className="skip-btn"
             >
-              Skip Points
+              Skip for Now
             </button>
           </div>
         </form>
@@ -61,16 +61,25 @@ const RegistrationForm = ({
         <div className="registration-benefits">
           <h4>🎁 Loyalty Points Program</h4>
           <ul>
-            <li>✅ <strong>+10 points</strong> for every QR scan</li>
             <li>✅ <strong>+1 point</strong> for every RM 1 spent</li>
             <li>✅ <strong>Double points</strong> on weekends</li>
-            <li>✅ <strong>Redeem points</strong> for free meals</li>
             <li>✅ <strong>Birthday bonus</strong> +100 points</li>
-            <li>✅ <strong>Refer friends</strong> +50 points each</li>
+            <li>✅ <strong>Redeem points</strong> for free meals & drinks</li>
+            <li>✅ <strong>VIP tiers</strong> with exclusive benefits</li>
+            <li>✅ <strong>Point milestones</strong> with special rewards</li>
           </ul>
           
           <div className="points-example">
-            <strong>Example:</strong> Scan QR (+10) + Order RM 50 (+50) = <strong>60 points!</strong>
+            <strong>Example Order:</strong><br/>
+            RM 50 order = <strong>50 points</strong><br/>
+            RM 50 order on weekend = <strong>100 points!</strong>
+          </div>
+
+          <div className="redemption-info">
+            <strong>Redeem Points:</strong><br/>
+            100 pts = Free drink 🍹<br/>
+            500 pts = Free main course 🍛<br/>
+            1000 pts = Free meal for two 👫
           </div>
         </div>
       </div>
@@ -149,10 +158,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           setSelectedTable(detectedTable);
           loadTableOrders(detectedTable);
           
-          // Award points for QR scan if customer is registered
-          if (customerInfo) {
-            awardQRScanPoints();
-          } else {
+          // Show registration if no customer info
+          if (!customerInfo) {
             setShowRegistration(true);
           }
         } else {
@@ -171,32 +178,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       return () => window.removeEventListener('hashchange', handleHashChange);
     }
   }, [isCustomerView, customerInfo]);
-
-  // Award points for QR scan
-  const awardQRScanPoints = () => {
-    const lastScanDate = localStorage.getItem('flavorflow_last_scan');
-    const today = new Date().toDateString();
-    
-    // Only award points once per day per customer
-    if (lastScanDate !== today) {
-      const pointsEarned = 10; // +10 points for QR scan
-      setCustomerPoints(prev => {
-        const newPoints = prev + pointsEarned;
-        console.log(`🎯 Awarded ${pointsEarned} points for QR scan! Total: ${newPoints}`);
-        
-        // Show points notification
-        if (typeof window !== 'undefined') {
-          setTimeout(() => {
-            alert(`🎉 You earned ${pointsEarned} loyalty points for scanning today! Total: ${newPoints} points`);
-          }, 500);
-        }
-        
-        return newPoints;
-      });
-      
-      localStorage.setItem('flavorflow_last_scan', today);
-    }
-  };
 
   // Auto-refresh orders every 10 seconds
   useEffect(() => {
@@ -247,7 +228,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   };
 
-  // Handle registration for points system
+  // Handle registration
   const handleRegistrationSubmit = (formData) => {
     const { phone } = formData;
     
@@ -260,20 +241,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     const customerData = {
       phone: cleanPhone,
       registeredAt: new Date().toISOString(),
-      totalVisits: 1
+      totalOrders: 0,
+      totalSpent: 0
     };
     
     setCustomerInfo(customerData);
     setShowRegistration(false);
     
-    // Award initial points for first registration
-    setCustomerPoints(50); // +50 points for signing up
-    console.log('✅ New customer registered with 50 bonus points:', customerData);
-    
-    // Award QR scan points for this visit
-    setTimeout(() => {
-      awardQRScanPoints();
-    }, 1000);
+    console.log('✅ New customer registered:', customerData);
   };
 
   // Clear customer info
@@ -283,7 +258,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCustomerPoints(0);
     localStorage.removeItem('flavorflow_customer');
     localStorage.removeItem('flavorflow_points');
-    localStorage.removeItem('flavorflow_last_scan');
     setShowRegistration(true);
     console.log('✅ Customer info cleared');
   };
@@ -340,14 +314,24 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // Calculate points from order total
+  // Calculate points from order total (ONLY from purchases)
   const calculateOrderPoints = (total) => {
-    const points = Math.floor(total); // 1 point per RM 1
+    const basePoints = Math.floor(total); // 1 point per RM 1 spent
     const isWeekend = [0, 6].includes(new Date().getDay()); // Saturday or Sunday
-    return isWeekend ? points * 2 : points; // Double points on weekends
+    const pointsEarned = isWeekend ? basePoints * 2 : basePoints; // Double points on weekends
+    
+    return pointsEarned;
   };
 
-  // Place order with points calculation
+  // Get customer tier based on points
+  const getCustomerTier = (points) => {
+    if (points >= 1000) return { name: 'VIP Diamond', color: '#e74c3c', icon: '💎' };
+    if (points >= 500) return { name: 'VIP Gold', color: '#f39c12', icon: '🥇' };
+    if (points >= 100) return { name: 'VIP Silver', color: '#95a5a6', icon: '🥈' };
+    return { name: 'Member', color: '#3498db', icon: '👤' };
+  };
+
+  // Place order and award points
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
       alert('Your cart is empty. Please add some items first.');
@@ -360,7 +344,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
 
     if (!customerInfo) {
-      alert('Please enter your phone number to earn points and place order.');
+      alert('Please enter your phone number to earn points on this order.');
       setShowRegistration(true);
       return;
     }
@@ -378,7 +362,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       const pointsEarned = calculateOrderPoints(orderTotal);
 
       console.log('🛒 Placing order for:', customerInfo.phone);
-      console.log('💰 Order total:', orderTotal, 'Points earned:', pointsEarned);
+      console.log('💰 Order total:', orderTotal, 'Points to earn:', pointsEarned);
       
       const result = await onCreateOrder(
         selectedTable, 
@@ -390,12 +374,19 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       );
       
       if (result && result.success !== false) {
-        // Award points for order
+        // ✅ AWARD POINTS ONLY AFTER SUCCESSFUL PURCHASE
         setCustomerPoints(prev => {
           const newPoints = prev + pointsEarned;
-          console.log(`🎯 Awarded ${pointsEarned} points for order! Total: ${newPoints}`);
+          console.log(`🎯 Awarded ${pointsEarned} points for purchase! Total: ${newPoints}`);
           return newPoints;
         });
+
+        // Update customer stats
+        setCustomerInfo(prev => ({
+          ...prev,
+          totalOrders: (prev.totalOrders || 0) + 1,
+          totalSpent: (prev.totalSpent || 0) + orderTotal
+        }));
 
         setCart([]);
         setCartOpen(false);
@@ -405,7 +396,9 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         }, 1000);
         
         const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
-        alert(`✅ Order placed successfully!\n📦 Order #: ${orderNumber}\n🎯 Points Earned: +${pointsEarned}\n💰 Total Points: ${customerPoints + pointsEarned}\n\nYour food will be served soon!`);
+        const tier = getCustomerTier(customerPoints + pointsEarned);
+        
+        alert(`✅ Order placed successfully!\n\n📦 Order #: ${orderNumber}\n💰 Total: RM ${orderTotal.toFixed(2)}\n🎯 Points Earned: +${pointsEarned}\n💰 Total Points: ${customerPoints + pointsEarned}\n${tier.icon} Tier: ${tier.name}\n\nYour food will be served soon!`);
       } else {
         throw new Error(result?.message || 'Failed to place order');
       }
@@ -489,13 +482,14 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           <div className="warning-icon">📱</div>
           <div className="warning-text">
             <strong>Table {selectedTable}</strong>
-            <small>Enter phone to earn points</small>
+            <small>Enter phone to earn points on orders</small>
           </div>
         </div>
       );
     }
     
     const activeOrderCount = tableOrders.length;
+    const tier = getCustomerTier(customerPoints);
     
     return (
       <div className="table-success">
@@ -503,7 +497,10 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         <div className="success-text">
           <strong>Table {selectedTable}</strong>
           <small>
-            {customerInfo.phone} • {customerPoints} pts
+            {customerInfo.phone} • {tier.icon} {tier.name}
+          </small>
+          <small>
+            🎯 {customerPoints} points • {customerInfo.totalOrders || 0} orders
           </small>
           <small>
             {isLoading ? 'Checking...' : 
@@ -526,13 +523,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   const OrdersHistorySection = () => {
     if (!selectedTable || !customerInfo) return null;
 
+    const tier = getCustomerTier(customerPoints);
+
     return (
       <div className="orders-history-section">
         <div className="orders-header">
           <h3>📋 Active Orders - Table {selectedTable}</h3>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <div className="points-display">
-              🎯 {customerPoints} pts
+            <div className="points-display" style={{ backgroundColor: tier.color + '20', color: tier.color }}>
+              {tier.icon} {customerPoints} pts
             </div>
             <button 
               onClick={() => loadTableOrders(selectedTable)}
@@ -559,7 +558,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         ) : tableOrders.length === 0 ? (
           <div className="no-orders">
             <p>No active orders for this table</p>
-            <small>Active orders will appear here</small>
+            <small>Place an order to start earning points!</small>
           </div>
         ) : (
           <div className="orders-active">
@@ -620,9 +619,12 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
   // CUSTOMER VIEW
   if (isCustomerView) {
+    const tier = getCustomerTier(customerPoints);
+    const pointsToEarn = calculateOrderPoints(total);
+
     return (
       <div className="simple-customer-view">
-        {/* Points-Based Registration Form */}
+        {/* Purchase-Based Registration Form */}
         {showRegistration && (
           <RegistrationForm
             selectedTable={selectedTable}
@@ -654,7 +656,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
         {!selectedTable && (
           <div className="warning-banner">
-            <p>📱 Please scan your table's QR code to earn points and order</p>
+            <p>📱 Please scan your table's QR code to order and earn points</p>
           </div>
         )}
 
@@ -692,21 +694,21 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             <div className="disabled-overlay">
               <div className="disabled-message">
                 <div className="message-icon">📱</div>
-                <h3>Scan QR Code to Earn Points</h3>
-                <p>Scan your table's QR code to earn loyalty points and order</p>
+                <h3>Scan QR Code to Order</h3>
+                <p>Scan your table's QR code to order and earn loyalty points</p>
               </div>
             </div>
           ) : !customerInfo ? (
             <div className="disabled-overlay">
               <div className="disabled-message">
                 <div className="message-icon">🎯</div>
-                <h3>Earn Loyalty Points</h3>
-                <p>Enter your phone number to start earning points with every order</p>
+                <h3>Earn Points on Orders</h3>
+                <p>Enter your phone number to earn points with every purchase</p>
                 <button 
                   onClick={() => setShowRegistration(true)}
                   className="register-prompt-btn"
                 >
-                  Earn Points Now
+                  Start Earning Points
                 </button>
               </div>
             </div>
@@ -722,7 +724,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                   <p>{item.description}</p>
                   <div className="item-price">RM {item.price.toFixed(2)}</div>
                   <div className="item-points">
-                    🎯 Earn {Math.floor(item.price)} points
+                    🎯 Earn {Math.floor(item.price)} pts when purchased
                   </div>
                 </div>
                 <button 
@@ -748,7 +750,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               {customerInfo && (
                 <div className="customer-info-banner">
                   <div>📱 {customerInfo.phone}</div>
-                  <div>🎯 {customerPoints} points</div>
+                  <div style={{ color: tier.color }}>{tier.icon} {tier.name} • {customerPoints} pts</div>
                   <button 
                     onClick={handleClearCustomer}
                     className="change-customer-small"
@@ -796,8 +798,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                       <strong>Total: RM {total.toFixed(2)}</strong>
                     </div>
                     <div className="points-summary">
-                      <strong>Points to earn: +{calculateOrderPoints(total)}</strong>
-                      <small>Double points on weekends!</small>
+                      <strong>Points to earn: +{pointsToEarn}</strong>
+                      <small>{pointsToEarn > total ? '🎉 Double points weekend!' : '1 point per RM 1 spent'}</small>
                     </div>
                   </div>
                   
@@ -805,7 +807,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
                     className="place-order-btn"
                     onClick={handlePlaceOrder}
                   >
-                    🎯 Place Order & Earn Points
+                    🎯 Place Order & Earn {pointsToEarn} Points
                   </button>
                 </>
               )}
@@ -819,7 +821,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             className="mobile-cart-btn"
             onClick={() => setCartOpen(true)}
           >
-            View Cart ({itemCount}) - {calculateOrderPoints(total)} pts
+            Order ({itemCount}) - {pointsToEarn} pts
           </button>
         )}
       </div>
