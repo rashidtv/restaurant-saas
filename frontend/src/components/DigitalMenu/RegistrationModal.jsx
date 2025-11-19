@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { validatePhoneNumber } from '../../utils/validators';
 import './styles.css';
 
@@ -6,6 +6,13 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
   const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [isVisible, setIsVisible] = useState(false);
+
+  // Smooth entrance animation
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,23 +36,34 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      handleClose();
     }
   };
 
+  const handleClose = () => {
+    setIsVisible(false);
+    setTimeout(onClose, 300); // Wait for animation to complete
+  };
+
+  const handlePhoneChange = (e) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    setPhone(value);
+    if (error) setError('');
+  };
+
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className="modal">
+    <div className={`modal-overlay registration-overlay ${isVisible ? 'visible' : ''}`} onClick={handleOverlayClick}>
+      <div className="modal registration-modal">
         {/* Clean Header */}
         <div className="modal-header">
           <div className="modal-icon">📱</div>
-          <h2>Welcome!</h2>
-          <p>Enter your phone number to start ordering</p>
+          <h2>Welcome to Table {selectedTable}!</h2>
+          <p>Enter your phone number to start ordering and earn points</p>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
           {error && (
-            <div className="error-message">
+            <div className="error-message" role="alert">
               ⚠️ {error}
             </div>
           )}
@@ -55,28 +73,30 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
             <input
               id="phone-input"
               type="tel"
-              placeholder="012 345 6789"
+              placeholder="0123456789"
               value={phone}
-              onChange={(e) => {
-                setPhone(e.target.value);
-                setError('');
-              }}
+              onChange={handlePhoneChange}
               className="form-input"
               required
               disabled={isSubmitting}
               autoFocus
+              maxLength="10"
+              pattern="[0-9]{10}"
+              inputMode="numeric"
             />
+            <div className="input-hint">10-digit number only</div>
           </div>
 
           <div className="modal-actions">
             <button 
               type="submit" 
               className="btn-primary"
-              disabled={!phone.trim() || isSubmitting}
+              disabled={!phone.trim() || phone.length !== 10 || isSubmitting}
+              aria-label={isSubmitting ? 'Setting up your account' : 'Continue to menu'}
             >
               {isSubmitting ? (
                 <>
-                  <span className="loading-spinner"></span>
+                  <span className="loading-spinner" aria-hidden="true"></span>
                   Setting up your account...
                 </>
               ) : (
@@ -85,7 +105,7 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
             </button>
             <button 
               type="button" 
-              onClick={onClose}
+              onClick={handleClose}
               className="btn-secondary"
               disabled={isSubmitting}
             >
@@ -96,6 +116,7 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
 
         {/* Simple Benefits */}
         <div className="benefits-section">
+          <h3>Why Register?</h3>
           <div className="benefit-item">
             <span className="benefit-icon">⚡</span>
             <span>Earn points with every order</span>

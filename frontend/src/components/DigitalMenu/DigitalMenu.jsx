@@ -9,7 +9,6 @@ import { MenuGrid } from './MenuGrid';
 import { CartPanel } from './CartPanel';
 import { orderService } from '../../services/orderService';
 import { pointsService } from '../../services/pointsService';
-import { validatePhoneNumber } from '../../utils/validators';
 import './styles.css';
 
 export const DigitalMenu = ({ 
@@ -19,11 +18,11 @@ export const DigitalMenu = ({
   isCustomerView = false,
   onCreateOrder 
 }) => {
-  // Refs for scrolling
-  const cartSectionRef = useRef(null);
-  const menuSectionRef = useRef(null);
+  // Refs for DOM access
+  const headerRef = useRef(null);
+  const cartButtonRef = useRef(null);
   
-  // 🎯 PRODUCTION-READY HOOK USAGE
+  // Custom hooks with proper error handling
   const customerHook = useCustomer();
   const { 
     customer, 
@@ -36,7 +35,17 @@ export const DigitalMenu = ({
   } = customerHook;
 
   const { orders, isLoading: ordersLoading, loadTableOrders, createOrder: createOrderAPI } = useOrders();
-  const { cart, isCartOpen, setIsCartOpen, addToCart, removeFromCart, updateQuantity, clearCart, getCartTotal, getItemCount } = useCart();
+  const { 
+    cart, 
+    isCartOpen, 
+    setIsCartOpen, 
+    addToCart, 
+    removeFromCart, 
+    updateQuantity, 
+    clearCart, 
+    getCartTotal, 
+    getItemCount 
+  } = useCart();
 
   // Local state
   const [selectedTable, setSelectedTable] = useState('');
@@ -46,13 +55,15 @@ export const DigitalMenu = ({
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [headerSticky, setHeaderSticky] = useState(false);
 
-  // Table detection
+  // Table detection from URL
   useEffect(() => {
     if (isCustomerView) {
       const detectTableFromURL = () => {
         let detectedTable = null;
         
+        // Try multiple methods to detect table from URL
         const urlParams = new URLSearchParams(window.location.search);
         detectedTable = urlParams.get('table');
         
@@ -81,7 +92,21 @@ export const DigitalMenu = ({
     }
   }, [isCustomerView]);
 
-  // 🎯 PRODUCTION: Load customer orders
+  // Sticky header implementation
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 100) {
+        setHeaderSticky(true);
+      } else {
+        setHeaderSticky(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Load customer orders when available
   useEffect(() => {
     const loadCustomerOrders = async () => {
       if (selectedTable && customer && getCustomerOrders) {
@@ -100,7 +125,7 @@ export const DigitalMenu = ({
     loadCustomerOrders();
   }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
-  // Show registration immediately when table detected
+  // Show registration when table detected and no customer
   useEffect(() => {
     if (selectedTable && !customer) {
       setShowRegistration(true);
@@ -108,13 +133,14 @@ export const DigitalMenu = ({
     }
   }, [selectedTable, customer]);
 
-  // Event handlers
+  // Event handlers with proper error handling
   const handleRegistration = useCallback(async (formData) => {
     try {
       await registerCustomer(formData.phone);
       setShowRegistration(false);
       setShowWelcome(false);
     } catch (error) {
+      console.error('Registration error:', error);
       throw error;
     }
   }, [registerCustomer]);
@@ -125,10 +151,8 @@ export const DigitalMenu = ({
       return;
     }
     
-    // Add item with specified quantity
-    for (let i = 0; i < quantity; i++) {
-      addToCart(item);
-    }
+    // Use the improved addToCart that accepts quantity
+    addToCart(item, quantity);
   }, [customer, addToCart]);
 
   const handlePlaceOrder = useCallback(async () => {
@@ -179,11 +203,16 @@ export const DigitalMenu = ({
         clearCart();
         setIsCartOpen(false);
         
-        // Refresh orders
-        setTimeout(() => {
-          loadTableOrders(selectedTable);
-          if (getCustomerOrders) {
-            getCustomerOrders().then(setCustomerOrders);
+        // Refresh orders with proper error handling
+        setTimeout(async () => {
+          try {
+            await loadTableOrders(selectedTable);
+            if (getCustomerOrders) {
+              const orders = await getCustomerOrders();
+              setCustomerOrders(orders);
+            }
+          } catch (error) {
+            console.error('Error refreshing orders:', error);
           }
         }, 2000);
         
@@ -199,20 +228,44 @@ export const DigitalMenu = ({
       setIsPlacingOrder(false);
     }
   }, [
-    cart, selectedTable, customer, getCartTotal, onCreateOrder, 
-    createOrderAPI, updateCustomerAfterOrder, addPoints, clearCart, 
-    setIsCartOpen, loadTableOrders, getCustomerOrders
+    cart, 
+    selectedTable, 
+    customer, 
+    getCartTotal, 
+    onCreateOrder, 
+    createOrderAPI, 
+    updateCustomerAfterOrder, 
+    addPoints, 
+    clearCart, 
+    setIsCartOpen, 
+    loadTableOrders, 
+    getCustomerOrders
   ]);
 
-  // Scroll to cart function
-  const scrollToCart = useCallback(() => {
-    if (cartSectionRef.current) {
-      cartSectionRef.current.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'start'
-      });
-    }
+  // Fixed: Proper cart toggle function
+  const toggleCart = useCallback(() => {
+    setIsCartOpen(prev => !prev);
   }, []);
+
+  // Fixed: Scroll to cart function
+  const scrollToCart = useCallback(() => {
+    if (isCartOpen) {
+      // If cart is open, ensure it's visible
+      const cartPanel = document.querySelector('.cart-panel');
+      if (cartPanel) {
+        cartPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } else {
+      // Open cart first, then ensure visibility
+      setIsCartOpen(true);
+      setTimeout(() => {
+        const cartPanel = document.querySelector('.cart-panel');
+        if (cartPanel) {
+          cartPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 100);
+    }
+  }, [isCartOpen]);
 
   // Separate orders by status
   const displayOrders = customerOrders.length > 0 ? customerOrders : orders;
@@ -224,13 +277,8 @@ export const DigitalMenu = ({
   // Categories for menu
   const categories = ['all', ...new Set(menu.map(item => item.category))];
 
-  // Fallback menu data
-  const displayMenu = menu && menu.length > 0 ? menu : [
-    { id: '1', name: 'Teh Tarik', price: 4.50, category: 'drinks', description: 'Famous Malaysian pulled tea' },
-    { id: '2', name: 'Nasi Lemak', price: 12.90, category: 'main', description: 'Coconut rice with sambal' },
-    { id: '3', name: 'Roti Canai', price: 3.50, category: 'main', description: 'Flaky flatbread with curry' },
-    { id: '4', name: 'Cendol', price: 6.90, category: 'desserts', description: 'Shaved ice dessert' }
-  ];
+  // Fallback menu data (should come from API in production)
+  const displayMenu = menu && menu.length > 0 ? menu : [];
 
   // CUSTOMER VIEW
   if (isCustomerView) {
@@ -248,8 +296,11 @@ export const DigitalMenu = ({
           />
         )}
 
-        {/* Header - No Cart during registration */}
-        <header className="menu-header">
+        {/* Fixed Sticky Header */}
+        <header 
+          ref={headerRef}
+          className={`menu-header ${headerSticky ? 'sticky' : ''}`}
+        >
           <div className="header-content">
             <h1 className="restaurant-name">FlavorFlow</h1>
             {selectedTable && (
@@ -257,17 +308,24 @@ export const DigitalMenu = ({
             )}
           </div>
           
-          {/* Show cart only when customer is registered */}
+          {/* Fixed Cart Button - Now properly opens cart */}
           {customer && selectedTable && (
             <button 
+              ref={cartButtonRef}
               className="cart-button-header"
-              onClick={scrollToCart}
+              onClick={toggleCart}
+              aria-label={`View cart with ${getItemCount()} items`}
+              aria-expanded={isCartOpen}
             >
               <span className="cart-icon">🛒</span>
               <span className="cart-summary">
                 {getItemCount()} items • RM {getCartTotal().toFixed(2)}
               </span>
-              {getItemCount() > 0 && <span className="cart-badge">{getItemCount()}</span>}
+              {getItemCount() > 0 && (
+                <span className="cart-badge" aria-live="polite">
+                  {getItemCount()}
+                </span>
+              )}
             </button>
           )}
         </header>
@@ -293,6 +351,7 @@ export const DigitalMenu = ({
                 <button 
                   onClick={() => setShowRegistration(true)}
                   className="register-cta-btn"
+                  type="button"
                 >
                   Register to Earn Points
                 </button>
@@ -315,13 +374,20 @@ export const DigitalMenu = ({
                   <h2>Your Orders</h2>
                   <button 
                     onClick={async () => {
-                      await loadTableOrders(selectedTable);
-                      if (getCustomerOrders) {
-                        getCustomerOrders().then(setCustomerOrders);
+                      try {
+                        await loadTableOrders(selectedTable);
+                        if (getCustomerOrders) {
+                          const orders = await getCustomerOrders();
+                          setCustomerOrders(orders);
+                        }
+                      } catch (error) {
+                        console.error('Error refreshing orders:', error);
                       }
                     }}
                     disabled={ordersLoading}
                     className="refresh-btn"
+                    aria-label="Refresh orders"
+                    type="button"
                   >
                     {ordersLoading ? '...' : '↻'}
                   </button>
@@ -336,7 +402,10 @@ export const DigitalMenu = ({
                         <h3 className="group-title">Active Orders ({activeOrders.length})</h3>
                         <div className="orders-list">
                           {activeOrders.map((order, index) => (
-                            <OrderCard key={order._id || `order-${index}`} order={order} />
+                            <OrderCard 
+                              key={order._id || `order-${index}`} 
+                              order={order} 
+                            />
                           ))}
                         </div>
                       </div>
@@ -347,7 +416,10 @@ export const DigitalMenu = ({
                         <h3 className="group-title">Order History ({completedOrders.length})</h3>
                         <div className="orders-list">
                           {completedOrders.map((order, index) => (
-                            <OrderCard key={order._id || `completed-${index}`} order={order} />
+                            <OrderCard 
+                              key={order._id || `completed-${index}`} 
+                              order={order} 
+                            />
                           ))}
                         </div>
                       </div>
@@ -365,24 +437,8 @@ export const DigitalMenu = ({
               </div>
             )}
 
-            {/* Cart Section with Ref for Scrolling */}
-            {customer && (
-              <div ref={cartSectionRef} className="cart-section">
-                <CartPanel
-                  cart={cart}
-                  isOpen={isCartOpen}
-                  onClose={() => setIsCartOpen(false)}
-                  onUpdateQuantity={updateQuantity}
-                  onRemoveItem={removeFromCart}
-                  onPlaceOrder={handlePlaceOrder}
-                  selectedTable={selectedTable}
-                  customer={customer}
-                />
-              </div>
-            )}
-
             {/* Menu Section */}
-            <div ref={menuSectionRef} className="menu-section">
+            <div className="menu-section">
               <MenuGrid
                 menuItems={displayMenu}
                 searchTerm={searchTerm}
@@ -396,11 +452,26 @@ export const DigitalMenu = ({
           </div>
         )}
 
-        {/* Mobile Floating Cart Button */}
+        {/* Cart Panel - Fixed positioning */}
+        <CartPanel
+          cart={cart}
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          onUpdateQuantity={updateQuantity}
+          onRemoveItem={removeFromCart}
+          onPlaceOrder={handlePlaceOrder}
+          selectedTable={selectedTable}
+          customer={customer}
+          isPlacingOrder={isPlacingOrder}
+        />
+
+        {/* Mobile Floating Cart Button - Fixed functionality */}
         {customer && selectedTable && getItemCount() > 0 && (
           <button 
             className="floating-cart-btn"
-            onClick={scrollToCart}
+            onClick={toggleCart}
+            aria-label={`Open cart with ${getItemCount()} items`}
+            type="button"
           >
             <span>🛒</span>
             <span>{getItemCount()} • RM {getCartTotal().toFixed(2)}</span>
