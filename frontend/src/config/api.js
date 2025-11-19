@@ -1,13 +1,24 @@
 // API configuration with fallbacks
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://restaurant-saas-backend-hbdz.onrender.com';
 
+
+// Export for use in socket service
+export const SOCKET_CONFIG = {
+  URL: API_BASE_URL,
+  OPTIONS: {
+    transports: ['websocket', 'polling'],
+    timeout: 10000
+  }
+};
+
 export const API_ENDPOINTS = {
   ORDERS: `${API_BASE_URL}/api/orders`,
   TABLES: `${API_BASE_URL}/api/tables`,
   PAYMENTS: `${API_BASE_URL}/api/payments`,
   MENU: `${API_BASE_URL}/api/menu`,
   HEALTH: `${API_BASE_URL}/api/health`,
-  INIT: `${API_BASE_URL}/api/init`
+  INIT: `${API_BASE_URL}/api/init`,
+  CUSTOMERS: `${API_BASE_URL}/api/customers`
 };
 
 // Enhanced fetch function with error handling
