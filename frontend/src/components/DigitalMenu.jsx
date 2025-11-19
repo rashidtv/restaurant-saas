@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './DigitalMenu.css';
 
-// Purchase-Based Registration Form
+// Simple Points Registration Form
 const RegistrationForm = ({ 
   selectedTable, 
   onRegister, 
@@ -19,25 +19,24 @@ const RegistrationForm = ({
   return (
     <div className="registration-overlay">
       <div className="registration-form">
+        <div className="registration-header">
+          <h2>Welcome! 🎉</h2>
+          <p>Table {selectedTable}</p>
+        </div>
+        
         <form onSubmit={handleSubmit}>
-          <div className="registration-header">
-            <h2>Welcome to Table {selectedTable}! 🎉</h2>
-            <p>Enter your phone number to earn loyalty points with purchases</p>
-          </div>
-          
           <div className="form-group">
-            <label htmlFor="phone-input">📱 Phone Number *</label>
+            <label>Enter your phone number to earn points</label>
             <input
               type="tel"
               inputMode="numeric"
-              placeholder="e.g., 0123456789"
+              placeholder="0123456789"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="form-input"
               required
               autoFocus
             />
-            <small>Required to earn points on your orders</small>
           </div>
           
           <div className="registration-actions">
@@ -46,42 +45,67 @@ const RegistrationForm = ({
               className="register-btn"
               disabled={!phone.trim()}
             >
-              Start Earning Points 🎯
-            </button>
-            <button 
-              type="button"
-              onClick={onClose}
-              className="skip-btn"
-            >
-              Skip for Now
+              Continue
             </button>
           </div>
         </form>
         
-        <div className="registration-benefits">
-          <h4>🎁 Loyalty Points Program</h4>
-          <ul>
-            <li>✅ <strong>+1 point</strong> for every RM 1 spent</li>
-            <li>✅ <strong>Double points</strong> on weekends</li>
-            <li>✅ <strong>Birthday bonus</strong> +100 points</li>
-            <li>✅ <strong>Redeem points</strong> for free meals & drinks</li>
-            <li>✅ <strong>VIP tiers</strong> with exclusive benefits</li>
-            <li>✅ <strong>Point milestones</strong> with special rewards</li>
-          </ul>
-          
-          <div className="points-example">
-            <strong>Example Order:</strong><br/>
-            RM 50 order = <strong>50 points</strong><br/>
-            RM 50 order on weekend = <strong>100 points!</strong>
+        <div className="points-info">
+          <h4>Earn Points</h4>
+          <div className="points-item">
+            <span>• 1 point per RM 1 spent</span>
           </div>
-
-          <div className="redemption-info">
-            <strong>Redeem Points:</strong><br/>
-            100 pts = Free drink 🍹<br/>
-            500 pts = Free main course 🍛<br/>
-            1000 pts = Free meal for two 👫
+          <div className="points-item">
+            <span>• Double points on weekends</span>
+          </div>
+          <div className="points-item">
+            <span>• Redeem for free items</span>
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Points Display Component
+const PointsDisplay = ({ points, phone, onClear }) => {
+  const getTier = (points) => {
+    if (points >= 1000) return { name: 'Diamond', color: '#e74c3c' };
+    if (points >= 500) return { name: 'Gold', color: '#f39c12' };
+    if (points >= 100) return { name: 'Silver', color: '#95a5a6' };
+    return { name: 'Member', color: '#3498db' };
+  };
+
+  const tier = getTier(points);
+
+  return (
+    <div className="points-display-section">
+      <div className="points-card">
+        <div className="points-header">
+          <div className="points-info">
+            <div className="phone-number">{phone}</div>
+            <div className="points-count">{points} points</div>
+          </div>
+          <div className="tier-badge" style={{ backgroundColor: tier.color }}>
+            {tier.name}
+          </div>
+        </div>
+        <div className="points-breakdown">
+          <div className="breakdown-item">
+            <span>Current Points</span>
+            <span>{points}</span>
+          </div>
+          <div className="breakdown-item">
+            <span>Next Reward</span>
+            <span>{100 - (points % 100)} to go</span>
+          </div>
+        </div>
+        <button 
+          onClick={onClear}
+          className="change-number-btn"
+        >
+          Change Number
+        </button>
       </div>
     </div>
   );
@@ -110,14 +134,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         try {
           const customerData = JSON.parse(savedCustomer);
           setCustomerInfo(customerData);
-          console.log('✅ Loaded saved customer:', customerData);
           
-          // Load points if available
           if (savedPoints) {
             setCustomerPoints(parseInt(savedPoints) || 0);
           }
         } catch (error) {
-          console.error('❌ Error loading customer data:', error);
           localStorage.removeItem('flavorflow_customer');
           localStorage.removeItem('flavorflow_points');
         }
@@ -125,12 +146,11 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView]);
 
-  // Save customer info and points to localStorage
+  // Save customer info and points
   useEffect(() => {
     if (customerInfo && isCustomerView) {
       localStorage.setItem('flavorflow_customer', JSON.stringify(customerInfo));
       localStorage.setItem('flavorflow_points', customerPoints.toString());
-      console.log('💾 Saved customer info and points to localStorage');
     }
   }, [customerInfo, customerPoints, isCustomerView]);
 
@@ -138,7 +158,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   useEffect(() => {
     if (isCustomerView) {
       const detectTable = () => {
-        console.log('🔍 Detecting table from URL...');
         let detectedTable = null;
         
         const urlParams = new URLSearchParams(window.location.search);
@@ -154,16 +173,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
           if (!detectedTable.startsWith('T')) {
             detectedTable = 'T' + detectedTable;
           }
-          console.log('✅ Table detected:', detectedTable);
           setSelectedTable(detectedTable);
           loadTableOrders(detectedTable);
           
-          // Show registration if no customer info
           if (!customerInfo) {
             setShowRegistration(true);
           }
         } else {
-          console.log('❌ No table detected in URL');
           setSelectedTable('');
         }
       };
@@ -179,7 +195,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, customerInfo]);
 
-  // Auto-refresh orders every 10 seconds
+  // Auto-refresh orders
   useEffect(() => {
     if (isCustomerView && selectedTable && customerInfo) {
       orderRefreshRef.current = setInterval(() => {
@@ -194,7 +210,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     }
   }, [isCustomerView, selectedTable, customerInfo]);
 
-  // Load ONLY active orders for the table
+  // Load orders for the table (including completed)
   const loadTableOrders = async (tableNumber) => {
     if (!tableNumber) return;
     
@@ -205,15 +221,16 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       if (response.ok) {
         const allOrders = await response.json();
         
-        const activeOrders = allOrders.filter(order => {
+        // Include completed orders in the filter
+        const tableOrders = allOrders.filter(order => {
           if (!order) return false;
           const orderTable = (order.tableId || order.table || '').toString().toUpperCase();
           const targetTable = tableNumber.toUpperCase();
-          const isActiveStatus = ['pending', 'preparing', 'ready'].includes(order.status);
-          return orderTable === targetTable && isActiveStatus;
+          const validStatus = ['pending', 'preparing', 'ready', 'completed'].includes(order.status);
+          return orderTable === targetTable && validStatus;
         });
         
-        const sortedOrders = activeOrders.sort((a, b) => {
+        const sortedOrders = tableOrders.sort((a, b) => {
           const dateA = new Date(a.createdAt || a.timestamp || 0);
           const dateB = new Date(b.createdAt || b.timestamp || 0);
           return dateB - dateA;
@@ -222,7 +239,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         setTableOrders(sortedOrders);
       }
     } catch (error) {
-      console.error('❌ Error loading orders:', error);
+      console.error('Error loading orders:', error);
     } finally {
       setIsLoading(false);
     }
@@ -247,19 +264,15 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     
     setCustomerInfo(customerData);
     setShowRegistration(false);
-    
-    console.log('✅ New customer registered:', customerData);
   };
 
   // Clear customer info
   const handleClearCustomer = () => {
-    console.log('🔄 Clearing customer info...');
     setCustomerInfo(null);
     setCustomerPoints(0);
     localStorage.removeItem('flavorflow_customer');
     localStorage.removeItem('flavorflow_points');
     setShowRegistration(true);
-    console.log('✅ Customer info cleared');
   };
 
   // Add to cart
@@ -268,8 +281,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       setShowRegistration(true);
       return;
     }
-    
-    console.log('➕ Adding to cart:', item.name);
     
     const cartItem = {
       id: item.id || item._id,
@@ -314,37 +325,27 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     setCart(updatedCart);
   };
 
-  // Calculate points from order total (ONLY from purchases)
+  // Calculate points from order total
   const calculateOrderPoints = (total) => {
-    const basePoints = Math.floor(total); // 1 point per RM 1 spent
-    const isWeekend = [0, 6].includes(new Date().getDay()); // Saturday or Sunday
-    const pointsEarned = isWeekend ? basePoints * 2 : basePoints; // Double points on weekends
-    
-    return pointsEarned;
-  };
-
-  // Get customer tier based on points
-  const getCustomerTier = (points) => {
-    if (points >= 1000) return { name: 'VIP Diamond', color: '#e74c3c', icon: '💎' };
-    if (points >= 500) return { name: 'VIP Gold', color: '#f39c12', icon: '🥇' };
-    if (points >= 100) return { name: 'VIP Silver', color: '#95a5a6', icon: '🥈' };
-    return { name: 'Member', color: '#3498db', icon: '👤' };
+    const basePoints = Math.floor(total);
+    const isWeekend = [0, 6].includes(new Date().getDay());
+    return isWeekend ? basePoints * 2 : basePoints;
   };
 
   // Place order and award points
   const handlePlaceOrder = async () => {
     if (cart.length === 0) {
-      alert('Your cart is empty. Please add some items first.');
+      alert('Your cart is empty.');
       return;
     }
 
     if (!selectedTable) {
-      alert('Table number not detected. Please scan the QR code again.');
+      alert('Table not detected.');
       return;
     }
 
     if (!customerInfo) {
-      alert('Please enter your phone number to earn points on this order.');
+      alert('Please enter your phone number.');
       setShowRegistration(true);
       return;
     }
@@ -361,9 +362,6 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       const orderTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const pointsEarned = calculateOrderPoints(orderTotal);
 
-      console.log('🛒 Placing order for:', customerInfo.phone);
-      console.log('💰 Order total:', orderTotal, 'Points to earn:', pointsEarned);
-      
       const result = await onCreateOrder(
         selectedTable, 
         orderData, 
@@ -374,12 +372,8 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
       );
       
       if (result && result.success !== false) {
-        // ✅ AWARD POINTS ONLY AFTER SUCCESSFUL PURCHASE
-        setCustomerPoints(prev => {
-          const newPoints = prev + pointsEarned;
-          console.log(`🎯 Awarded ${pointsEarned} points for purchase! Total: ${newPoints}`);
-          return newPoints;
-        });
+        // Award points for purchase
+        setCustomerPoints(prev => prev + pointsEarned);
 
         // Update customer stats
         setCustomerInfo(prev => ({
@@ -396,24 +390,23 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         }, 1000);
         
         const orderNumber = result.orderNumber || result.data?.orderNumber || 'N/A';
-        const tier = getCustomerTier(customerPoints + pointsEarned);
-        
-        alert(`✅ Order placed successfully!\n\n📦 Order #: ${orderNumber}\n💰 Total: RM ${orderTotal.toFixed(2)}\n🎯 Points Earned: +${pointsEarned}\n💰 Total Points: ${customerPoints + pointsEarned}\n${tier.icon} Tier: ${tier.name}\n\nYour food will be served soon!`);
+        alert(`Order #${orderNumber} placed!\n+${pointsEarned} points earned`);
       } else {
         throw new Error(result?.message || 'Failed to place order');
       }
     } catch (error) {
-      console.error('❌ Order failed:', error);
-      alert('Failed to place order: ' + (error.message || 'Please try again.'));
+      console.error('Order failed:', error);
+      alert('Failed to place order. Please try again.');
     }
   };
 
-  // Get status display
+  // Get status display with proper styling
   const getStatusDisplay = (status) => {
     const statusConfig = {
-      'pending': { label: 'Pending', color: '#f59e0b', icon: '⏳' },
-      'preparing': { label: 'Preparing', color: '#3b82f6', icon: '👨‍🍳' },
-      'ready': { label: 'Ready', color: '#10b981', icon: '✅' }
+      'pending': { label: 'Order Received', color: '#f59e0b', icon: '⏳' },
+      'preparing': { label: 'Cooking', color: '#3b82f6', icon: '👨‍🍳' },
+      'ready': { label: 'Ready', color: '#10b981', icon: '✅' },
+      'completed': { label: 'Completed', color: '#6b7280', icon: '🎉' }
     };
     
     const config = statusConfig[status] || { label: status, color: '#6b7280', icon: '❓' };
@@ -432,168 +425,83 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
     );
   };
 
-  // Format order items properly
+  // Format order items with proper data handling
   const formatOrderItems = (items) => {
-    if (!items || items.length === 0) return 'No items';
+    if (!items || !Array.isArray(items) || items.length === 0) return 'No items';
     
-    const itemList = items.map(item => {
-      const itemName = item.name || 'Unknown Item';
+    return items.map((item, index) => {
+      const itemName = item.name || 'Menu Item';
       const quantity = item.quantity || 1;
-      return `${itemName} x${quantity}`;
+      const price = item.price ? `RM ${parseFloat(item.price).toFixed(2)}` : '';
+      
+      return (
+        <div key={index} className="order-item-detail">
+          <span className="item-name">{itemName} x{quantity}</span>
+          {price && <span className="item-price">{price}</span>}
+        </div>
+      );
     });
-    
-    if (itemList.length <= 3) {
-      return itemList.join(', ');
-    } else {
-      return `${itemList.slice(0, 3).join(', ')} and ${itemList.length - 3} more...`;
-    }
   };
 
   // Format date properly
   const formatOrderTime = (timestamp) => {
-    if (!timestamp) return 'Unknown time';
+    if (!timestamp) return 'Time not available';
     
     try {
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return 'Invalid time';
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      return date.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
     } catch (error) {
-      return 'Invalid time';
+      return 'Time not available';
     }
   };
 
-  // Table Status Component with Points Display
-  const TableStatus = () => {
-    if (!selectedTable) {
-      return (
-        <div className="table-error">
-          <div className="error-icon">⚠️</div>
-          <div className="error-text">
-            <strong>Table not detected</strong>
-            <small>Please scan the QR code again</small>
-          </div>
-        </div>
-      );
+  // Format date
+  const formatOrderDate = (timestamp) => {
+    if (!timestamp) return '';
+    
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return '';
+      
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return '';
     }
-    
-    if (!customerInfo) {
-      return (
-        <div className="table-warning">
-          <div className="warning-icon">📱</div>
-          <div className="warning-text">
-            <strong>Table {selectedTable}</strong>
-            <small>Enter phone to earn points on orders</small>
-          </div>
-        </div>
-      );
-    }
-    
-    const activeOrderCount = tableOrders.length;
-    const tier = getCustomerTier(customerPoints);
-    
-    return (
-      <div className="table-success">
-        <div className="success-icon">🍽️</div>
-        <div className="success-text">
-          <strong>Table {selectedTable}</strong>
-          <small>
-            {customerInfo.phone} • {tier.icon} {tier.name}
-          </small>
-          <small>
-            🎯 {customerPoints} points • {customerInfo.totalOrders || 0} orders
-          </small>
-          <small>
-            {isLoading ? 'Checking...' : 
-             activeOrderCount > 0 ? `${activeOrderCount} active order(s)` : 'Ready to order'
-            }
-          </small>
-          <button 
-            onClick={handleClearCustomer}
-            className="change-customer-btn"
-            title="Change phone number"
-          >
-            🔄
-          </button>
-        </div>
-      </div>
-    );
   };
 
-  // Orders History Section
-  const OrdersHistorySection = () => {
-    if (!selectedTable || !customerInfo) return null;
-
-    const tier = getCustomerTier(customerPoints);
-
-    return (
-      <div className="orders-history-section">
-        <div className="orders-header">
-          <h3>📋 Active Orders - Table {selectedTable}</h3>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <div className="points-display" style={{ backgroundColor: tier.color + '20', color: tier.color }}>
-              {tier.icon} {customerPoints} pts
-            </div>
-            <button 
-              onClick={() => loadTableOrders(selectedTable)}
-              disabled={isLoading}
-              className="refresh-orders-btn"
-              title="Refresh orders"
-            >
-              {isLoading ? '🔄' : '🔄'}
-            </button>
-            <button 
-              onClick={handleClearCustomer}
-              className="logout-btn"
-              title="Change phone"
-            >
-              📱
-            </button>
-          </div>
-        </div>
-        
-        {isLoading ? (
-          <div className="orders-loading">
-            <p>Loading orders...</p>
-          </div>
-        ) : tableOrders.length === 0 ? (
-          <div className="no-orders">
-            <p>No active orders for this table</p>
-            <small>Place an order to start earning points!</small>
-          </div>
-        ) : (
-          <div className="orders-active">
-            <div className="orders-list">
-              {tableOrders.map((order, index) => (
-                <div key={order._id || index} className={`order-card ${order.status}`}>
-                  <div className="order-header">
-                    <span className="order-number">Order #{order.orderNumber}</span>
-                    {getStatusDisplay(order.status)}
-                  </div>
-                  <div className="order-items">
-                    {formatOrderItems(order.items)}
-                  </div>
-                  <div className="order-meta">
-                    <span className="order-time">
-                      Ordered: {formatOrderTime(order.createdAt || order.timestamp)}
-                    </span>
-                    {order.status === 'pending' && (
-                      <span className="order-note">Order received, waiting for kitchen</span>
-                    )}
-                    {order.status === 'preparing' && (
-                      <span className="order-note">👨‍🍳 Kitchen is preparing your order</span>
-                    )}
-                    {order.status === 'ready' && (
-                      <span className="order-note ready">🎉 Your order is ready for serving!</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
+  // Calculate order total properly
+  const calculateOrderTotal = (order) => {
+    if (order.total) return parseFloat(order.total).toFixed(2);
+    
+    if (order.items && Array.isArray(order.items)) {
+      const total = order.items.reduce((sum, item) => {
+        const price = parseFloat(item.price) || 0;
+        const quantity = parseInt(item.quantity) || 1;
+        return sum + (price * quantity);
+      }, 0);
+      return total.toFixed(2);
+    }
+    
+    return '0.00';
   };
+
+  // Separate orders by status
+  const activeOrders = tableOrders.filter(order => 
+    order && ['pending', 'preparing', 'ready'].includes(order.status)
+  );
+  
+  const completedOrders = tableOrders.filter(order => 
+    order && order.status === 'completed'
+  );
 
   // Menu data
   const displayMenu = menu && menu.length > 0 ? menu : [
@@ -616,15 +524,13 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
   // Cart totals
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const pointsToEarn = calculateOrderPoints(total);
 
   // CUSTOMER VIEW
   if (isCustomerView) {
-    const tier = getCustomerTier(customerPoints);
-    const pointsToEarn = calculateOrderPoints(total);
-
     return (
-      <div className="simple-customer-view">
-        {/* Purchase-Based Registration Form */}
+      <div className="customer-view">
+        {/* Registration Form */}
         {showRegistration && (
           <RegistrationForm
             selectedTable={selectedTable}
@@ -634,229 +540,311 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
         )}
 
         {/* Header */}
-        <header className="simple-header">
-          <h1>FlavorFlow</h1>
-          <div className="header-actions">
-            <TableStatus />
-            <button 
-              className="cart-button"
-              onClick={() => {
-                if (!customerInfo) {
-                  setShowRegistration(true);
-                  return;
-                }
-                setCartOpen(true);
-              }}
-              disabled={!selectedTable || !customerInfo}
-            >
-              Cart ({itemCount})
-            </button>
+        <header className="customer-header">
+          <div className="header-content">
+            <h1 className="restaurant-name">FlavorFlow</h1>
+            {selectedTable && (
+              <div className="table-info">
+                Table {selectedTable}
+              </div>
+            )}
           </div>
+          
+          {customerInfo && (
+            <div className="header-actions">
+              <button 
+                className="cart-btn"
+                onClick={() => setCartOpen(true)}
+              >
+                Cart ({itemCount})
+              </button>
+            </div>
+          )}
         </header>
 
         {!selectedTable && (
-          <div className="warning-banner">
-            <p>📱 Please scan your table's QR code to order and earn points</p>
+          <div className="scan-prompt">
+            <div className="scan-icon">📱</div>
+            <h3>Scan QR Code</h3>
+            <p>Scan your table QR code to start ordering</p>
           </div>
         )}
 
-        {selectedTable && customerInfo && <OrdersHistorySection />}
-
-        {/* Search */}
-        <div className="simple-search">
-          <input
-            type="text"
-            placeholder="Search menu..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-            disabled={!selectedTable || !customerInfo}
+        {/* Points Display */}
+        {selectedTable && customerInfo && (
+          <PointsDisplay 
+            points={customerPoints} 
+            phone={customerInfo.phone}
+            onClear={handleClearCustomer}
           />
-        </div>
+        )}
 
-        {/* Categories */}
-        <div className="simple-categories">
-          {categories.map(category => (
-            <button
-              key={category}
-              className={`category-btn ${activeCategory === category ? 'active' : ''}`}
-              onClick={() => setActiveCategory(category)}
-              disabled={!selectedTable || !customerInfo}
-            >
-              {category.charAt(0).toUpperCase() + category.slice(1)}
-            </button>
-          ))}
-        </div>
+        {/* Orders Section */}
+        {selectedTable && customerInfo && (
+          <div className="orders-section">
+            <div className="section-header">
+              <h2>Your Orders</h2>
+              <button 
+                onClick={() => loadTableOrders(selectedTable)}
+                disabled={isLoading}
+                className="refresh-btn"
+              >
+                {isLoading ? '...' : '↻'}
+              </button>
+            </div>
 
-        {/* Menu Items */}
-        <div className="simple-menu">
-          {!selectedTable ? (
-            <div className="disabled-overlay">
-              <div className="disabled-message">
-                <div className="message-icon">📱</div>
-                <h3>Scan QR Code to Order</h3>
-                <p>Scan your table's QR code to order and earn loyalty points</p>
-              </div>
-            </div>
-          ) : !customerInfo ? (
-            <div className="disabled-overlay">
-              <div className="disabled-message">
-                <div className="message-icon">🎯</div>
-                <h3>Earn Points on Orders</h3>
-                <p>Enter your phone number to earn points with every purchase</p>
-                <button 
-                  onClick={() => setShowRegistration(true)}
-                  className="register-prompt-btn"
-                >
-                  Start Earning Points
-                </button>
-              </div>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="no-items">
-              <p>No items found. Try a different search or category.</p>
-            </div>
-          ) : (
-            filteredItems.map(item => (
-              <div key={item.id} className="menu-item">
-                <div className="item-info">
-                  <h3>{item.name}</h3>
-                  <p>{item.description}</p>
-                  <div className="item-price">RM {item.price.toFixed(2)}</div>
-                  <div className="item-points">
-                    🎯 Earn {Math.floor(item.price)} pts when purchased
-                  </div>
-                </div>
-                <button 
-                  className="add-btn"
-                  onClick={() => addToCart(item)}
-                >
-                  Add +
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Cart */}
-        {cartOpen && (
-          <div className="simple-cart-overlay" onClick={() => setCartOpen(false)}>
-            <div className="simple-cart" onClick={(e) => e.stopPropagation()}>
-              <div className="cart-header">
-                <h2>Your Order - Table {selectedTable}</h2>
-                <button onClick={() => setCartOpen(false)}>Close</button>
-              </div>
-              
-              {customerInfo && (
-                <div className="customer-info-banner">
-                  <div>📱 {customerInfo.phone}</div>
-                  <div style={{ color: tier.color }}>{tier.icon} {tier.name} • {customerPoints} pts</div>
-                  <button 
-                    onClick={handleClearCustomer}
-                    className="change-customer-small"
-                  >
-                    Change
-                  </button>
-                </div>
-              )}
-              
-              {cart.length === 0 ? (
-                <p>Your cart is empty</p>
-              ) : (
-                <>
-                  <div className="cart-items">
-                    {cart.map(item => (
-                      <div key={item.id} className="cart-item">
-                        <div className="item-details">
-                          <strong>{item.name}</strong>
-                          <div>Qty: {item.quantity}</div>
-                          <div>RM {item.price.toFixed(2)} each</div>
-                          <div className="item-points-small">
-                            +{Math.floor(item.price * item.quantity)} pts
+            {isLoading ? (
+              <div className="loading-state">Loading orders...</div>
+            ) : (
+              <>
+                {/* Active Orders */}
+                {activeOrders.length > 0 && (
+                  <div className="orders-group">
+                    <h3 className="group-title">Active Orders</h3>
+                    <div className="orders-list">
+                      {activeOrders.map((order, index) => (
+                        <div key={order._id || index} className="order-card">
+                          <div className="order-header">
+                            <div className="order-meta">
+                              <span className="order-number">Order #{order.orderNumber}</span>
+                              <span className="order-date">
+                                {formatOrderDate(order.createdAt || order.timestamp)}
+                              </span>
+                            </div>
+                            {getStatusDisplay(order.status)}
+                          </div>
+                          
+                          <div className="order-items">
+                            {formatOrderItems(order.items)}
+                          </div>
+                          
+                          <div className="order-footer">
+                            <span className="order-time">
+                              {formatOrderTime(order.createdAt || order.timestamp)}
+                            </span>
+                            <span className="order-total">
+                              RM {calculateOrderTotal(order)}
+                            </span>
                           </div>
                         </div>
-                        <div className="item-controls">
-                          <button onClick={() => updateQuantity(item.id, -1)}>-</button>
-                          <span>{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.id, 1)}>+</button>
-                          <button 
-                            className="remove-btn"
-                            onClick={() => removeFromCart(item.id)}
-                          >
-                            Remove
-                          </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Completed Orders */}
+                {completedOrders.length > 0 && (
+                  <div className="orders-group">
+                    <h3 className="group-title">Order History</h3>
+                    <div className="orders-list">
+                      {completedOrders.map((order, index) => (
+                        <div key={order._id || index} className="order-card completed">
+                          <div className="order-header">
+                            <div className="order-meta">
+                              <span className="order-number">Order #{order.orderNumber}</span>
+                              <span className="order-date">
+                                {formatOrderDate(order.createdAt || order.timestamp)}
+                              </span>
+                            </div>
+                            {getStatusDisplay(order.status)}
+                          </div>
+                          
+                          <div className="order-items">
+                            {formatOrderItems(order.items)}
+                          </div>
+                          
+                          <div className="order-footer">
+                            <span className="order-time">
+                              {formatOrderTime(order.updatedAt || order.createdAt || order.timestamp)}
+                            </span>
+                            <span className="order-total">
+                              RM {calculateOrderTotal(order)}
+                            </span>
+                          </div>
                         </div>
-                        <div className="item-total">
-                          RM {(item.price * item.quantity).toFixed(2)}
-                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {tableOrders.length === 0 && (
+                  <div className="empty-state">
+                    <div className="empty-icon">📦</div>
+                    <p>No orders yet</p>
+                    <p className="empty-subtitle">Your orders will appear here</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Menu Section */}
+        {selectedTable && customerInfo && (
+          <div className="menu-section">
+            <div className="search-section">
+              <input
+                type="text"
+                placeholder="Search menu..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+            </div>
+
+            <div className="categories">
+              {categories.map(category => (
+                <button
+                  key={category}
+                  className={`category-btn ${activeCategory === category ? 'active' : ''}`}
+                  onClick={() => setActiveCategory(category)}
+                >
+                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            <div className="menu-items">
+              {filteredItems.length === 0 ? (
+                <div className="no-items">
+                  <p>No items found</p>
+                </div>
+              ) : (
+                filteredItems.map(item => (
+                  <div key={item.id} className="menu-item">
+                    <div className="item-content">
+                      <div className="item-details">
+                        <h3 className="item-name">{item.name}</h3>
+                        <p className="item-description">{item.description}</p>
+                        <div className="item-price">RM {item.price.toFixed(2)}</div>
                       </div>
-                    ))}
-                  </div>
-                  
-                  <div className="cart-summary">
-                    <div className="cart-total">
-                      <strong>Total: RM {total.toFixed(2)}</strong>
-                    </div>
-                    <div className="points-summary">
-                      <strong>Points to earn: +{pointsToEarn}</strong>
-                      <small>{pointsToEarn > total ? '🎉 Double points weekend!' : '1 point per RM 1 spent'}</small>
+                      <button 
+                        className="add-to-cart-btn"
+                        onClick={() => addToCart(item)}
+                      >
+                        Add
+                      </button>
                     </div>
                   </div>
-                  
-                  <button 
-                    className="place-order-btn"
-                    onClick={handlePlaceOrder}
-                  >
-                    🎯 Place Order & Earn {pointsToEarn} Points
-                  </button>
-                </>
+                ))
               )}
             </div>
           </div>
         )}
 
-        {/* Mobile Cart Button */}
+        {/* Cart Overlay */}
+        {cartOpen && (
+          <div className="cart-overlay" onClick={() => setCartOpen(false)}>
+            <div className="cart-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="cart-header">
+                <h2>Your Order</h2>
+                <button 
+                  onClick={() => setCartOpen(false)}
+                  className="close-cart"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="cart-content">
+                {cart.length === 0 ? (
+                  <div className="empty-cart">
+                    <p>Your cart is empty</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="cart-items">
+                      {cart.map(item => (
+                        <div key={item.id} className="cart-item">
+                          <div className="cart-item-details">
+                            <div className="cart-item-name">{item.name}</div>
+                            <div className="cart-item-price">RM {item.price.toFixed(2)}</div>
+                          </div>
+                          <div className="cart-item-controls">
+                            <button 
+                              onClick={() => updateQuantity(item.id, -1)}
+                              className="quantity-btn"
+                            >
+                              -
+                            </button>
+                            <span className="quantity">{item.quantity}</span>
+                            <button 
+                              onClick={() => updateQuantity(item.id, 1)}
+                              className="quantity-btn"
+                            >
+                              +
+                            </button>
+                            <button 
+                              onClick={() => removeFromCart(item.id)}
+                              className="remove-btn"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div className="cart-item-total">
+                            RM {(item.price * item.quantity).toFixed(2)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="cart-summary">
+                      <div className="total-line">
+                        <span>Total:</span>
+                        <span>RM {total.toFixed(2)}</span>
+                      </div>
+                      <div className="points-line">
+                        <span>Points to earn:</span>
+                        <span>+{pointsToEarn}</span>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      className="place-order-btn"
+                      onClick={handlePlaceOrder}
+                    >
+                      Place Order • RM {total.toFixed(2)}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Cart FAB */}
         {isMobile && cart.length > 0 && !cartOpen && selectedTable && customerInfo && (
           <button 
-            className="mobile-cart-btn"
+            className="mobile-cart-fab"
             onClick={() => setCartOpen(true)}
           >
-            Order ({itemCount}) - {pointsToEarn} pts
+            🛒 {itemCount} • RM {total.toFixed(2)}
           </button>
         )}
       </div>
     );
   }
 
-  // ADMIN VIEW (unchanged)
+  // ADMIN VIEW (simplified)
   return (
-    <div className="simple-admin-view">
-      <h2>Menu Management - Staff View</h2>
+    <div className="admin-view">
+      <h2>Menu Management</h2>
       <div className="admin-controls">
         <select 
           value={selectedTable}
           onChange={(e) => setSelectedTable(e.target.value)}
         >
           <option value="">Select Table</option>
-          <option value="T01">Table T01</option>
-          <option value="T02">Table T02</option>
-          <option value="T03">Table T03</option>
-          <option value="T04">Table T04</option>
-          <option value="T05">Table T05</option>
-          <option value="T06">Table T06</option>
-          <option value="T07">Table T07</option>
-          <option value="T08">Table T08</option>
+          {['T01','T02','T03','T04','T05','T06','T07','T08'].map(table => (
+            <option key={table} value={table}>{table}</option>
+          ))}
         </select>
-        
-        <div className="table-display">
-          Current Table: <strong>{selectedTable || 'None selected'}</strong>
-        </div>
       </div>
       
-      <div className="simple-menu">
+      <div className="menu-items">
         {displayMenu.map(item => (
           <div key={item.id} className="menu-item">
-            <div className="item-info">
+            <div className="item-details">
               <h3>{item.name}</h3>
               <p>{item.description}</p>
               <div className="item-price">RM {item.price.toFixed(2)}</div>
@@ -865,7 +853,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
               className="add-btn"
               onClick={() => addToCart(item)}
             >
-              Add +
+              Add
             </button>
           </div>
         ))}
@@ -873,7 +861,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
 
       {cart.length > 0 && (
         <div className="admin-cart">
-          <h3>Current Order ({itemCount} items) - Table {selectedTable}</h3>
+          <h3>Order for Table {selectedTable}</h3>
           <div className="cart-items">
             {cart.map(item => (
               <div key={item.id} className="cart-item">
@@ -888,7 +876,7 @@ const DigitalMenu = ({ cart, setCart, onCreateOrder, isMobile, menu, apiConnecte
             onClick={handlePlaceOrder}
             disabled={!selectedTable}
           >
-            {selectedTable ? `Place Order for Table ${selectedTable}` : 'Select a table first'}
+            Place Order
           </button>
         </div>
       )}
