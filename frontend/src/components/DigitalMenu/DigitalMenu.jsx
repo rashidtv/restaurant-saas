@@ -136,11 +136,17 @@ export const DigitalMenu = ({
 
   const handleAddToCart = useCallback((item) => {
     if (!customer) {
-      setShowRegistration(true);
-      return;
+      // Show registration prompt when adding to cart without account
+      const registerNow = window.confirm(
+        'Register now to earn points with this order and track your history!'
+      );
+      if (registerNow) {
+        setShowRegistration(true);
+        return;
+      }
     }
     addToCart(item);
-  }, [customer, addToCart]);
+  }, [customer, addToCart, setShowRegistration]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (cart.length === 0) {
@@ -235,9 +241,6 @@ export const DigitalMenu = ({
   if (isCustomerView) {
     return (
       <div className="digital-menu">
-        {/* 🆕 Add Hook Validator for debugging */}
-        {/* <HookValidator /> */}
-
         {/* Registration Modal */}
         {showRegistration && (
           <RegistrationModal
@@ -278,7 +281,36 @@ export const DigitalMenu = ({
         {/* Customer Content */}
         {selectedTable && (
           <div className="customer-content">
-            {/* Points Display */}
+            {/* Show welcome message when no customer (skipped registration) */}
+            {!customer && (
+              <div className="welcome-section">
+                <div className="welcome-icon">🍽️</div>
+                <h2>Welcome to Table {selectedTable}</h2>
+                <p>Browse our menu and add items to your cart</p>
+                <div className="welcome-tips">
+                  <div className="tip-item">
+                    <span className="tip-icon">🛒</span>
+                    <span>Add items to cart to start ordering</span>
+                  </div>
+                  <div className="tip-item">
+                    <span className="tip-icon">📱</span>
+                    <span>Register anytime to earn loyalty points</span>
+                  </div>
+                  <div className="tip-item">
+                    <span className="tip-icon">⚡</span>
+                    <span>Quick and easy checkout</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowRegistration(true)}
+                  className="register-cta-btn"
+                >
+                  Register to Earn Points
+                </button>
+              </div>
+            )}
+
+            {/* Points Display - Only show when customer is registered */}
             {customer && (
               <PointsDisplay 
                 points={points} 
@@ -287,7 +319,7 @@ export const DigitalMenu = ({
               />
             )}
 
-            {/* Orders Section */}
+            {/* Orders Section - Only show when customer is registered */}
             {customer && (
               <div className="orders-section">
                 <div className="section-header">
@@ -344,18 +376,16 @@ export const DigitalMenu = ({
               </div>
             )}
 
-            {/* Menu Section */}
-            {customer && (
-              <MenuGrid
-                menuItems={displayMenu}
-                searchTerm={searchTerm}
-                activeCategory={activeCategory}
-                categories={categories}
-                onAddToCart={handleAddToCart}
-                onSearchChange={setSearchTerm}
-                onCategoryChange={setActiveCategory}
-              />
-            )}
+            {/* Menu Section - Show to everyone */}
+            <MenuGrid
+              menuItems={displayMenu}
+              searchTerm={searchTerm}
+              activeCategory={activeCategory}
+              categories={categories}
+              onAddToCart={handleAddToCart}
+              onSearchChange={setSearchTerm}
+              onCategoryChange={setActiveCategory}
+            />
           </div>
         )}
 
@@ -372,7 +402,7 @@ export const DigitalMenu = ({
         />
 
         {/* Mobile Cart FAB */}
-        {getItemCount() > 0 && !isCartOpen && selectedTable && customer && (
+        {getItemCount() > 0 && !isCartOpen && selectedTable && (
           <button 
             className="mobile-cart-fab"
             onClick={() => setIsCartOpen(true)}

@@ -601,6 +601,56 @@ app.put('/api/orders/:id/items', (req, res) => {
   }
 });
 
+// ✅ ADD THIS ENDPOINT - Customer Registration
+app.post('/api/customers/register', (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    console.log('📝 Customer registration attempt for:', phone);
+    
+    if (!phone || phone.length < 10) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Valid phone number required (at least 10 digits)' 
+      });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    // Check if customer already exists
+    let customer = customers.find(c => c.phone === cleanPhone);
+    
+    if (!customer) {
+      // Create new customer
+      customer = {
+        _id: Date.now().toString(),
+        phone: cleanPhone,
+        points: 0,
+        totalOrders: 0,
+        totalSpent: 0,
+        tier: 'member',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      customers.push(customer);
+      console.log('✅ New customer created:', cleanPhone);
+    } else {
+      console.log('✅ Existing customer found:', cleanPhone);
+    }
+    
+    res.json({
+      success: true,
+      ...customer
+    });
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error during registration' 
+    });
+  }
+});
 
 app.get('/api/customers/:phone', async (req, res) => {
   try {

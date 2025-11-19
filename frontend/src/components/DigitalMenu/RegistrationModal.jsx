@@ -12,17 +12,16 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
     setError('');
     
     if (!validatePhoneNumber(phone)) {
-      setError('Please enter a valid phone number (at least 10 digits)');
+      setError('Please enter a valid 10-digit phone number');
       return;
     }
 
     setIsSubmitting(true);
     try {
       await onRegister({ phone: phone.trim() });
-      // Success - modal will close automatically via parent
     } catch (error) {
       console.error('Registration failed:', error);
-      setError(error.message || 'Registration failed. Please try again.');
+      setError(error.message || 'Unable to register. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -37,9 +36,11 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
   return (
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal">
+        {/* Clean Header */}
         <div className="modal-header">
-          <h2>Welcome to Table {selectedTable}</h2>
-          <p>Enter your phone number to earn loyalty points with every order</p>
+          <div className="modal-icon">📱</div>
+          <h2>Welcome!</h2>
+          <p>Enter your phone number to start ordering</p>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
@@ -50,15 +51,15 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
           )}
           
           <div className="input-group">
-            <label htmlFor="phone-input">Phone Number</label>
+            <label htmlFor="phone-input">Your Phone Number</label>
             <input
               id="phone-input"
               type="tel"
-              placeholder="0123456789"
+              placeholder="012 345 6789"
               value={phone}
               onChange={(e) => {
                 setPhone(e.target.value);
-                setError(''); // Clear error when user types
+                setError('');
               }}
               className="form-input"
               required
@@ -76,10 +77,10 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
               {isSubmitting ? (
                 <>
                   <span className="loading-spinner"></span>
-                  Registering...
+                  Setting up your account...
                 </>
               ) : (
-                'Start Earning Points'
+                'Continue to Menu'
               )}
             </button>
             <button 
@@ -88,30 +89,24 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
               className="btn-secondary"
               disabled={isSubmitting}
             >
-              Skip for Now
+              Browse Menu First
             </button>
           </div>
         </form>
 
+        {/* Simple Benefits */}
         <div className="benefits-section">
-          <h4>Loyalty Benefits</h4>
-          <div className="benefits-grid">
-            <div className="benefit-card">
-              <div className="benefit-icon">🎯</div>
-              <div className="benefit-text">1 point per RM 1 spent</div>
-            </div>
-            <div className="benefit-card">
-              <div className="benefit-icon">⚡</div>
-              <div className="benefit-text">Double points on weekends</div>
-            </div>
-            <div className="benefit-card">
-              <div className="benefit-icon">🎁</div>
-              <div className="benefit-text">Redeem points for free items</div>
-            </div>
-            <div className="benefit-card">
-              <div className="benefit-icon">📱</div>
-              <div className="benefit-text">Track orders across devices</div>
-            </div>
+          <div className="benefit-item">
+            <span className="benefit-icon">⚡</span>
+            <span>Earn points with every order</span>
+          </div>
+          <div className="benefit-item">
+            <span className="benefit-icon">📱</span>
+            <span>Track your order history</span>
+          </div>
+          <div className="benefit-item">
+            <span className="benefit-icon">🎁</span>
+            <span>Get exclusive rewards</span>
           </div>
         </div>
       </div>
