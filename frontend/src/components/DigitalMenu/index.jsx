@@ -1,1 +1,1 @@
-export { DigitalMenu } from './DigitalMenu';
+export { DigitalMenu as default } from './DigitalMenu';
