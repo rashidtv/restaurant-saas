@@ -1,33 +1,30 @@
 export const formatCurrency = (amount) => {
-  return `RM ${parseFloat(amount || 0).toFixed(2)}`;
+  if (typeof amount !== 'number') return 'RM 0.00';
+  return `RM ${amount.toFixed(2)}`;
 };
 
-export const formatTime = (timestamp) => {
-  if (!timestamp) return '--:--';
+export const formatTime = (dateString) => {
+  if (!dateString) return 'N/A';
   try {
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return '--:--';
-    return date.toLocaleTimeString('en-US', { 
+    return new Date(dateString).toLocaleTimeString('en-US', { 
       hour: '2-digit', 
-      minute: '2-digit',
-      hour12: true 
+      minute: '2-digit' 
     });
   } catch {
-    return '--:--';
+    return 'N/A';
   }
 };
 
-export const formatDate = (timestamp) => {
-  if (!timestamp) return '';
+export const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
   try {
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
+      year: 'numeric'
     });
   } catch {
-    return '';
+    return 'N/A';
   }
 };
 
