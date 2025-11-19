@@ -40,6 +40,7 @@ let orders = [];
 let tables = [];
 let payments = [];
 let menuItems = [];
+let customers = []; // ✅ NEW: Customer data storage
 
 // Initialize sample data
 function initializeData() {
@@ -95,6 +96,9 @@ function initializeData() {
     { _id: '8', number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date(), orderId: null }
   ];
 
+  // ✅ NEW: Initialize empty customers array
+  customers = [];
+
   console.log('🍛 Sample data initialized!');
 }
 
@@ -103,13 +107,46 @@ function generateOrderNumber() {
   return `MESRA${Date.now().toString().slice(-6)}`;
 }
 
+// ✅ NEW: Customer management functions
+function getCustomerByPhone(phone) {
+  const cleanPhone = phone.replace(/\D/g, '');
+  return customers.find(c => c.phone === cleanPhone);
+}
+
+function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0) {
+  const cleanPhone = phone.replace(/\D/g, '');
+  let customer = customers.find(c => c.phone === cleanPhone);
+  
+  if (!customer) {
+    customer = {
+      _id: Date.now().toString(),
+      phone: cleanPhone,
+      name: name || `Customer-${cleanPhone.slice(-4)}`,
+      points: 0,
+      totalOrders: 0,
+      totalSpent: 0,
+      firstVisit: new Date(),
+      lastVisit: new Date()
+    };
+    customers.push(customer);
+  }
+  
+  // Update customer data
+  customer.points += pointsToAdd;
+  customer.totalOrders += 1;
+  customer.lastVisit = new Date();
+  
+  return customer;
+}
+
 // Simple health endpoint for quick response - FIXED CORS
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
     orders: orders.length,
-    tables: tables.length
+    tables: tables.length,
+    customers: customers.length // ✅ NEW: Include customers count
   });
 });
 
@@ -123,7 +160,8 @@ app.get('/api/health', (req, res) => {
       menuItems: menuItems.length,
       tables: tables.length,
       orders: orders.length,
-      payments: payments.length
+      payments: payments.length,
+      customers: customers.length // ✅ NEW: Include customers count
     }
   });
 });
@@ -152,7 +190,6 @@ app.get('/api/tables', (req, res) => {
 });
 
 // FIXED: Table update endpoint
-// In server.js - UPDATE the table update endpoint
 app.put('/api/tables/:id', (req, res) => {
   try {
     const tableId = req.params.id;
@@ -185,53 +222,110 @@ app.put('/api/tables/:id', (req, res) => {
   }
 });
 
-// Return ALL orders
+// ✅ ENHANCED: Return ALL orders with proper data structure
 app.get('/api/orders', (req, res) => {
   try {
-    res.json(orders);
+    // ✅ ENHANCED: Ensure all orders have proper data structure
+    const enhancedOrders = orders.map(order => ({
+      ...order,
+      // Ensure items have proper structure with names and prices
+      items: order.items?.map(item => {
+        // Find the menu item to get proper name and details
+        const menuItem = menuItems.find(m => m._id === (item.menuItemId || item.menuItem?._id));
+        
+        return {
+          menuItemId: item.menuItemId || item.menuItem?._id,
+          name: item.name || menuItem?.name || item.menuItem?.name || 'Menu Item',
+          price: parseFloat(item.price) || parseFloat(menuItem?.price) || parseFloat(item.menuItem?.price) || 0,
+          quantity: parseInt(item.quantity) || 1,
+          category: item.category || menuItem?.category,
+          description: item.description || menuItem?.description,
+          // Include any other existing fields
+          ...item
+        };
+      }) || [],
+      // Ensure dates are properly formatted
+      createdAt: order.createdAt || order.orderedAt || order.timestamp,
+      updatedAt: order.updatedAt || order.orderedAt || order.timestamp,
+      // Ensure customer info is included
+      customerPhone: order.customerPhone || '',
+      customerName: order.customerName || ''
+    }));
+    
+    res.json(enhancedOrders);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// FIXED: Order creation - emit only specific table
+// ✅ ENHANCED: Order creation with customer tracking
 app.post('/api/orders', (req, res) => {
   try {
-    const { tableId, items, orderType } = req.body;
+    const { 
+      tableId, 
+      items, 
+      orderType, 
+      customerPhone,  // ✅ NEW: Accept customer info
+      customerName    // ✅ NEW: Optional customer name
+    } = req.body;
     
-    console.log('📦 Creating order for table:', tableId);
+    console.log('📦 Creating order for table:', tableId, 'Customer:', customerPhone);
     
     // Validate tableId
     if (!tableId || tableId === 'undefined') {
       return res.status(400).json({ error: 'Valid table ID is required' });
     }
     
-    // Calculate total
-    const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
+    // ✅ ENHANCED: Calculate total properly with validation
+    const total = items.reduce((sum, item) => {
+      const price = parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 1;
+      return sum + (price * quantity);
+    }, 0);
+
+    // ✅ ENHANCED: Map items with proper structure
+    const orderItems = items.map(item => {
+      const menuItem = menuItems.find(m => m._id === item.menuItemId);
+      
+      return {
+        menuItemId: item.menuItemId,
+        name: item.name || menuItem?.name || 'Menu Item',
+        price: parseFloat(item.price) || parseFloat(menuItem?.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+        category: item.category || menuItem?.category,
+        description: item.description || menuItem?.description,
+        specialInstructions: item.specialInstructions || ''
+      };
+    });
+
     const order = {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
       tableId: tableId,
-      items: items.map(item => ({
-        menuItem: menuItems.find(m => m._id === item.menuItemId) || { 
-          _id: item.menuItemId,
-          name: item.name || 'Unknown Item', 
-          price: item.price || 0 
-        },
-        quantity: item.quantity,
-        specialInstructions: item.specialInstructions,
-        price: item.price
-      })),
+      table: tableId, // Maintain compatibility
+      items: orderItems,
       total,
       status: 'pending',
       paymentStatus: 'pending',
       orderType: orderType || 'dine-in',
       orderedAt: new Date(),
-      completedAt: null
+      completedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      
+      // ✅ NEW: Store customer information
+      ...(customerPhone && { customerPhone }),
+      ...(customerName && { customerName })
     };
     
     orders.push(order);
+    
+    // ✅ NEW: Update customer points if customer provided
+    if (customerPhone) {
+      const pointsEarned = Math.floor(total); // 1 point per RM 1
+      const customer = createOrUpdateCustomer(customerPhone, customerName, pointsEarned);
+      console.log(`🎯 Customer ${customerPhone} earned ${pointsEarned} points, total: ${customer.points}`);
+    }
     
     // Update table status - FIXED: Only update the specific table
     const tableIndex = tables.findIndex(t => t.number === tableId);
@@ -246,11 +340,20 @@ app.post('/api/orders', (req, res) => {
     
     // Emit new order
     io.emit('newOrder', order);
-    console.log(`📦 New order: ${order.orderNumber} for Table ${tableId}`);
+    console.log(`📦 New order: ${order.orderNumber} for Table ${tableId}, Customer: ${customerPhone || 'No customer'}`);
     
-    res.json(order);
+    res.json({
+      success: true,
+      orderNumber: order.orderNumber,
+      order: order,
+      message: `Order created successfully`
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Order creation error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create order: ' + error.message 
+    });
   }
 });
 
@@ -271,6 +374,7 @@ app.put('/api/orders/:id/status', (req, res) => {
     }
     
     orders[orderIndex].status = status;
+    orders[orderIndex].updatedAt = new Date();
     
     if (status === 'completed') {
       orders[orderIndex].completedAt = new Date();
@@ -280,6 +384,70 @@ app.put('/api/orders/:id/status', (req, res) => {
     io.emit('orderUpdated', orders[orderIndex]);
     res.json(orders[orderIndex]);
     
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ NEW: Customer management endpoints
+app.get('/api/customers', (req, res) => {
+  try {
+    res.json(customers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/customers/:phone', (req, res) => {
+  try {
+    const { phone } = req.params;
+    const customer = getCustomerByPhone(phone);
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/customers', (req, res) => {
+  try {
+    const { phone, name } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+    
+    const customer = createOrUpdateCustomer(phone, name);
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/customers/:phone/points', (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { points, action = 'add' } = req.body; // action: 'add' or 'set'
+    
+    let customer = getCustomerByPhone(phone);
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    if (action === 'set') {
+      customer.points = parseInt(points) || 0;
+    } else {
+      customer.points += parseInt(points) || 0;
+    }
+    
+    customer.lastVisit = new Date();
+    
+    res.json(customer);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -325,6 +493,7 @@ app.post('/api/payments', (req, res) => {
     // UPDATE ORDER STATUS
     orders[orderIndex].paymentStatus = 'paid';
     orders[orderIndex].paymentMethod = method;
+    orders[orderIndex].updatedAt = new Date();
     
     console.log('✅ Payment processed for order:', order.orderNumber);
     
@@ -404,16 +573,18 @@ app.put('/api/orders/:id/items', (req, res) => {
     const order = orders[orderIndex];
     
     // Add new items to the order
-    const addedItems = newItems.map(item => ({
-      menuItem: menuItems.find(m => m._id === item.menuItemId) || { 
-        _id: item.menuItemId,
-        name: item.name || 'Unknown Item', 
-        price: item.price || 0 
-      },
-      quantity: item.quantity || 1,
-      price: item.price || 0,
-      status: 'pending'
-    }));
+    const addedItems = newItems.map(item => {
+      const menuItem = menuItems.find(m => m._id === item.menuItemId);
+      
+      return {
+        menuItemId: item.menuItemId,
+        name: item.name || menuItem?.name || 'Menu Item',
+        price: parseFloat(item.price) || parseFloat(menuItem?.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+        category: item.category || menuItem?.category,
+        specialInstructions: item.specialInstructions || ''
+      };
+    });
     
     order.items.push(...addedItems);
     order.total = order.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -430,7 +601,7 @@ app.put('/api/orders/:id/items', (req, res) => {
   }
 });
 
-// In server.js - UPDATE the customer orders endpoint
+// ✅ ENHANCED: Customer orders endpoint with proper data structure
 app.post('/api/customer/orders', (req, res) => {
   try {
     const { items, orderType = 'dine-in', tableNumber, customerPhone, customerName } = req.body;
@@ -445,51 +616,55 @@ app.post('/api/customer/orders', (req, res) => {
       return res.status(400).json({ error: 'Valid table number is required' });
     }
 
-    // Map items using backend menu data
-    const mappedItems = items.map(item => {
+    // ✅ ENHANCED: Calculate total properly
+    const total = items.reduce((sum, item) => {
+      const price = parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 1;
+      return sum + (price * quantity);
+    }, 0);
+
+    // ✅ ENHANCED: Map items with proper structure
+    const orderItems = items.map(item => {
       const menuItem = menuItems.find(m => m._id === item.menuItemId);
-
-      if (!menuItem) {
-        return {
-          menuItem: { 
-            _id: item.menuItemId,
-            name: item.name || 'Unknown Item',
-            price: item.price || 0
-          },
-          quantity: item.quantity || 1,
-          specialInstructions: item.specialInstructions || '',
-          price: item.price || 0
-        };
-      }
-
+      
       return {
-        menuItem: menuItem,
-        quantity: item.quantity || 1,
-        specialInstructions: item.specialInstructions || '',
-        price: menuItem.price
+        menuItemId: item.menuItemId,
+        name: item.name || menuItem?.name || 'Menu Item',
+        price: parseFloat(item.price) || parseFloat(menuItem?.price) || 0,
+        quantity: parseInt(item.quantity) || 1,
+        category: item.category || menuItem?.category,
+        description: item.description || menuItem?.description,
+        specialInstructions: item.specialInstructions || ''
       };
     });
-
-    const total = mappedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     const order = {
       _id: Date.now().toString(),
       orderNumber: generateOrderNumber(),
       tableId: tableNumber,
       table: tableNumber,
-      items: mappedItems,
+      items: orderItems,
       total,
       status: 'pending',
       paymentStatus: 'pending',
       // 🎯 CRITICAL: Save customer info
-      customerPhone: customerPhone || 'Not provided',
-      customerName: customerName || 'QR Customer',
+      customerPhone: customerPhone || '',
+      customerName: customerName || '',
       orderType: orderType,
       orderedAt: new Date(),
-      completedAt: null
+      completedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
     orders.push(order);
+    
+    // ✅ NEW: Update customer points if customer provided
+    if (customerPhone) {
+      const pointsEarned = Math.floor(total); // 1 point per RM 1
+      const customer = createOrUpdateCustomer(customerPhone, customerName, pointsEarned);
+      console.log(`🎯 Customer ${customerPhone} earned ${pointsEarned} points, total: ${customer.points}`);
+    }
     
     console.log(`📱 QR Order created: ${order.orderNumber} for Table ${tableNumber}, Customer: ${customerName} (${customerPhone})`);
     
@@ -534,6 +709,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Mesra POS Server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
   console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
+  console.log(`👥 Customer tracking: ENABLED`);
+  console.log(`🎯 Loyalty points: ENABLED`);
   
   // Initialize data
   initializeData();

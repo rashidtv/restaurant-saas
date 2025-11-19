@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import TableManagement from './components/TableManagement';
 import QRGenerator from './components/QRGenerator';
-import DigitalMenu from './components/DigitalMenu';
+import { DigitalMenu } from './components/DigitalMenu';
 import KitchenDisplay from './components/KitchenDisplay';
 import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
@@ -704,17 +704,17 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
             <QRGenerator tables={tables} isMobile={isMobile} apiConnected={apiConnected} />
           )}
           {currentPage === 'menu' && (
-            <DigitalMenu 
-              cart={cart} 
-              setCart={setCart}
-              onCreateOrder={createNewOrder}
-              isMobile={isMobile}
-              menu={menu}
-              apiConnected={apiConnected}
-              currentTable={null}
-              isCustomerView={false}
-            />
-          )}
+  <DigitalMenu 
+    cart={cart} 
+    setCart={setCart}
+    onCreateOrder={handleCustomerOrder}
+    isMobile={isMobile}
+    menu={menu}
+    apiConnected={apiConnected}
+    currentTable={currentTable}
+    isCustomerView={true}
+  />
+)}
           {currentPage === 'kitchen' && (
             <KitchenDisplay 
               orders={orders} 
