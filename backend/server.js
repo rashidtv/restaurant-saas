@@ -601,6 +601,97 @@ app.put('/api/orders/:id/items', (req, res) => {
   }
 });
 
+// Add these endpoints to your existing backend
+app.get('/api/customers/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const customer = await db.collection('customers').findOne({ phone });
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/customers/register', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone || phone.length < 10) {
+      return res.status(400).json({ error: 'Valid phone number required' });
+    }
+
+    // Check if customer exists
+    let customer = await db.collection('customers').findOne({ phone });
+    
+    if (!customer) {
+      // Create new customer
+      customer = {
+        phone,
+        points: 0,
+        totalOrders: 0,
+        totalSpent: 0,
+        tier: 'member',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      await db.collection('customers').insertOne(customer);
+    }
+    
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+app.post('/api/customers/:phone/points', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { points, orderTotal } = req.body;
+    
+    const result = await db.collection('customers').findOneAndUpdate(
+      { phone },
+      { 
+        $inc: { 
+          points: points,
+          totalOrders: 1,
+          totalSpent: orderTotal
+        },
+        $set: { updatedAt: new Date() }
+      },
+      { returnDocument: 'after' }
+    );
+    
+    if (!result.value) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    res.json(result.value);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update points' });
+  }
+});
+
+app.get('/api/customers/:phone/orders', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const orders = await db.collection('orders')
+      .find({ customerPhone: phone })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .toArray();
+    
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
 // ✅ ENHANCED: Customer orders endpoint with proper data structure
 app.post('/api/customer/orders', (req, res) => {
   try {

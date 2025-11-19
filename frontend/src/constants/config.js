@@ -1,32 +1,44 @@
 export const CONFIG = {
-  API_BASE_URL: 'https://restaurant-saas-backend-hbdz.onrender.com',
+  API_BASE_URL: process.env.NODE_ENV === 'production' 
+    ? 'https://your-production-backend-url.com'
+    : 'https://restaurant-saas-backend-hbdz.onrender.com',
+  
+  STORAGE_KEYS: {
+    CUSTOMER: 'flavorflow_customer',
+    SESSION: 'flavorflow_session',
+    POINTS: 'flavorflow_points'
+  },
+  
   POINTS: {
     POINTS_PER_RINGGIT: 1,
     WEEKEND_MULTIPLIER: 2,
-    WEEKEND_DAYS: [0, 6], // Sunday, Saturday
+    WEEKEND_DAYS: [0, 6] // Sunday, Saturday
   },
-  STORAGE_KEYS: {
-    CUSTOMER: 'flavorflow_customer_v2',
-    POINTS: 'flavorflow_points_v2',
-    SESSION: 'flavorflow_session_v2'
-  },
-  ORDER_STATUS: {
-    PENDING: 'pending',
-    PREPARING: 'preparing',
-    READY: 'ready',
-    COMPLETED: 'completed'
-  },
+  
   TIERS: {
-    MEMBER: { threshold: 0, name: 'Member', color: '#10B981', icon: '👤' },
-    SILVER: { threshold: 100, name: 'Silver', color: '#6B7280', icon: '⭐' },
-    GOLD: { threshold: 500, name: 'Gold', color: '#F59E0B', icon: '🌟' },
-    DIAMOND: { threshold: 1000, name: 'Diamond', color: '#8B5CF6', icon: '💎' }
+    MEMBER: {
+      name: 'Member',
+      threshold: 0,
+      color: '#6b7280',
+      icon: '👤'
+    },
+    SILVER: {
+      name: 'Silver',
+      threshold: 100,
+      color: '#9ca3af', 
+      icon: '🥈'
+    },
+    GOLD: {
+      name: 'Gold',
+      threshold: 500,
+      color: '#f59e0b',
+      icon: '🥇'
+    },
+    PLATINUM: {
+      name: 'Platinum', 
+      threshold: 1000,
+      color: '#10b981',
+      icon: '💎'
+    }
   }
-};
-
-export const ORDER_STATUS_CONFIG = {
-  [CONFIG.ORDER_STATUS.PENDING]: { label: 'Order Received', color: '#F59E0B', icon: '⏳' },
-  [CONFIG.ORDER_STATUS.PREPARING]: { label: 'Preparing', color: '#3B82F6', icon: '👨‍🍳' },
-  [CONFIG.ORDER_STATUS.READY]: { label: 'Ready', color: '#10B981', icon: '✅' },
-  [CONFIG.ORDER_STATUS.COMPLETED]: { label: 'Completed', color: '#6B7280', icon: '🎉' }
 };

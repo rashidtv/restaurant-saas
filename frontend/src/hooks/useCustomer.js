@@ -6,112 +6,150 @@ export const useCustomer = () => {
   const [customer, setCustomer] = useState(null);
   const [points, setPoints] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Load customer data on mount - IMPROVED PERSISTENCE
+  // Load customer from session on component mount
   useEffect(() => {
-    const loadCustomerData = () => {
+    const loadCustomerFromSession = async () => {
       try {
-        const customerData = customerService.getCustomer();
-        const customerPoints = customerService.getPoints();
-        
-        console.log('👤 Loading customer data:', { 
-          hasCustomer: !!customerData, 
-          points: customerPoints 
-        });
-        
-        setCustomer(customerData);
-        setPoints(customerPoints);
+        setIsLoading(true);
+        setError(null);
+
+        if (customerService.hasActiveSession()) {
+          const phone = customerService.getSessionPhone();
+          const customerData = await customerService.getCustomer(phone);
+          
+          if (customerData) {
+            setCustomer(customerData);
+            setPoints(customerData.points || 0);
+            console.log('✅ Customer session restored:', phone);
+          } else {
+            // Session exists but customer not found in DB - clear session
+            customerService.clearSession();
+            console.log('❌ Session invalid, customer not found in DB');
+          }
+        }
       } catch (error) {
-        console.error('Error loading customer data:', error);
-        // Don't clear data on error - might be temporary
+        console.error('Failed to load customer session:', error);
+        setError(error.message);
+        // Don't clear session on temporary network errors
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadCustomerData();
+    loadCustomerFromSession();
   }, []);
 
-  // Register new customer - IMPROVED ERROR HANDLING
+  // Register new customer - PRODUCTION READY
   const registerCustomer = useCallback(async (phone) => {
-    if (!validatePhoneNumber(phone)) {
-      throw new Error('Please enter a valid phone number (at least 10 digits)');
+    try {
+      setError(null);
+      
+      if (!validatePhoneNumber(phone)) {
+        throw new Error('Please enter a valid phone number (at least 10 digits)');
+      }
+
+      const cleanPhone = phone.replace(/\D/g, '');
+      
+      // Register with backend
+      const customerData = await customerService.registerCustomer(cleanPhone);
+      
+      setCustomer(customerData);
+      setPoints(customerData.points || 0);
+      
+      console.log('✅ Customer registered successfully:', cleanPhone);
+      return customerData;
+    } catch (error) {
+      console.error('Customer registration failed:', error);
+      setError(error.message);
+      throw error;
     }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    // Check if customer already exists
-    const existingCustomer = customerService.getCustomer();
-    if (existingCustomer && existingCustomer.phone === cleanPhone) {
-      console.log('👤 Customer already exists, restoring session');
-      setCustomer(existingCustomer);
-      setPoints(customerService.getPoints());
-      return existingCustomer;
-    }
-
-    const customerData = {
-      phone: cleanPhone,
-      totalOrders: 0,
-      totalSpent: 0,
-      sessionId: Date.now().toString() // Add session tracking
-    };
-
-    const savedCustomer = customerService.saveCustomer(customerData);
-    setCustomer(savedCustomer);
-    
-    console.log('✅ New customer registered:', cleanPhone);
-    return savedCustomer;
   }, []);
 
-  // Update customer stats after order
-  const updateCustomerAfterOrder = useCallback((orderTotal) => {
-    if (!customer) return;
+  // Add points after order - PRODUCTION READY
+  const addPoints = useCallback(async (pointsToAdd, orderTotal = 0) => {
+    if (!customer) {
+      throw new Error('No customer found');
+    }
 
-    const updatedCustomer = customerService.updateCustomer({
-      totalOrders: (customer.totalOrders || 0) + 1,
-      totalSpent: (customer.totalSpent || 0) + orderTotal,
-      lastOrderAt: new Date().toISOString()
-    });
-
-    setCustomer(updatedCustomer);
-    return updatedCustomer;
+    try {
+      const updatedCustomer = await customerService.addPoints(
+        customer.phone, 
+        pointsToAdd, 
+        orderTotal
+      );
+      
+      setCustomer(updatedCustomer);
+      setPoints(updatedCustomer.points);
+      
+      console.log('✅ Points added:', pointsToAdd, 'Total:', updatedCustomer.points);
+      return updatedCustomer.points;
+    } catch (error) {
+      console.error('Failed to add points:', error);
+      setError(error.message);
+      throw error;
+    }
   }, [customer]);
 
-  // Add points with better persistence
-  const addPoints = useCallback((pointsToAdd) => {
-    const newPoints = customerService.addPoints(pointsToAdd);
-    setPoints(newPoints);
-    console.log('🎯 Points added:', pointsToAdd, 'Total:', newPoints);
-    return newPoints;
-  }, []);
+  // Update customer after order
+  const updateCustomerAfterOrder = useCallback(async (orderTotal) => {
+    if (!customer) return;
 
-  // Clear customer data - IMPROVED with confirmation
+    // Points are already added via addPoints, just update local state if needed
+    const updatedCustomer = {
+      ...customer,
+      totalOrders: (customer.totalOrders || 0) + 1,
+      totalSpent: (customer.totalSpent || 0) + orderTotal,
+      updatedAt: new Date().toISOString()
+    };
+    
+    setCustomer(updatedCustomer);
+  }, [customer]);
+
+  // Clear customer session
   const clearCustomer = useCallback(() => {
     const confirmClear = window.confirm(
       'Are you sure you want to change number? Your points and order history will be lost.'
     );
     
     if (confirmClear) {
-      customerService.clearCustomer();
+      customerService.clearSession();
       setCustomer(null);
       setPoints(0);
-      console.log('🧹 Customer data cleared');
+      setError(null);
+      console.log('🧹 Customer session cleared');
     }
   }, []);
 
-  // Check if customer session is valid
-  const hasValidSession = useCallback(() => {
-    return !!customer && !!customer.phone;
+  // Get customer orders
+  const getCustomerOrders = useCallback(async () => {
+    if (!customer) return [];
+    
+    try {
+      return await customerService.getCustomerOrders(customer.phone);
+    } catch (error) {
+      console.error('Failed to get customer orders:', error);
+      return [];
+    }
   }, [customer]);
 
   return {
+    // State
     customer,
     points,
     isLoading,
+    error,
+    
+    // Actions
     registerCustomer,
     updateCustomerAfterOrder,
     addPoints,
     clearCustomer,
-    hasValidSession
+    getCustomerOrders,
+    
+    // Utilities
+    hasCustomer: !!customer,
+    customerPhone: customer?.phone
   };
 };

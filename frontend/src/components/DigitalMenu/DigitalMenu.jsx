@@ -68,12 +68,23 @@ export const DigitalMenu = ({
     }
   }, [isCustomerView]);
 
-  // Load orders when table is detected
-  useEffect(() => {
-    if (selectedTable && customer) {
-      loadTableOrders(selectedTable);
+
+// Replace the loadTableOrders effect with:
+useEffect(() => {
+  const loadCustomerOrders = async () => {
+    if (customer) {
+      try {
+        const customerOrders = await getCustomerOrders();
+        // Merge with table orders or use customer orders directly
+        // This depends on your orders structure
+      } catch (error) {
+        console.error('Failed to load customer orders:', error);
+      }
     }
-  }, [selectedTable, customer, loadTableOrders]);
+  };
+
+  loadCustomerOrders();
+}, [customer, getCustomerOrders]);
 
   // Auto-refresh orders
   useEffect(() => {

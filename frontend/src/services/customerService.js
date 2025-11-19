@@ -2,95 +2,133 @@ import { CONFIG } from '../constants/config';
 
 class CustomerService {
   constructor() {
-    this.storageKey = CONFIG.STORAGE_KEYS.CUSTOMER;
-    this.pointsKey = CONFIG.STORAGE_KEYS.POINTS;
+    this.baseURL = CONFIG.API_BASE_URL;
+    this.sessionKey = 'customer_session';
   }
 
-  // Customer Management
-  saveCustomer(customerData) {
+  // 🎯 PRODUCTION: Backend-first approach
+  async registerCustomer(phone) {
     try {
-      const customer = {
-        ...customerData,
-        id: customerData.phone, // Use phone as unique ID
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      const response = await fetch(`${this.baseURL}/api/customers/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Registration failed');
+      }
+
+      const customer = await response.json();
       
-      localStorage.setItem(this.storageKey, JSON.stringify(customer));
+      // Store session (phone only - no sensitive data)
+      this.saveSession(customer.phone);
+      
       return customer;
     } catch (error) {
-      console.error('Error saving customer:', error);
-      throw new Error('Failed to save customer data');
+      console.error('Customer registration failed:', error);
+      throw new Error(error.message || 'Unable to register. Please try again.');
     }
   }
 
-  getCustomer() {
+  async getCustomer(phone) {
     try {
-      const data = localStorage.getItem(this.storageKey);
-      return data ? JSON.parse(data) : null;
+      const response = await fetch(`${this.baseURL}/api/customers/${phone}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null; // Customer not found
+        }
+        throw new Error('Failed to fetch customer data');
+      }
+
+      return await response.json();
     } catch (error) {
-      console.error('Error loading customer:', error);
-      this.clearCustomer();
+      console.error('Failed to fetch customer:', error);
+      throw new Error('Unable to load customer data. Please check your connection.');
+    }
+  }
+
+  async addPoints(phone, pointsToAdd, orderTotal = 0) {
+    try {
+      const response = await fetch(`${this.baseURL}/api/customers/${phone}/points`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          points: pointsToAdd,
+          orderTotal: orderTotal
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update points');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to add points:', error);
+      throw new Error('Points update failed. Please contact staff.');
+    }
+  }
+
+  async getCustomerOrders(phone) {
+    try {
+      const response = await fetch(`${this.baseURL}/api/customers/${phone}/orders`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch orders');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to fetch customer orders:', error);
+      return []; // Return empty array instead of failing
+    }
+  }
+
+  // Session management (stores only phone in localStorage)
+  saveSession(phone) {
+    const session = {
+      phone,
+      lastActive: new Date().toISOString(),
+      sessionId: this.generateSessionId()
+    };
+    localStorage.setItem(this.sessionKey, JSON.stringify(session));
+  }
+
+  getSession() {
+    try {
+      const sessionData = localStorage.getItem(this.sessionKey);
+      return sessionData ? JSON.parse(sessionData) : null;
+    } catch (error) {
       return null;
     }
   }
 
-  updateCustomer(updates) {
-    try {
-      const current = this.getCustomer();
-      if (!current) return null;
-
-      const updated = {
-        ...current,
-        ...updates,
-        updatedAt: new Date().toISOString()
-      };
-
-      localStorage.setItem(this.storageKey, JSON.stringify(updated));
-      return updated;
-    } catch (error) {
-      console.error('Error updating customer:', error);
-      throw new Error('Failed to update customer data');
-    }
+  clearSession() {
+    localStorage.removeItem(this.sessionKey);
   }
 
-  clearCustomer() {
-    localStorage.removeItem(this.storageKey);
-    localStorage.removeItem(this.pointsKey);
+  generateSessionId() {
+    return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  // Points Management
-  savePoints(points) {
-    try {
-      localStorage.setItem(this.pointsKey, points.toString());
-      return points;
-    } catch (error) {
-      console.error('Error saving points:', error);
-      throw new Error('Failed to save points');
-    }
+  // Check if customer has active session
+  hasActiveSession() {
+    const session = this.getSession();
+    return !!(session && session.phone);
   }
 
-  getPoints() {
-    try {
-      const points = localStorage.getItem(this.pointsKey);
-      return points ? parseInt(points) : 0;
-    } catch (error) {
-      console.error('Error loading points:', error);
-      return 0;
-    }
-  }
-
-  addPoints(pointsToAdd) {
-    try {
-      const currentPoints = this.getPoints();
-      const newPoints = currentPoints + pointsToAdd;
-      this.savePoints(newPoints);
-      return newPoints;
-    } catch (error) {
-      console.error('Error adding points:', error);
-      throw new Error('Failed to add points');
-    }
+  getSessionPhone() {
+    const session = this.getSession();
+    return session ? session.phone : null;
   }
 }
 
+// Create singleton instance
 export const customerService = new CustomerService();
