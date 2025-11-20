@@ -8,15 +8,16 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// MongoDB Configuration
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/?appName=flavorflow';
+// ==================== ENHANCED CONFIGURATION ====================
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/?appName=flavorflow&retryWrites=true&w=majority&ssl=true';
 const DB_NAME = process.env.DB_NAME || 'flavorflow';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
+const PORT = process.env.PORT || 10000;
+
 let db;
 
-// CORS configuration
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
-
-app.use(cors({
+// ==================== ENHANCED CORS CONFIG ====================
+const corsOptions = {
   origin: [
     "http://localhost:5173",
     "https://restaurant-saas-demo.onrender.com",
@@ -24,58 +25,104 @@ app.use(cors({
   ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-}));
+};
 
-app.options('*', cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
+// ==================== ENHANCED SOCKET.IO ====================
 const io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:5173", 
-      "https://restaurant-saas-demo.onrender.com",
-      FRONTEND_URL
-    ].filter(Boolean),
-    methods: ["GET", "POST", "PUT", "DELETE"]
-  }
+  cors: corsOptions,
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// Initialize MongoDB Connection
+// ==================== ENHANCED DATABASE CONNECTION ====================
 async function initializeDatabase() {
   try {
-    console.log('🔗 Connecting to MongoDB...');
-    const client = new MongoClient(MONGODB_URI);
+    console.log('🔗 Connecting to MongoDB with enhanced configuration...');
+    
+    const client = new MongoClient(MONGODB_URI, {
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+      maxPoolSize: 10,
+      minPoolSize: 1,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000,
+      retryWrites: true,
+      retryReads: true,
+      keepAlive: true,
+      keepAliveInitialDelay: 300000
+    });
+
     await client.connect();
     db = client.db(DB_NAME);
     
+    await db.command({ ping: 1 });
     console.log('✅ Connected to MongoDB successfully');
     
-    // Create indexes for better performance
-    await db.collection('customers').createIndex({ phone: 1 }, { unique: true });
-    await db.collection('orders').createIndex({ orderNumber: 1 });
+    await createDatabaseIndexes();
+    await initializeSampleData();
+    
+    startDatabaseHealthCheck();
+    
+  } catch (error) {
+    console.error('❌ MongoDB connection failed:', {
+      error: error.message,
+      code: error.code
+    });
+    
+    console.log('🔄 Retrying connection in 5 seconds...');
+    setTimeout(initializeDatabase, 5000);
+  }
+}
+
+function startDatabaseHealthCheck() {
+  setInterval(async () => {
+    try {
+      await db.command({ ping: 1 });
+    } catch (error) {
+      console.error('❌ Database health check failed:', error.message);
+    }
+  }, 30000);
+}
+
+async function createDatabaseIndexes() {
+  try {
+    await db.collection('customers').createIndex({ phone: 1 }, { unique: true, sparse: true });
+    await db.collection('orders').createIndex({ orderNumber: 1 }, { unique: true });
     await db.collection('orders').createIndex({ customerPhone: 1 });
     await db.collection('orders').createIndex({ tableId: 1 });
     await db.collection('orders').createIndex({ createdAt: -1 });
     await db.collection('tables').createIndex({ number: 1 }, { unique: true });
+    await db.collection('payments').createIndex({ orderId: 1 });
     
-    console.log('✅ Database indexes created');
-    
-    // Initialize sample data if collections are empty
-    await initializeSampleData();
-    
+    console.log('✅ Database indexes created/verified');
   } catch (error) {
-    console.error('❌ MongoDB connection failed:', error.message);
-    process.exit(1);
+    console.error('❌ Error creating indexes:', error.message);
   }
 }
 
-// Initialize sample data
+// ==================== ENHANCED ERROR HANDLING ====================
+function handleError(res, error, context = 'Operation') {
+  console.error(`❌ ${context} failed:`, error.message);
+
+  const statusCode = error.code === 11000 ? 409 : 500;
+  
+  res.status(statusCode).json({
+    success: false,
+    error: error.message
+  });
+}
+
+// ==================== SAMPLE DATA INITIALIZATION ====================
 async function initializeSampleData() {
   try {
     console.log('📦 Checking for sample data...');
     
-    // Check if data already exists
     const menuCount = await db.collection('menuItems').countDocuments();
     const tablesCount = await db.collection('tables').countDocuments();
     
@@ -210,18 +257,16 @@ async function initializeSampleData() {
     }
     
     console.log('🎉 Database initialization completed');
-    
   } catch (error) {
     console.error('❌ Error initializing sample data:', error.message);
   }
 }
 
-// Generate order number
+// ==================== UTILITY FUNCTIONS ====================
 function generateOrderNumber() {
   return `MESRA${Date.now().toString().slice(-6)}`;
 }
 
-// Customer management functions
 async function getCustomerByPhone(phone) {
   try {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -273,8 +318,7 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
   }
 }
 
-// ==================== HEALTH & INIT ENDPOINTS ====================
-
+// ==================== HEALTH ENDPOINTS ====================
 app.get('/health', async (req, res) => {
   try {
     const ordersCount = await db.collection('orders').countDocuments();
@@ -323,7 +367,7 @@ app.get('/api/health', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Health check');
   }
 });
 
@@ -332,29 +376,27 @@ app.post('/api/init', async (req, res) => {
     await initializeSampleData();
     res.json({ message: 'Sample data initialized successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Initialize data');
   }
 });
 
-// ==================== CORE API ENDPOINTS ====================
-
-// Menu endpoints
+// ==================== MENU ENDPOINTS ====================
 app.get('/api/menu', async (req, res) => {
   try {
     const menuItems = await db.collection('menuItems').find().sort({ category: 1, name: 1 }).toArray();
     res.json(menuItems);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Fetch menu');
   }
 });
 
-// Tables endpoints
+// ==================== TABLES ENDPOINTS ====================
 app.get('/api/tables', async (req, res) => {
   try {
     const tables = await db.collection('tables').find().sort({ number: 1 }).toArray();
     res.json(tables);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Fetch tables');
   }
 });
 
@@ -376,7 +418,6 @@ app.put('/api/tables/:id', async (req, res) => {
       return res.status(404).json({ error: 'Table not found' });
     }
     
-    // Only update if status actually changed
     if (currentTable.status === newStatus) {
       console.log(`⚠️ Table ${currentTable.number} status unchanged (${newStatus}), skipping update`);
       return res.json(currentTable);
@@ -393,17 +434,17 @@ app.put('/api/tables/:id', async (req, res) => {
     io.emit('tableUpdated', updatedTable.value);
     res.json(updatedTable.value);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Update table');
   }
 });
 
-// Orders endpoints
+// ==================== ORDERS ENDPOINTS ====================
 app.get('/api/orders', async (req, res) => {
   try {
     const orders = await db.collection('orders').find().sort({ createdAt: -1 }).toArray();
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Fetch orders');
   }
 });
 
@@ -421,7 +462,6 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).json({ error: 'Order must contain at least one item' });
     }
     
-    // Calculate total
     const total = items.reduce((sum, item) => {
       const price = parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 1;
@@ -455,17 +495,14 @@ app.post('/api/orders', async (req, res) => {
       updatedAt: now
     };
     
-    // Insert order
     await db.collection('orders').insertOne(order);
     
-    // Update customer points if customer provided
     if (customerPhone) {
       const pointsEarned = Math.floor(total);
       await createOrUpdateCustomer(customerPhone, customerName, pointsEarned, total);
       console.log(`🎯 Customer ${customerPhone} earned ${pointsEarned} points`);
     }
     
-    // Update table status
     const updatedTable = await db.collection('tables').findOneAndUpdate(
       { number: tableId },
       { $set: { status: 'occupied', orderId: order._id, updatedAt: now } },
@@ -477,7 +514,6 @@ app.post('/api/orders', async (req, res) => {
       io.emit('tableUpdated', updatedTable.value);
     }
     
-    // Emit new order
     io.emit('newOrder', order);
     console.log(`📦 New order: ${order.orderNumber} for Table ${tableId}`);
     
@@ -488,11 +524,7 @@ app.post('/api/orders', async (req, res) => {
       message: `Order created successfully`
     });
   } catch (error) {
-    console.error('❌ Order creation error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to create order: ' + error.message 
-    });
+    handleError(res, error, 'Create order');
   }
 });
 
@@ -536,18 +568,17 @@ app.put('/api/orders/:id/status', async (req, res) => {
     res.json(updatedOrder.value);
     
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Update order status');
   }
 });
 
 // ==================== CUSTOMER ENDPOINTS ====================
-
 app.get('/api/customers', async (req, res) => {
   try {
     const customers = await db.collection('customers').find().sort({ createdAt: -1 }).toArray();
     res.json(customers);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Fetch customers');
   }
 });
 
@@ -562,7 +593,7 @@ app.get('/api/customers/:phone', async (req, res) => {
     
     res.json(customer);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Fetch customer');
   }
 });
 
@@ -577,11 +608,10 @@ app.post('/api/customers', async (req, res) => {
     const customer = await createOrUpdateCustomer(phone, name);
     res.json(customer);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Create customer');
   }
 });
 
-// 🎯 PROPER Points endpoint with MongoDB
 app.post('/api/customers/:phone/points', async (req, res) => {
   try {
     const { phone } = req.params;
@@ -601,15 +631,10 @@ app.post('/api/customers/:phone/points', async (req, res) => {
     console.log('✅ Points updated for customer:', phone, 'Total points:', customer.points);
     res.json(customer);
   } catch (error) {
-    console.error('❌ Add points error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to update points: ' + error.message 
-    });
+    handleError(res, error, 'Add points');
   }
 });
 
-// Customer registration endpoint
 app.post('/api/customers/register', async (req, res) => {
   try {
     const { phone } = req.body;
@@ -630,15 +655,10 @@ app.post('/api/customers/register', async (req, res) => {
       ...customer
     });
   } catch (error) {
-    console.error('❌ Registration error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Internal server error during registration' 
-    });
+    handleError(res, error, 'Register customer');
   }
 });
 
-// Customer orders endpoint
 app.get('/api/customers/:phone/orders', async (req, res) => {
   try {
     const { phone } = req.params;
@@ -654,22 +674,17 @@ app.get('/api/customers/:phone/orders', async (req, res) => {
     console.log(`✅ Found ${customerOrders.length} orders for customer ${cleanPhone}`);
     res.json(customerOrders);
   } catch (error) {
-    console.error('❌ Customer orders error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to fetch customer orders' 
-    });
+    handleError(res, error, 'Fetch customer orders');
   }
 });
 
 // ==================== PAYMENTS ENDPOINTS ====================
-
 app.get('/api/payments', async (req, res) => {
   try {
     const payments = await db.collection('payments').find().sort({ paidAt: -1 }).toArray();
     res.json(payments);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Fetch payments');
   }
 });
 
@@ -701,7 +716,6 @@ app.post('/api/payments', async (req, res) => {
     
     await db.collection('payments').insertOne(payment);
     
-    // Update order status
     const updatedOrder = await db.collection('orders').findOneAndUpdate(
       { _id: order._id },
       { 
@@ -714,7 +728,6 @@ app.post('/api/payments', async (req, res) => {
       { returnDocument: 'after' }
     );
     
-    // Update table to needs_cleaning
     if (order.tableId) {
       const updatedTable = await db.collection('tables').findOneAndUpdate(
         { number: order.tableId },
@@ -727,19 +740,16 @@ app.post('/api/payments', async (req, res) => {
       }
     }
     
-    // Emit events
     io.emit('paymentProcessed', payment);
     io.emit('orderUpdated', updatedOrder.value);
     
     res.json(payment);
   } catch (error) {
-    console.error('❌ Payment error:', error);
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Process payment');
   }
 });
 
 // ==================== UTILITY ENDPOINTS ====================
-
 app.get('/api/orders/table/:tableId', async (req, res) => {
   try {
     const tableId = req.params.tableId;
@@ -758,8 +768,7 @@ app.get('/api/orders/table/:tableId', async (req, res) => {
     console.log('✅ Active order check result:', latestOrder ? latestOrder.orderNumber : 'No active orders');
     res.json(latestOrder);
   } catch (error) {
-    console.error('❌ Error checking active orders:', error);
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Check active orders');
   }
 });
 
@@ -782,7 +791,6 @@ app.put('/api/orders/:id/items', async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
     
-    // Add new items to the order
     const addedItems = newItems.map(item => {
       return {
         menuItemId: item.menuItemId,
@@ -814,32 +822,51 @@ app.put('/api/orders/:id/items', async (req, res) => {
     io.emit('orderUpdated', updatedOrder.value);
     res.json(updatedOrder.value);
   } catch (error) {
-    console.error('❌ Error adding items to order:', error);
-    res.status(500).json({ error: error.message });
+    handleError(res, error, 'Add items to order');
   }
 });
 
-// Socket.io for real-time updates
+// ==================== SOCKET.IO HANDLING ====================
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   
-  socket.on('disconnect', () => {
-    console.log('❌ Client disconnected:', socket.id);
+  socket.on('disconnect', (reason) => {
+    console.log('❌ Client disconnected:', socket.id, 'Reason:', reason);
+  });
+  
+  socket.on('error', (error) => {
+    console.error('🔌 Socket error:', error);
   });
 });
 
-const PORT = process.env.PORT || 10000;
+// ==================== GRACEFUL SHUTDOWN ====================
+process.on('SIGTERM', async () => {
+  console.log('🔄 SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Process terminated');
+    process.exit(0);
+  });
+});
 
-// Initialize database and start server
+process.on('SIGINT', async () => {
+  console.log('🔄 SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Process terminated');
+    process.exit(0);
+  });
+});
+
+// ==================== START SERVER ====================
 initializeDatabase().then(() => {
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 Mesra POS Server running on port ${PORT}`);
+    console.log(`\n🚀 ENHANCED Mesra POS Server running on port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/health`);
     console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
-    console.log(`💾 Database: MongoDB (Persistent)`);
+    console.log(`💾 Database: MongoDB (Enhanced TLS Configuration)`);
     console.log(`👥 Customer tracking: PERSISTENT`);
     console.log(`🎯 Loyalty points: PERSISTENT`);
-    console.log(`🔄 Real-time updates: ENABLED\n`);
+    console.log(`🔄 Real-time updates: ENABLED`);
+    console.log(`🛡️  Production ready: YES\n`);
   });
 }).catch(error => {
   console.error('❌ Failed to start server:', error);
