@@ -7,7 +7,7 @@ const CustomerContext = createContext();
 const customerReducer = (state, action) => {
   switch (action.type) {
     case 'SET_CUSTOMER':
-      console.log('🔄 CustomerContext: Setting customer', action.payload);
+      console.log('✅ CustomerContext: Setting customer', action.payload);
       return { 
         ...action.payload,
         isRegistered: true 
@@ -19,7 +19,7 @@ const customerReducer = (state, action) => {
         ...action.payload 
       };
     case 'CLEAR_CUSTOMER':
-      console.log('🔄 CustomerContext: Clearing customer');
+      console.log('🧹 CustomerContext: Clearing customer');
       return null;
     case 'SET_LOADING':
       return { 
@@ -47,12 +47,14 @@ export const CustomerProvider = ({ children }) => {
       console.log('📝 CustomerContext: Registering customer', phone);
       dispatch({ type: 'SET_LOADING', payload: true });
       
+      const cleanPhone = phone.replace(/\D/g, '');
+      
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone, name }),
+        body: JSON.stringify({ phone: cleanPhone, name }),
       });
 
       if (!response.ok) {
@@ -68,8 +70,8 @@ export const CustomerProvider = ({ children }) => {
         type: 'SET_CUSTOMER', 
         payload: {
           ...customerData.customer,
-          phone: phone.replace(/\D/g, ''), // Ensure clean phone number
-          name: name || customerData.customer?.name || `Customer-${phone.slice(-4)}`
+          phone: cleanPhone,
+          name: name || customerData.customer?.name || `Customer-${cleanPhone.slice(-4)}`
         }
       });
       

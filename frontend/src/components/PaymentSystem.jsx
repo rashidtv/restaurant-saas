@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useCustomer } from '../contexts/CustomerContext'; // ADD THIS IMPORT
 import './PaymentSystem.css';
 
-const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }) => {
+const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected, onProcessPayment }) => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [activeTab, setActiveTab] = useState('pending');
+  const { validateCustomer } = useCustomer(); // ADD THIS HOOK
 
-  // FIXED: Get ALL unpaid orders regardless of status
+  // FIXED: Get ALL unpaid orders regardless of status (EXACTLY THE SAME)
   const getPendingPayments = () => {
     console.log('🔍 PaymentSystem - Checking orders:', orders.length);
     
@@ -44,10 +46,17 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
     return completed;
   };
 
+  // ENHANCED: processPayment function with customer validation
   const processPayment = async (order, method) => {
     try {
       console.log('💳 Processing payment for:', order.orderNumber || order.id);
       
+      // NEW: Validate customer before payment
+      if (!validateCustomer()) {
+        alert('⚠️ Please register customer before processing payment');
+        return;
+      }
+
       const paymentData = {
         orderId: order.orderNumber || order.id,
         amount: order.total,
@@ -57,7 +66,13 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
 
       let paymentResult;
 
-      if (apiConnected) {
+      // NEW: Use the enhanced onProcessPayment if provided, otherwise fallback to original logic
+      if (onProcessPayment && typeof onProcessPayment === 'function') {
+        console.log('🔄 Using enhanced payment processing');
+        paymentResult = await onProcessPayment(order.orderNumber || order.id, order.total, method);
+      } else if (apiConnected) {
+        // ORIGINAL LOGIC - preserved exactly as is
+        console.log('🔄 Using original payment processing');
         const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/payments', {
           method: 'POST',
           headers: {
@@ -72,7 +87,8 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
         // Update local state
         setPayments(prev => [...prev, paymentResult]);
       } else {
-        // Offline fallback
+        // ORIGINAL OFFLINE FALLBACK - preserved exactly as is
+        console.log('🔄 Using offline payment fallback');
         paymentResult = {
           _id: Date.now().toString(),
           orderId: order.orderNumber || order.id,
@@ -262,7 +278,7 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected }
         )}
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal - EXACTLY THE SAME AS BEFORE */}
       {showPaymentModal && selectedOrder && (
         <div className="modal-overlay">
           <div className="payment-modal">

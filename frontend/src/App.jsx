@@ -8,6 +8,7 @@ import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
+import { CustomerProvider } from './contexts/CustomerContext';
 import { 
   API_ENDPOINTS, 
   fetchOrders, 
@@ -18,20 +19,10 @@ import {
 } from './config/api';
 import './App.css';
 
-// SAFE IMPORT - Only import if file exists, otherwise use fallback
-let CustomerProvider;
-try {
-  const customerContext = require('./contexts/CustomerContext');
-  CustomerProvider = customerContext.CustomerProvider;
-} catch (error) {
-  console.log('⚠️ CustomerContext not found, using fallback');
-  CustomerProvider = ({ children }) => <>{children}</>; // Fallback provider
-}
-
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [cart, setCart] = useState([]);
-  const [customerCart, setCustomerCart] = useState([]); // Customer cart - ADD THIS
+  const [customerCart, setCustomerCart] = useState([]);
   const [orders, setOrders] = useState([]);
   const [tables, setTables] = useState([]);
   const [menu, setMenu] = useState([]);
@@ -46,13 +37,12 @@ function App() {
   const [isCustomerView, setIsCustomerView] = useState(false);
   const [socket, setSocket] = useState(null);
 
-  // FIXED: Enhanced health check that actually works
+  // Enhanced health check
   const healthCheck = async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduced timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      // Try multiple endpoints to confirm backend is actually working
       const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/menu', {
         signal: controller.signal,
         method: 'GET'
@@ -70,7 +60,7 @@ function App() {
     }
   };
 
-  // FIXED: WebSocket initialization - Simplified and more reliable
+  // WebSocket initialization
   useEffect(() => {
     console.log('🔌 Initializing WebSocket connection...');
     
@@ -79,43 +69,36 @@ function App() {
     const maxReconnectAttempts = 3;
 
     const initializeWebSocket = async () => {
-    try {
-      // Dynamic import to avoid build-time issues
-      const socketIO = await import('socket.io-client');
-      const io = socketIO.default || socketIO;
-      
-      socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
-        transports: ['websocket', 'polling'],
-        timeout: 10000,
-        reconnectionAttempts: maxReconnectAttempts
-      });
+      try {
+        const socketIO = await import('socket.io-client');
+        const io = socketIO.default || socketIO;
+        
+        socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
+          transports: ['websocket', 'polling'],
+          timeout: 10000,
+          reconnectionAttempts: maxReconnectAttempts
+        });
 
-      setSocket(socketInstance);
+        setSocket(socketInstance);
 
-        // In your WebSocket useEffect in App.jsx, add this:
-socketInstance.on('connect', () => {
-  console.log('🔌 Connected to backend via WebSocket');
-  setApiConnected(true);
-  reconnectAttempts = 0;
-  
-  // 🎯 EXPOSE SOCKET GLOBALLY FOR COMPONENTS
-  window.socket = socketInstance;
-});
+        socketInstance.on('connect', () => {
+          console.log('🔌 Connected to backend via WebSocket');
+          setApiConnected(true);
+          reconnectAttempts = 0;
+          window.socket = socketInstance;
+        });
 
         socketInstance.on('connect_error', (error) => {
           console.log('❌ WebSocket connection error:', error.message);
-          // Don't set apiConnected to false here - HTTP APIs might still work
           reconnectAttempts++;
           
           if (reconnectAttempts >= maxReconnectAttempts) {
             console.log('⚠️ Max WebSocket reconnection attempts reached, using HTTP fallback');
-            // WebSocket failed but HTTP might still work
           }
         });
 
         socketInstance.on('disconnect', (reason) => {
           console.log('❌ WebSocket disconnected:', reason);
-          // Don't set apiConnected to false - HTTP APIs might still work
         });
 
         // Socket event listeners
@@ -160,7 +143,6 @@ socketInstance.on('connect', () => {
       }
     };
 
-    // Always try to initialize WebSocket, but don't block on it
     initializeWebSocket();
     
     return () => {
@@ -169,14 +151,13 @@ socketInstance.on('connect', () => {
         socketInstance.disconnect();
       }
     };
-  }, []); // Removed apiConnected dependency to prevent loops
+  }, []);
 
-  // FIXED: Better API connection monitoring
+  // API connection monitoring
   useEffect(() => {
     const checkConnection = async () => {
       console.log('🔄 Checking backend connection...');
       
-      // Test actual API endpoints instead of just health check
       try {
         const [menuResponse, tablesResponse] = await Promise.all([
           fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/menu').catch(() => null),
@@ -193,24 +174,18 @@ socketInstance.on('connect', () => {
           }
         } else {
           console.log('⚠️ Some API endpoints are not responding');
-          // Don't set apiConnected to false immediately - might be temporary
         }
       } catch (error) {
         console.log('⚠️ API check failed:', error.message);
-        // Don't set apiConnected to false on single failure
       }
     };
 
-    // Initial check
     checkConnection();
-
-    // Periodic checks - less frequent
-    const interval = setInterval(checkConnection, 30000); // Every 30 seconds
-
+    const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
   }, [apiConnected]);
 
-  // FIXED: Polling fallback for data refresh - only if API is connected
+  // Polling fallback for data refresh
   useEffect(() => {
     const loadData = async () => {
       if (!apiConnected) return;
@@ -306,7 +281,7 @@ socketInstance.on('connect', () => {
     };
   }, [sidebarOpen, isMobile]);
 
-  // FIXED: Load initial data with better connection detection
+  // Load initial data
   useEffect(() => {
     const initializeData = async () => {
       try {
@@ -314,7 +289,6 @@ socketInstance.on('connect', () => {
         
         console.log('🚀 Initializing application data...');
         
-        // Try to load data first - this is the real test of connectivity
         try {
           const [menuData, tablesData, ordersData] = await Promise.all([
             fetchMenu().catch(error => {
@@ -331,7 +305,6 @@ socketInstance.on('connect', () => {
             })
           ]);
           
-          // If we got any data back, consider API connected
           const hasData = menuData.length > 0 || tablesData.length > 0 || ordersData.length > 0;
           
           if (hasData) {
@@ -506,51 +479,51 @@ socketInstance.on('connect', () => {
     }
   };
 
-const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-  console.log('🛒 Creating order for table:', tableNumber);
-  
-  if (!tableNumber) throw new Error('Table number required');
-  if (!orderItems.length) throw new Error('No items in order');
+  const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
+    console.log('🛒 Creating order for table:', tableNumber);
+    
+    if (!tableNumber) throw new Error('Table number required');
+    if (!orderItems.length) throw new Error('No items in order');
 
-  if (apiConnected) {
-    const orderData = {
-      tableId: tableNumber,
-      items: orderItems.map(item => ({
-        menuItemId: item.menuItemId || item.id,
-        name: item.name,
-        quantity: parseInt(item.quantity),
-        price: parseFloat(item.price)
-      })),
-      orderType: orderType,
-      status: 'pending'
-    };
-    
-    console.log('📤 Sending order:', orderData);
-    
-    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderData)
-    });
-    
-    if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-    
-    return await response.json();
-  } else {
-    // Offline fallback
-    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-    const newOrder = {
-      orderNumber,
-      table: tableNumber,
-      items: orderItems,
-      status: 'pending',
-      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    };
-    
-    setOrders(prev => [newOrder, ...prev]);
-    return newOrder;
-  }
-};
+    if (apiConnected) {
+      const orderData = {
+        tableId: tableNumber,
+        items: orderItems.map(item => ({
+          menuItemId: item.menuItemId || item.id,
+          name: item.name,
+          quantity: parseInt(item.quantity),
+          price: parseFloat(item.price)
+        })),
+        orderType: orderType,
+        status: 'pending'
+      };
+      
+      console.log('📤 Sending order:', orderData);
+      
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
+      });
+      
+      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      
+      return await response.json();
+    } else {
+      // Offline fallback
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+      const newOrder = {
+        orderNumber,
+        table: tableNumber,
+        items: orderItems,
+        status: 'pending',
+        total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+      };
+      
+      setOrders(prev => [newOrder, ...prev]);
+      return newOrder;
+    }
+  };
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
@@ -628,6 +601,58 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
     return `${remainingMins} min${remainingMins === 1 ? '' : 's'}`;
   };
 
+  // Enhanced payment processing function (Step 4)
+  const processPayment = async (orderId, amount, method = 'cash') => {
+    try {
+      console.log('💰 Processing payment for order:', orderId);
+      
+      if (!orderId) {
+        throw new Error('Order ID is required for payment');
+      }
+
+      const paymentData = {
+        orderId: orderId,
+        amount: amount,
+        method: method
+      };
+
+      console.log('📤 Sending payment request:', paymentData);
+
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/payments', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Payment failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Payment successful:', result);
+      
+      // Update local state
+      if (result.order) {
+        setOrders(prev => prev.map(order => 
+          order._id === result.order._id ? result.order : order
+        ));
+      }
+      
+      if (result.payment) {
+        setPayments(prev => [...prev, result.payment]);
+      }
+
+      return result;
+
+    } catch (error) {
+      console.error('❌ Payment processing error:', error);
+      throw error;
+    }
+  };
+
   if (loading) {
     return (
       <div className="app-container">
@@ -640,7 +665,7 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
     );
   }
 
-   // For menu route (customer-facing view)
+  // For menu route (customer-facing view)
   if (isMenuRoute) {
     return (
       <CustomerProvider>
@@ -664,7 +689,7 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
 
   // Staff/admin view
   return (
-    <CustomerProvider> {/* WRAP WITH PROVIDER */}
+    <CustomerProvider>
       <div className="app-container">
         <Header 
           notifications={notifications}
@@ -688,7 +713,6 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
           />
 
           <main className="main-content">
-            {/* FIXED: Only show warning if API is actually disconnected */}
             {!apiConnected && (
               <div className="api-warning">
                 ⚠️ Running in offline mode. Data will reset on page refresh.
@@ -725,17 +749,17 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
               <QRGenerator tables={tables} isMobile={isMobile} apiConnected={apiConnected} />
             )}
             {currentPage === 'menu' && (
-      <DigitalMenu 
-        cart={cart} 
-        setCart={setCart}
-        onCreateOrder={handleCustomerOrder}
-        isMobile={isMobile}
-        menu={menu}
-        apiConnected={apiConnected}
-        currentTable={currentTable}
-        isCustomerView={true}
-      />
-    )}
+              <DigitalMenu 
+                cart={cart} 
+                setCart={setCart}
+                onCreateOrder={handleCustomerOrder}
+                isMobile={isMobile}
+                menu={menu}
+                apiConnected={apiConnected}
+                currentTable={currentTable}
+                isCustomerView={true}
+              />
+            )}
             {currentPage === 'kitchen' && (
               <KitchenDisplay 
                 orders={orders} 
@@ -753,6 +777,7 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
                 setPayments={setPayments}
                 isMobile={isMobile}
                 apiConnected={apiConnected}
+                onProcessPayment={processPayment} // Pass the enhanced payment function
               />
             )}
             {currentPage === 'analytics' && (

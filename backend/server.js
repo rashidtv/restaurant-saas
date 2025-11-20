@@ -882,88 +882,130 @@ app.get('/api/payments', async (req, res) => {
 
 app.post('/api/payments', async (req, res) => {
   try {
-    console.log('💰 Processing payment:', req.body);
+    console.log('💰 Payment request received:', req.body);
     
     if (!db) {
+      console.error('❌ Database not connected in payment endpoint');
       return res.status(503).json({ 
         success: false,
-        error: 'Database not connected' 
+        message: 'Database not connected' 
       });
     }
     
-    const { orderId, amount, method } = req.body;
+    const { orderId, amount, method = 'cash' } = req.body;
     
-    console.log('💰 Processing payment for order:', orderId);
-    
+    // Validate required fields
     if (!orderId) {
       return res.status(400).json({ 
         success: false,
-        error: 'Order ID is required' 
+        message: 'Order ID is required' 
       });
     }
-    
-    const order = await db.collection('orders').findOne({ 
-      $or: [{ orderNumber: orderId }, { _id: new ObjectId(orderId) }] 
-    });
-    
+
+    console.log('🔍 Processing payment for order:', orderId);
+
+    // Find order with multiple fallback options
+    let order;
+    try {
+      // Try by orderNumber first
+      order = await db.collection('orders').findOne({ orderNumber: orderId });
+      
+      // If not found, try by _id
+      if (!order) {
+        try {
+          order = await db.collection('orders').findOne({ _id: new ObjectId(orderId) });
+        } catch (idError) {
+          console.log('⚠️ Invalid order ID format:', orderId);
+        }
+      }
+    } catch (dbError) {
+      console.error('❌ Database query error:', dbError);
+      return res.status(500).json({ 
+        success: false,
+        message: 'Database error while finding order' 
+      });
+    }
+
     if (!order) {
+      console.error('❌ Order not found:', orderId);
       return res.status(404).json({ 
         success: false,
-        error: 'Order not found' 
+        message: 'Order not found' 
       });
     }
-    
+
     const now = new Date();
+    const paymentAmount = amount || order.total;
+
+    // Create payment record
     const payment = {
       _id: new ObjectId(),
       orderId: order.orderNumber,
       orderInternalId: order._id,
-      amount: amount || order.total,
-      method: method || 'cash',
+      amount: paymentAmount,
+      method: method,
       status: 'completed',
       paidAt: now,
       createdAt: now
     };
-    
-    await db.collection('payments').insertOne(payment);
-    
-    const updatedOrder = await db.collection('orders').findOneAndUpdate(
-      { _id: order._id },
-      { 
-        $set: { 
-          paymentStatus: 'paid', 
-          paymentMethod: method,
-          updatedAt: now
-        } 
-      },
-      { returnDocument: 'after' }
-    );
-    
-    if (order.tableId) {
-      const updatedTable = await db.collection('tables').findOneAndUpdate(
-        { number: order.tableId },
-        { $set: { status: 'needs_cleaning', orderId: null, updatedAt: now } },
+
+    console.log('💾 Saving payment record:', payment);
+
+    // Database operations with error handling
+    try {
+      await db.collection('payments').insertOne(payment);
+      
+      // Update order status
+      const updatedOrder = await db.collection('orders').findOneAndUpdate(
+        { _id: order._id },
+        { 
+          $set: { 
+            paymentStatus: 'paid', 
+            paymentMethod: method,
+            updatedAt: now
+          } 
+        },
         { returnDocument: 'after' }
       );
-      
-      if (updatedTable.value) {
-        io.emit('tableUpdated', updatedTable.value);
+
+      // Update table status if exists
+      if (order.tableId) {
+        const updatedTable = await db.collection('tables').findOneAndUpdate(
+          { number: order.tableId },
+          { $set: { status: 'needs_cleaning', orderId: null, updatedAt: now } },
+          { returnDocument: 'after' }
+        );
+        
+        if (updatedTable.value) {
+          io.emit('tableUpdated', updatedTable.value);
+        }
       }
+
+      // Emit events
+      io.emit('paymentProcessed', payment);
+      io.emit('orderUpdated', updatedOrder.value);
+
+      console.log('✅ Payment processed successfully for order:', order.orderNumber);
+      
+      res.json({
+        success: true,
+        payment: payment,
+        order: updatedOrder.value
+      });
+
+    } catch (dbWriteError) {
+      console.error('❌ Database write error:', dbWriteError);
+      return res.status(500).json({ 
+        success: false,
+        message: 'Failed to save payment: ' + dbWriteError.message 
+      });
     }
     
-    io.emit('paymentProcessed', payment);
-    io.emit('orderUpdated', updatedOrder.value);
-    
-    res.json({
-      success: true,
-      payment: payment
-    });
-    
   } catch (error) {
-    console.error('❌ Payment error:', error);
+    console.error('💥 Payment endpoint error:', error);
     res.status(500).json({ 
       success: false,
-      error: 'Payment failed: ' + error.message 
+      message: 'Payment processing failed: ' + error.message 
     });
   }
 });
