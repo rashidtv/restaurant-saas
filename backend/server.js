@@ -570,7 +570,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
     
     if (status === 'completed') {
       updateData.completedAt = new Date();
-      updateData.paymentStatus: 'pending';
+      updateData.paymentStatus = 'pending'; // FIXED: This was the problematic line
     }
     
     const updatedOrder = await db.collection('orders').findOneAndUpdate(
