@@ -1,78 +1,107 @@
-import React from 'react';
-import { pointsService } from '../../services/pointsService';
-import { formatPhoneNumber } from '../../utils/formatters';
-import './styles.css';
+import React, { useState, useEffect } from 'react';
+import { customerService } from '../../services/customerService';
+import './PointsDisplay.css';
 
 export const PointsDisplay = ({ points, phone, onClear }) => {
-  const tierInfo = pointsService.getTierInfo(points);
-  const nextReward = pointsService.getNextRewardInfo(points);
+  const [currentPoints, setCurrentPoints] = useState(points);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleChangeNumber = () => {
-    if (points > 0) {
-      const confirmChange = window.confirm(
-        `You have ${points} points. Changing your number will reset your points. Continue?`
-      );
-      if (!confirmChange) return;
+  // 🎯 PERMANENT FIX: Real-time points updates via WebSocket
+  useEffect(() => {
+    const refreshPoints = async () => {
+      if (!phone) return;
+      
+      try {
+        setIsRefreshing(true);
+        const freshCustomer = await customerService.refreshCustomerData(phone);
+        if (freshCustomer && freshCustomer.points !== undefined) {
+          setCurrentPoints(freshCustomer.points);
+          console.log('🔄 Points updated in real-time:', freshCustomer.points);
+        }
+      } catch (error) {
+        console.error('Failed to refresh points:', error);
+      } finally {
+        setIsRefreshing(false);
+      }
+    };
+
+    // Listen for payment processed events
+    const handlePaymentProcessed = (payment) => {
+      console.log('💰 Payment processed, refreshing points...');
+      refreshPoints();
+    };
+
+    // Listen for order updates that might affect points
+    const handleOrderUpdated = (updatedOrder) => {
+      if (updatedOrder.customerPhone === phone) {
+        console.log('📦 Order updated for customer, refreshing points...');
+        refreshPoints();
+      }
+    };
+
+    // Use global WebSocket instance (from App.jsx)
+    if (window.socket) {
+      window.socket.on('paymentProcessed', handlePaymentProcessed);
+      window.socket.on('orderUpdated', handleOrderUpdated);
     }
-    onClear();
+
+    return () => {
+      if (window.socket) {
+        window.socket.off('paymentProcessed', handlePaymentProcessed);
+        window.socket.off('orderUpdated', handleOrderUpdated);
+      }
+    };
+  }, [phone]);
+
+  // Also refresh when points prop changes
+  useEffect(() => {
+    setCurrentPoints(points);
+  }, [points]);
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      const freshCustomer = await customerService.refreshCustomerData(phone);
+      if (freshCustomer) {
+        setCurrentPoints(freshCustomer.points);
+      }
+    } catch (error) {
+      console.error('Manual refresh failed:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
     <div className="points-display">
-      <div className="points-card">
-        <div className="points-header">
-          <div className="customer-info">
-            <div className="phone-number">{formatPhoneNumber(phone)}</div>
-            <div className="points-total">{points.toLocaleString()} Points</div>
-          </div>
-          <div 
-            className="tier-badge"
-            style={{ 
-              backgroundColor: tierInfo.current.color,
-              color: 'white'
-            }}
-          >
-            {tierInfo.current.icon} {tierInfo.current.name}
-          </div>
+      <div className="points-header">
+        <h3>Loyalty Points</h3>
+        <button 
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="refresh-points-btn"
+          aria-label="Refresh points"
+        >
+          {isRefreshing ? '⟳' : '↻'}
+        </button>
+      </div>
+      
+      <div className="points-content">
+        <div className="points-value">
+          <span className="points-number">{currentPoints}</span>
+          <span className="points-label">points</span>
         </div>
         
-        {tierInfo.next && (
-          <div className="progress-section">
-            <div className="progress-bar">
-              <div 
-                className="progress-fill"
-                style={{ 
-                  width: `${tierInfo.progress}%`,
-                  backgroundColor: tierInfo.current.color
-                }}
-              ></div>
-            </div>
-            <div className="progress-text">
-              {tierInfo.pointsToNextTier.toLocaleString()} points to {tierInfo.next.name}
-            </div>
-          </div>
-        )}
-
-        {nextReward.pointsNeeded > 0 ? (
-          <div className="next-reward">
-            <span className="reward-text">
-              🎁 {nextReward.pointsNeeded.toLocaleString()} points until {nextReward.reward}
-            </span>
-          </div>
-        ) : (
-          <div className="next-reward">
-            <span className="reward-text">
-              🎉 You've unlocked all rewards!
-            </span>
-          </div>
-        )}
-
-        <button 
-          onClick={handleChangeNumber}
-          className="change-number-btn"
-        >
-          Change Number
-        </button>
+        <div className="customer-info">
+          <span className="customer-phone">{phone}</span>
+          <button 
+            onClick={onClear}
+            className="change-number-btn"
+            aria-label="Change phone number"
+          >
+            Change
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -114,6 +114,25 @@ async getCustomerOrders(phone) {
   }
 }
 
+// 🎯 NEW: Refresh customer data after points update
+async refreshCustomerData(phone) {
+  try {
+    console.log('🔄 Refreshing customer data for:', phone);
+    
+    const customerData = await this.getCustomer(phone);
+    if (customerData) {
+      // Update session with fresh data
+      this.saveSession(phone);
+      console.log('✅ Customer data refreshed, points:', customerData.points);
+      return customerData;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to refresh customer data:', error);
+    throw new Error('Unable to refresh customer data');
+  }
+}
+
 // Alternative method to get customer orders
 async getCustomerOrdersAlternative(phone) {
   try {

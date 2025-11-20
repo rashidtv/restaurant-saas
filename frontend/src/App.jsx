@@ -16,7 +16,6 @@ import {
   updateOrderStatus as apiUpdateOrderStatus, 
   createOrder as apiCreateOrder 
 } from './config/api';
-import { io } from 'socket.io-client';
 import './App.css';
 
 function App() {
@@ -69,21 +68,29 @@ function App() {
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 3;
 
-    const initializeWebSocket = () => {
-      try {
-        socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
-          transports: ['websocket', 'polling'],
-          timeout: 10000,
-          reconnectionAttempts: maxReconnectAttempts
-        });
+    const initializeWebSocket = async () => {
+    try {
+      // Dynamic import to avoid build-time issues
+      const socketIO = await import('socket.io-client');
+      const io = socketIO.default || socketIO;
+      
+      socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
+        transports: ['websocket', 'polling'],
+        timeout: 10000,
+        reconnectionAttempts: maxReconnectAttempts
+      });
 
-        setSocket(socketInstance);
+      setSocket(socketInstance);
 
-        socketInstance.on('connect', () => {
-          console.log('🔌 Connected to backend via WebSocket');
-          setApiConnected(true);
-          reconnectAttempts = 0; // Reset on successful connection
-        });
+        // In your WebSocket useEffect in App.jsx, add this:
+socketInstance.on('connect', () => {
+  console.log('🔌 Connected to backend via WebSocket');
+  setApiConnected(true);
+  reconnectAttempts = 0;
+  
+  // 🎯 EXPOSE SOCKET GLOBALLY FOR COMPONENTS
+  window.socket = socketInstance;
+});
 
         socketInstance.on('connect_error', (error) => {
           console.log('❌ WebSocket connection error:', error.message);

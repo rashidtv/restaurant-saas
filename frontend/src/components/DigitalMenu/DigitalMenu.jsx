@@ -8,6 +8,7 @@ import { OrderCard } from './OrderCard';
 import { MenuGrid } from './MenuGrid';
 import { CartPanel } from './CartPanel';
 import { orderService } from '../../services/orderService';
+import { customerService } from '../../services/customerService';
 import { pointsService } from '../../services/pointsService';
 import './styles.css';
 
@@ -147,53 +148,81 @@ export const DigitalMenu = ({
   }, [selectedTable, customer]);
 
 // FIXED: WebSocket integration with dynamic import
+// 🎯 PERMANENT FIX: Enhanced WebSocket integration for real-time updates
 useEffect(() => {
-  let socket = null;
+  if (!selectedTable || !customer) return;
 
-  const initializeWebSocket = async () => {
-    try {
-      // Dynamic import to avoid build issues
-      const socketIO = await import('socket.io-client');
-      const io = socketIO.default || socketIO;
+  const handleOrderUpdated = (updatedOrder) => {
+    console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
+    
+    // Refresh orders when order status changes
+    if (selectedTable) {
+      loadTableOrders(selectedTable);
+    }
+    
+    // If this order belongs to current customer, refresh customer orders and points
+    if (customer && updatedOrder.customerPhone === customer.phone) {
+      console.log('🎯 Order belongs to current customer, refreshing data...');
       
-      socket = io('https://restaurant-saas-backend-hbdz.onrender.com', {
-        transports: ['websocket', 'polling'],
-        timeout: 10000
-      });
-
-      socket.on('orderUpdated', (updatedOrder) => {
-        console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
-        if (selectedTable) {
-          loadTableOrders(selectedTable);
-        }
-        if (customer && updatedOrder.customerPhone === customer.phone) {
-          getCustomerOrders().then(setCustomerOrders);
-        }
-      });
-
-      socket.on('paymentProcessed', (payment) => {
-        console.log('💰 Payment processed via WebSocket:', payment.orderId);
-        if (selectedTable) {
-          loadTableOrders(selectedTable);
-        }
-      });
-
-      socket.on('connect', () => {
-        console.log('🔌 DigitalMenu WebSocket connected');
-      });
-
-    } catch (error) {
-      console.error('WebSocket initialization failed:', error);
+      // Refresh customer orders
+      getCustomerOrders().then(setCustomerOrders);
+      
+      // 🎯 CRITICAL: Refresh customer points data
+      customerService.refreshCustomerData(customer.phone)
+        .then(freshCustomer => {
+          if (freshCustomer) {
+            // Update customer state with fresh data including points
+            setCustomer(freshCustomer);
+            setPoints(freshCustomer.points || 0);
+            console.log('✅ Customer points refreshed:', freshCustomer.points);
+          }
+        })
+        .catch(error => {
+          console.error('Failed to refresh customer data:', error);
+        });
     }
   };
 
-  // Call the async function
-  initializeWebSocket();
+  const handlePaymentProcessed = (payment) => {
+    console.log('💰 Payment processed via WebSocket:', payment.orderId);
+    
+    // Refresh orders when payment is completed
+    if (selectedTable) {
+      loadTableOrders(selectedTable);
+    }
+    
+    // 🎯 CRITICAL: Always refresh customer data after payment
+    if (customer) {
+      console.log('💰 Payment completed, refreshing customer data...');
+      customerService.refreshCustomerData(customer.phone)
+        .then(freshCustomer => {
+          if (freshCustomer) {
+            setCustomer(freshCustomer);
+            setPoints(freshCustomer.points || 0);
+            console.log('✅ Points updated after payment:', freshCustomer.points);
+          }
+        })
+        .catch(error => {
+          console.error('Failed to refresh customer after payment:', error);
+        });
+    }
+  };
+
+  // Use global WebSocket instance from App.jsx
+  if (window.socket) {
+    window.socket.on('orderUpdated', handleOrderUpdated);
+    window.socket.on('paymentProcessed', handlePaymentProcessed);
+    
+    console.log('🔌 DigitalMenu WebSocket listeners registered');
+  } else {
+    console.log('⚠️ Global WebSocket not available, real-time updates disabled');
+  }
 
   return () => {
-    if (socket) {
-      socket.disconnect();
-      console.log('🧹 DigitalMenu WebSocket cleaned up');
+    if (window.socket) {
+      window.socket.off('orderUpdated', handleOrderUpdated);
+      window.socket.off('paymentProcessed', handlePaymentProcessed);
+      console.log('🧹 DigitalMenu WebSocket listeners cleaned up');
     }
   };
 }, [selectedTable, customer, loadTableOrders, getCustomerOrders]);
