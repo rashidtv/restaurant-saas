@@ -14,9 +14,258 @@ const DB_NAME = process.env.DB_NAME || 'flavorflow';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
 const PORT = process.env.PORT || 10000;
 
-let db;
+// ==================== ENHANCED DATABASE MANAGER ====================
+class DatabaseManager {
+  constructor() {
+    this.db = null;
+    this.client = null;
+    this.isConnected = false;
+    this.connectionPromise = null;
+  }
 
-// ==================== ENHANCED CORS CONFIG ====================
+  async connect() {
+    // Prevent multiple connection attempts
+    if (this.connectionPromise) {
+      return this.connectionPromise;
+    }
+
+    this.connectionPromise = this._connectWithRetry();
+    return this.connectionPromise;
+  }
+
+  async _connectWithRetry(retries = 5, delay = 5000) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(`🔗 MongoDB connection attempt ${attempt}/${retries}...`);
+        
+        const client = new MongoClient(MONGODB_URI, {
+          tls: true,
+          tlsAllowInvalidCertificates: false,
+          maxPoolSize: 10,
+          serverSelectionTimeoutMS: 30000,
+          socketTimeoutMS: 45000,
+          connectTimeoutMS: 30000,
+          retryWrites: true,
+          retryReads: true,
+        });
+
+        await client.connect();
+        this.client = client;
+        this.db = client.db(DB_NAME);
+        
+        // Test connection
+        await this.db.command({ ping: 1 });
+        
+        this.isConnected = true;
+        console.log('✅ MongoDB connected successfully');
+        
+        // Initialize database
+        await this._initializeDatabase();
+        
+        return this.db;
+      } catch (error) {
+        console.error(`❌ MongoDB connection attempt ${attempt} failed:`, error.message);
+        
+        if (attempt === retries) {
+          console.error('❌ All MongoDB connection attempts failed');
+          this.isConnected = false;
+          throw error;
+        }
+        
+        console.log(`🔄 Retrying in ${delay / 1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        // Exponential backoff
+        delay = Math.min(delay * 1.5, 30000);
+      }
+    }
+  }
+
+  async _initializeDatabase() {
+    try {
+      console.log('📦 Initializing database...');
+      
+      // Create indexes
+      await this.db.collection('customers').createIndex({ phone: 1 }, { unique: true, sparse: true });
+      await this.db.collection('orders').createIndex({ orderNumber: 1 }, { unique: true });
+      await this.db.collection('orders').createIndex({ customerPhone: 1 });
+      await this.db.collection('orders').createIndex({ tableId: 1 });
+      await this.db.collection('orders').createIndex({ createdAt: -1 });
+      await this.db.collection('tables').createIndex({ number: 1 }, { unique: true });
+      await this.db.collection('payments').createIndex({ orderId: 1 });
+      
+      console.log('✅ Database indexes created');
+      
+      // Initialize sample data if needed
+      await this._initializeSampleData();
+      
+    } catch (error) {
+      console.error('❌ Database initialization error:', error.message);
+    }
+  }
+
+  async _initializeSampleData() {
+    try {
+      const menuCount = await this.db.collection('menuItems').countDocuments();
+      const tablesCount = await this.db.collection('tables').countDocuments();
+      
+      if (menuCount === 0) {
+        const menuItems = [
+          {
+            _id: new ObjectId(),
+            name: "Teh Tarik", 
+            price: 4.50, 
+            category: "drinks", 
+            preparationTime: 5,
+            nameBM: "Teh Tarik", 
+            description: "Famous Malaysian pulled tea", 
+            descriptionBM: "Teh tarik terkenal Malaysia",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            _id: new ObjectId(),
+            name: "Kopi O", 
+            price: 3.80, 
+            category: "drinks", 
+            preparationTime: 3,
+            nameBM: "Kopi O", 
+            description: "Traditional black coffee", 
+            descriptionBM: "Kopi hitam tradisional",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            _id: new ObjectId(),
+            name: "Milo Dinosaur", 
+            price: 6.50, 
+            category: "drinks", 
+            preparationTime: 4,
+            nameBM: "Milo Dinosaur", 
+            description: "Iced Milo with extra Milo powder", 
+            descriptionBM: "Milo ais dengan serbuk Milo tambahan",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            _id: new ObjectId(),
+            name: "Nasi Lemak", 
+            price: 12.90, 
+            category: "main", 
+            preparationTime: 15,
+            nameBM: "Nasi Lemak", 
+            description: "Coconut rice with sambal", 
+            descriptionBM: "Nasi santan dengan sambal",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            _id: new ObjectId(),
+            name: "Char Kuey Teow", 
+            price: 14.50, 
+            category: "main", 
+            preparationTime: 12,
+            nameBM: "Char Kuey Teow", 
+            description: "Stir-fried rice noodles", 
+            descriptionBM: "Kuey teow goreng",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            _id: new ObjectId(),
+            name: "Roti Canai", 
+            price: 3.50, 
+            category: "main", 
+            preparationTime: 8,
+            nameBM: "Roti Canai", 
+            description: "Flaky flatbread with curry", 
+            descriptionBM: "Roti canai dengan kuah kari",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            _id: new ObjectId(),
+            name: "Satay Set", 
+            price: 18.90, 
+            category: "main", 
+            preparationTime: 20,
+            nameBM: "Set Satay", 
+            description: "Chicken satay with peanut sauce", 
+            descriptionBM: "Satay ayam dengan kuah kacang",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            _id: new ObjectId(),
+            name: "Cendol", 
+            price: 6.90, 
+            category: "desserts", 
+            preparationTime: 7,
+            nameBM: "Cendol", 
+            description: "Shaved ice dessert", 
+            descriptionBM: "Pencuci mulut ais",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          },
+          {
+            _id: new ObjectId(),
+            name: "Apam Balik", 
+            price: 5.50, 
+            category: "desserts", 
+            preparationTime: 10,
+            nameBM: "Apam Balik", 
+            description: "Malaysian peanut pancake", 
+            descriptionBM: "Apam balik kacang",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        ];
+        await this.db.collection('menuItems').insertMany(menuItems);
+        console.log('✅ Sample menu items created');
+      }
+      
+      if (tablesCount === 0) {
+        const tables = [
+          { _id: new ObjectId(), number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+          { _id: new ObjectId(), number: 'T02', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+          { _id: new ObjectId(), number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+          { _id: new ObjectId(), number: 'T04', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+          { _id: new ObjectId(), number: 'T05', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+          { _id: new ObjectId(), number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+          { _id: new ObjectId(), number: 'T07', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+          { _id: new ObjectId(), number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() }
+        ];
+        await this.db.collection('tables').insertMany(tables);
+        console.log('✅ Sample tables created');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error initializing sample data:', error.message);
+    }
+  }
+
+  getDatabase() {
+    if (!this.isConnected) {
+      throw new Error('Database not connected');
+    }
+    return this.db;
+  }
+
+  async disconnect() {
+    if (this.client) {
+      await this.client.close();
+      this.isConnected = false;
+      this.db = null;
+      this.client = null;
+      this.connectionPromise = null;
+      console.log('✅ MongoDB disconnected');
+    }
+  }
+}
+
+// Create global database instance
+const databaseManager = new DatabaseManager();
+
+// ==================== MIDDLEWARE & CONFIGURATION ====================
 const corsOptions = {
   origin: [
     "http://localhost:5173",
@@ -30,7 +279,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// ==================== ENHANCED SOCKET.IO ====================
 const io = new Server(server, {
   cors: corsOptions,
   pingTimeout: 60000,
@@ -39,227 +287,47 @@ const io = new Server(server, {
 
 app.use(express.json({ limit: '10mb' }));
 
-// ==================== ENHANCED DATABASE CONNECTION ====================
-async function initializeDatabase() {
+// ==================== DATABASE CONNECTION MIDDLEWARE ====================
+app.use(async (req, res, next) => {
   try {
-    console.log('🔗 Connecting to MongoDB with enhanced configuration...');
-    
-    const client = new MongoClient(MONGODB_URI, {
-      tls: true,
-      tlsAllowInvalidCertificates: false,
-      maxPoolSize: 10,
-      minPoolSize: 1,
-      serverSelectionTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 30000,
-      retryWrites: true,
-      retryReads: true,
-      keepAlive: true,
-      keepAliveInitialDelay: 300000
-    });
-
-    await client.connect();
-    db = client.db(DB_NAME);
-    
-    await db.command({ ping: 1 });
-    console.log('✅ Connected to MongoDB successfully');
-    
-    await createDatabaseIndexes();
-    await initializeSampleData();
-    
-    startDatabaseHealthCheck();
-    
-  } catch (error) {
-    console.error('❌ MongoDB connection failed:', {
-      error: error.message,
-      code: error.code
-    });
-    
-    console.log('🔄 Retrying connection in 5 seconds...');
-    setTimeout(initializeDatabase, 5000);
-  }
-}
-
-function startDatabaseHealthCheck() {
-  setInterval(async () => {
-    try {
-      await db.command({ ping: 1 });
-    } catch (error) {
-      console.error('❌ Database health check failed:', error.message);
+    // Ensure database is connected before handling any request
+    if (!databaseManager.isConnected) {
+      await databaseManager.connect();
     }
-  }, 30000);
-}
-
-async function createDatabaseIndexes() {
-  try {
-    await db.collection('customers').createIndex({ phone: 1 }, { unique: true, sparse: true });
-    await db.collection('orders').createIndex({ orderNumber: 1 }, { unique: true });
-    await db.collection('orders').createIndex({ customerPhone: 1 });
-    await db.collection('orders').createIndex({ tableId: 1 });
-    await db.collection('orders').createIndex({ createdAt: -1 });
-    await db.collection('tables').createIndex({ number: 1 }, { unique: true });
-    await db.collection('payments').createIndex({ orderId: 1 });
-    
-    console.log('✅ Database indexes created/verified');
+    next();
   } catch (error) {
-    console.error('❌ Error creating indexes:', error.message);
+    console.error('Database connection middleware error:', error);
+    res.status(503).json({
+      success: false,
+      error: 'Service temporarily unavailable. Database connection failed.'
+    });
   }
-}
+});
 
-// ==================== ENHANCED ERROR HANDLING ====================
+// ==================== ENHANCED ERROR HANDLER ====================
 function handleError(res, error, context = 'Operation') {
   console.error(`❌ ${context} failed:`, error.message);
 
-  const statusCode = error.code === 11000 ? 409 : 500;
-  
-  res.status(statusCode).json({
-    success: false,
-    error: error.message
-  });
-}
-
-// ==================== SAMPLE DATA INITIALIZATION ====================
-async function initializeSampleData() {
-  try {
-    console.log('📦 Checking for sample data...');
-    
-    const menuCount = await db.collection('menuItems').countDocuments();
-    const tablesCount = await db.collection('tables').countDocuments();
-    
-    if (menuCount === 0) {
-      const menuItems = [
-        {
-          _id: new ObjectId(),
-          name: "Teh Tarik", 
-          price: 4.50, 
-          category: "drinks", 
-          preparationTime: 5,
-          nameBM: "Teh Tarik", 
-          description: "Famous Malaysian pulled tea", 
-          descriptionBM: "Teh tarik terkenal Malaysia",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Kopi O", 
-          price: 3.80, 
-          category: "drinks", 
-          preparationTime: 3,
-          nameBM: "Kopi O", 
-          description: "Traditional black coffee", 
-          descriptionBM: "Kopi hitam tradisional",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Milo Dinosaur", 
-          price: 6.50, 
-          category: "drinks", 
-          preparationTime: 4,
-          nameBM: "Milo Dinosaur", 
-          description: "Iced Milo with extra Milo powder", 
-          descriptionBM: "Milo ais dengan serbuk Milo tambahan",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Nasi Lemak", 
-          price: 12.90, 
-          category: "main", 
-          preparationTime: 15,
-          nameBM: "Nasi Lemak", 
-          description: "Coconut rice with sambal", 
-          descriptionBM: "Nasi santan dengan sambal",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Char Kuey Teow", 
-          price: 14.50, 
-          category: "main", 
-          preparationTime: 12,
-          nameBM: "Char Kuey Teow", 
-          description: "Stir-fried rice noodles", 
-          descriptionBM: "Kuey teow goreng",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Roti Canai", 
-          price: 3.50, 
-          category: "main", 
-          preparationTime: 8,
-          nameBM: "Roti Canai", 
-          description: "Flaky flatbread with curry", 
-          descriptionBM: "Roti canai dengan kuah kari",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Satay Set", 
-          price: 18.90, 
-          category: "main", 
-          preparationTime: 20,
-          nameBM: "Set Satay", 
-          description: "Chicken satay with peanut sauce", 
-          descriptionBM: "Satay ayam dengan kuah kacang",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Cendol", 
-          price: 6.90, 
-          category: "desserts", 
-          preparationTime: 7,
-          nameBM: "Cendol", 
-          description: "Shaved ice dessert", 
-          descriptionBM: "Pencuci mulut ais",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Apam Balik", 
-          price: 5.50, 
-          category: "desserts", 
-          preparationTime: 10,
-          nameBM: "Apam Balik", 
-          description: "Malaysian peanut pancake", 
-          descriptionBM: "Apam balik kacang",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ];
-      await db.collection('menuItems').insertMany(menuItems);
-      console.log('✅ Sample menu items created');
-    }
-    
-    if (tablesCount === 0) {
-      const tables = [
-        { _id: new ObjectId(), number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-        { _id: new ObjectId(), number: 'T02', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-        { _id: new ObjectId(), number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-        { _id: new ObjectId(), number: 'T04', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-        { _id: new ObjectId(), number: 'T05', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-        { _id: new ObjectId(), number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-        { _id: new ObjectId(), number: 'T07', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-        { _id: new ObjectId(), number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() }
-      ];
-      await db.collection('tables').insertMany(tables);
-      console.log('✅ Sample tables created');
-    }
-    
-    console.log('🎉 Database initialization completed');
-  } catch (error) {
-    console.error('❌ Error initializing sample data:', error.message);
+  // MongoDB duplicate key error
+  if (error.code === 11000) {
+    return res.status(409).json({
+      success: false,
+      error: 'Duplicate entry found'
+    });
   }
+
+  // MongoDB connection errors
+  if (error.name === 'MongoNetworkError' || error.message.includes('connection')) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection lost. Please try again.'
+    });
+  }
+
+  res.status(500).json({
+    success: false,
+    error: error.message || 'Internal server error'
+  });
 }
 
 // ==================== UTILITY FUNCTIONS ====================
@@ -269,6 +337,7 @@ function generateOrderNumber() {
 
 async function getCustomerByPhone(phone) {
   try {
+    const db = databaseManager.getDatabase();
     const cleanPhone = phone.replace(/\D/g, '');
     return await db.collection('customers').findOne({ phone: cleanPhone });
   } catch (error) {
@@ -279,6 +348,7 @@ async function getCustomerByPhone(phone) {
 
 async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTotal = 0) {
   try {
+    const db = databaseManager.getDatabase();
     const cleanPhone = phone.replace(/\D/g, '');
     const now = new Date();
     
@@ -321,6 +391,7 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
 // ==================== HEALTH ENDPOINTS ====================
 app.get('/health', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const ordersCount = await db.collection('orders').countDocuments();
     const tablesCount = await db.collection('tables').countDocuments();
     const customersCount = await db.collection('customers').countDocuments();
@@ -329,7 +400,7 @@ app.get('/health', async (req, res) => {
     res.json({ 
       status: 'ok', 
       timestamp: new Date().toISOString(),
-      database: 'connected',
+      database: databaseManager.isConnected ? 'connected' : 'disconnected',
       data: {
         orders: ordersCount,
         tables: tablesCount,
@@ -348,6 +419,7 @@ app.get('/health', async (req, res) => {
 
 app.get('/api/health', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const ordersCount = await db.collection('orders').countDocuments();
     const tablesCount = await db.collection('tables').countDocuments();
     const customersCount = await db.collection('customers').countDocuments();
@@ -373,7 +445,7 @@ app.get('/api/health', async (req, res) => {
 
 app.post('/api/init', async (req, res) => {
   try {
-    await initializeSampleData();
+    await databaseManager._initializeSampleData();
     res.json({ message: 'Sample data initialized successfully' });
   } catch (error) {
     handleError(res, error, 'Initialize data');
@@ -383,6 +455,7 @@ app.post('/api/init', async (req, res) => {
 // ==================== MENU ENDPOINTS ====================
 app.get('/api/menu', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const menuItems = await db.collection('menuItems').find().sort({ category: 1, name: 1 }).toArray();
     res.json(menuItems);
   } catch (error) {
@@ -393,6 +466,7 @@ app.get('/api/menu', async (req, res) => {
 // ==================== TABLES ENDPOINTS ====================
 app.get('/api/tables', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const tables = await db.collection('tables').find().sort({ number: 1 }).toArray();
     res.json(tables);
   } catch (error) {
@@ -402,6 +476,7 @@ app.get('/api/tables', async (req, res) => {
 
 app.put('/api/tables/:id', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const tableId = req.params.id;
     const newStatus = req.body.status;
     
@@ -441,6 +516,7 @@ app.put('/api/tables/:id', async (req, res) => {
 // ==================== ORDERS ENDPOINTS ====================
 app.get('/api/orders', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const orders = await db.collection('orders').find().sort({ createdAt: -1 }).toArray();
     res.json(orders);
   } catch (error) {
@@ -450,6 +526,7 @@ app.get('/api/orders', async (req, res) => {
 
 app.post('/api/orders', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const { tableId, items, orderType, customerPhone, customerName } = req.body;
     
     console.log('📦 Creating order for table:', tableId, 'Customer:', customerPhone);
@@ -530,6 +607,7 @@ app.post('/api/orders', async (req, res) => {
 
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const { status } = req.body;
     const orderId = req.params.id;
     
@@ -575,6 +653,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
 // ==================== CUSTOMER ENDPOINTS ====================
 app.get('/api/customers', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const customers = await db.collection('customers').find().sort({ createdAt: -1 }).toArray();
     res.json(customers);
   } catch (error) {
@@ -661,6 +740,7 @@ app.post('/api/customers/register', async (req, res) => {
 
 app.get('/api/customers/:phone/orders', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const { phone } = req.params;
     const cleanPhone = phone.replace(/\D/g, '');
     
@@ -681,6 +761,7 @@ app.get('/api/customers/:phone/orders', async (req, res) => {
 // ==================== PAYMENTS ENDPOINTS ====================
 app.get('/api/payments', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const payments = await db.collection('payments').find().sort({ paidAt: -1 }).toArray();
     res.json(payments);
   } catch (error) {
@@ -690,6 +771,7 @@ app.get('/api/payments', async (req, res) => {
 
 app.post('/api/payments', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const { orderId, amount, method } = req.body;
     
     console.log('💰 Processing payment for order:', orderId);
@@ -752,6 +834,7 @@ app.post('/api/payments', async (req, res) => {
 // ==================== UTILITY ENDPOINTS ====================
 app.get('/api/orders/table/:tableId', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const tableId = req.params.tableId;
     console.log('🔍 Checking active orders for table:', tableId);
     
@@ -774,6 +857,7 @@ app.get('/api/orders/table/:tableId', async (req, res) => {
 
 app.put('/api/orders/:id/items', async (req, res) => {
   try {
+    const db = databaseManager.getDatabase();
     const orderId = req.params.id;
     const { newItems } = req.body;
     
@@ -842,6 +926,7 @@ io.on('connection', (socket) => {
 // ==================== GRACEFUL SHUTDOWN ====================
 process.on('SIGTERM', async () => {
   console.log('🔄 SIGTERM received, shutting down gracefully...');
+  await databaseManager.disconnect();
   server.close(() => {
     console.log('✅ Process terminated');
     process.exit(0);
@@ -850,6 +935,7 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('🔄 SIGINT received, shutting down gracefully...');
+  await databaseManager.disconnect();
   server.close(() => {
     console.log('✅ Process terminated');
     process.exit(0);
@@ -857,18 +943,26 @@ process.on('SIGINT', async () => {
 });
 
 // ==================== START SERVER ====================
-initializeDatabase().then(() => {
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 ENHANCED Mesra POS Server running on port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
-    console.log(`💾 Database: MongoDB (Enhanced TLS Configuration)`);
-    console.log(`👥 Customer tracking: PERSISTENT`);
-    console.log(`🎯 Loyalty points: PERSISTENT`);
-    console.log(`🔄 Real-time updates: ENABLED`);
-    console.log(`🛡️  Production ready: YES\n`);
-  });
-}).catch(error => {
-  console.error('❌ Failed to start server:', error);
-  process.exit(1);
-});
+async function startServer() {
+  try {
+    // Initialize database connection first
+    await databaseManager.connect();
+    
+    // Then start the server
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`\n🚀 PRODUCTION Mesra POS Server running on port ${PORT}`);
+      console.log(`📍 Health check: https://restaurant-saas-backend-hbdz.onrender.com/health`);
+      console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
+      console.log(`💾 Database: MongoDB (Production Ready)`);
+      console.log(`👥 Customer tracking: PERSISTENT`);
+      console.log(`🎯 Loyalty points: PERSISTENT`);
+      console.log(`🔄 Real-time updates: ENABLED`);
+      console.log(`🛡️  Production ready: YES\n`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
