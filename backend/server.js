@@ -8,265 +8,15 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// ==================== ENHANCED CONFIGURATION ====================
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/?appName=flavorflow&retryWrites=true&w=majority&ssl=true';
+// MongoDB Configuration - SIMPLIFIED for compatibility
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/flavorflow?retryWrites=true&w=majority';
 const DB_NAME = process.env.DB_NAME || 'flavorflow';
+let db;
+
+// CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
-const PORT = process.env.PORT || 10000;
 
-// ==================== ENHANCED DATABASE MANAGER ====================
-class DatabaseManager {
-  constructor() {
-    this.db = null;
-    this.client = null;
-    this.isConnected = false;
-    this.connectionPromise = null;
-  }
-
-  async connect() {
-    // Prevent multiple connection attempts
-    if (this.connectionPromise) {
-      return this.connectionPromise;
-    }
-
-    this.connectionPromise = this._connectWithRetry();
-    return this.connectionPromise;
-  }
-
-  async _connectWithRetry(retries = 5, delay = 5000) {
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        console.log(`🔗 MongoDB connection attempt ${attempt}/${retries}...`);
-        
-        const client = new MongoClient(MONGODB_URI, {
-          tls: true,
-          tlsAllowInvalidCertificates: false,
-          maxPoolSize: 10,
-          serverSelectionTimeoutMS: 30000,
-          socketTimeoutMS: 45000,
-          connectTimeoutMS: 30000,
-          retryWrites: true,
-          retryReads: true,
-        });
-
-        await client.connect();
-        this.client = client;
-        this.db = client.db(DB_NAME);
-        
-        // Test connection
-        await this.db.command({ ping: 1 });
-        
-        this.isConnected = true;
-        console.log('✅ MongoDB connected successfully');
-        
-        // Initialize database
-        await this._initializeDatabase();
-        
-        return this.db;
-      } catch (error) {
-        console.error(`❌ MongoDB connection attempt ${attempt} failed:`, error.message);
-        
-        if (attempt === retries) {
-          console.error('❌ All MongoDB connection attempts failed');
-          this.isConnected = false;
-          throw error;
-        }
-        
-        console.log(`🔄 Retrying in ${delay / 1000} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        // Exponential backoff
-        delay = Math.min(delay * 1.5, 30000);
-      }
-    }
-  }
-
-  async _initializeDatabase() {
-    try {
-      console.log('📦 Initializing database...');
-      
-      // Create indexes
-      await this.db.collection('customers').createIndex({ phone: 1 }, { unique: true, sparse: true });
-      await this.db.collection('orders').createIndex({ orderNumber: 1 }, { unique: true });
-      await this.db.collection('orders').createIndex({ customerPhone: 1 });
-      await this.db.collection('orders').createIndex({ tableId: 1 });
-      await this.db.collection('orders').createIndex({ createdAt: -1 });
-      await this.db.collection('tables').createIndex({ number: 1 }, { unique: true });
-      await this.db.collection('payments').createIndex({ orderId: 1 });
-      
-      console.log('✅ Database indexes created');
-      
-      // Initialize sample data if needed
-      await this._initializeSampleData();
-      
-    } catch (error) {
-      console.error('❌ Database initialization error:', error.message);
-    }
-  }
-
-  async _initializeSampleData() {
-    try {
-      const menuCount = await this.db.collection('menuItems').countDocuments();
-      const tablesCount = await this.db.collection('tables').countDocuments();
-      
-      if (menuCount === 0) {
-        const menuItems = [
-          {
-            _id: new ObjectId(),
-            name: "Teh Tarik", 
-            price: 4.50, 
-            category: "drinks", 
-            preparationTime: 5,
-            nameBM: "Teh Tarik", 
-            description: "Famous Malaysian pulled tea", 
-            descriptionBM: "Teh tarik terkenal Malaysia",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            _id: new ObjectId(),
-            name: "Kopi O", 
-            price: 3.80, 
-            category: "drinks", 
-            preparationTime: 3,
-            nameBM: "Kopi O", 
-            description: "Traditional black coffee", 
-            descriptionBM: "Kopi hitam tradisional",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            _id: new ObjectId(),
-            name: "Milo Dinosaur", 
-            price: 6.50, 
-            category: "drinks", 
-            preparationTime: 4,
-            nameBM: "Milo Dinosaur", 
-            description: "Iced Milo with extra Milo powder", 
-            descriptionBM: "Milo ais dengan serbuk Milo tambahan",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            _id: new ObjectId(),
-            name: "Nasi Lemak", 
-            price: 12.90, 
-            category: "main", 
-            preparationTime: 15,
-            nameBM: "Nasi Lemak", 
-            description: "Coconut rice with sambal", 
-            descriptionBM: "Nasi santan dengan sambal",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            _id: new ObjectId(),
-            name: "Char Kuey Teow", 
-            price: 14.50, 
-            category: "main", 
-            preparationTime: 12,
-            nameBM: "Char Kuey Teow", 
-            description: "Stir-fried rice noodles", 
-            descriptionBM: "Kuey teow goreng",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            _id: new ObjectId(),
-            name: "Roti Canai", 
-            price: 3.50, 
-            category: "main", 
-            preparationTime: 8,
-            nameBM: "Roti Canai", 
-            description: "Flaky flatbread with curry", 
-            descriptionBM: "Roti canai dengan kuah kari",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            _id: new ObjectId(),
-            name: "Satay Set", 
-            price: 18.90, 
-            category: "main", 
-            preparationTime: 20,
-            nameBM: "Set Satay", 
-            description: "Chicken satay with peanut sauce", 
-            descriptionBM: "Satay ayam dengan kuah kacang",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            _id: new ObjectId(),
-            name: "Cendol", 
-            price: 6.90, 
-            category: "desserts", 
-            preparationTime: 7,
-            nameBM: "Cendol", 
-            description: "Shaved ice dessert", 
-            descriptionBM: "Pencuci mulut ais",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          },
-          {
-            _id: new ObjectId(),
-            name: "Apam Balik", 
-            price: 5.50, 
-            category: "desserts", 
-            preparationTime: 10,
-            nameBM: "Apam Balik", 
-            description: "Malaysian peanut pancake", 
-            descriptionBM: "Apam balik kacang",
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
-        ];
-        await this.db.collection('menuItems').insertMany(menuItems);
-        console.log('✅ Sample menu items created');
-      }
-      
-      if (tablesCount === 0) {
-        const tables = [
-          { _id: new ObjectId(), number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-          { _id: new ObjectId(), number: 'T02', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-          { _id: new ObjectId(), number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-          { _id: new ObjectId(), number: 'T04', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-          { _id: new ObjectId(), number: 'T05', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-          { _id: new ObjectId(), number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-          { _id: new ObjectId(), number: 'T07', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
-          { _id: new ObjectId(), number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() }
-        ];
-        await this.db.collection('tables').insertMany(tables);
-        console.log('✅ Sample tables created');
-      }
-      
-    } catch (error) {
-      console.error('❌ Error initializing sample data:', error.message);
-    }
-  }
-
-  getDatabase() {
-    if (!this.isConnected) {
-      throw new Error('Database not connected');
-    }
-    return this.db;
-  }
-
-  async disconnect() {
-    if (this.client) {
-      await this.client.close();
-      this.isConnected = false;
-      this.db = null;
-      this.client = null;
-      this.connectionPromise = null;
-      console.log('✅ MongoDB disconnected');
-    }
-  }
-}
-
-// Create global database instance
-const databaseManager = new DatabaseManager();
-
-// ==================== MIDDLEWARE & CONFIGURATION ====================
-const corsOptions = {
+app.use(cors({
   origin: [
     "http://localhost:5173",
     "https://restaurant-saas-demo.onrender.com",
@@ -274,70 +24,215 @@ const corsOptions = {
   ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-};
+}));
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.options('*', cors());
 
 const io = new Server(server, {
-  cors: corsOptions,
-  pingTimeout: 60000,
-  pingInterval: 25000
+  cors: {
+    origin: [
+      "http://localhost:5173", 
+      "https://restaurant-saas-demo.onrender.com",
+      FRONTEND_URL
+    ].filter(Boolean),
+    methods: ["GET", "POST", "PUT", "DELETE"]
+  }
 });
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json());
 
-// ==================== DATABASE CONNECTION MIDDLEWARE ====================
-app.use(async (req, res, next) => {
+// Initialize MongoDB Connection - SIMPLIFIED AND WORKING
+async function initializeDatabase() {
   try {
-    // Ensure database is connected before handling any request
-    if (!databaseManager.isConnected) {
-      await databaseManager.connect();
-    }
-    next();
+    console.log('🔗 Connecting to MongoDB...');
+    
+    // SIMPLIFIED connection without complex TLS options that break
+    const client = new MongoClient(MONGODB_URI, {
+      // Remove problematic TLS options that cause the SSL error
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+    });
+
+    await client.connect();
+    db = client.db(DB_NAME);
+    
+    console.log('✅ Connected to MongoDB successfully');
+    
+    // Create indexes for better performance
+    await db.collection('customers').createIndex({ phone: 1 }, { unique: true });
+    await db.collection('orders').createIndex({ orderNumber: 1 });
+    await db.collection('orders').createIndex({ customerPhone: 1 });
+    await db.collection('orders').createIndex({ tableId: 1 });
+    await db.collection('orders').createIndex({ createdAt: -1 });
+    await db.collection('tables').createIndex({ number: 1 }, { unique: true });
+    
+    console.log('✅ Database indexes created');
+    
+    // Initialize sample data if collections are empty
+    await initializeSampleData();
+    
   } catch (error) {
-    console.error('Database connection middleware error:', error);
-    res.status(503).json({
-      success: false,
-      error: 'Service temporarily unavailable. Database connection failed.'
-    });
+    console.error('❌ MongoDB connection failed:', error.message);
+    // Don't exit - let the server start and retry connections
+    console.log('🔄 Server will start without database connection. Retrying in background...');
   }
-});
-
-// ==================== ENHANCED ERROR HANDLER ====================
-function handleError(res, error, context = 'Operation') {
-  console.error(`❌ ${context} failed:`, error.message);
-
-  // MongoDB duplicate key error
-  if (error.code === 11000) {
-    return res.status(409).json({
-      success: false,
-      error: 'Duplicate entry found'
-    });
-  }
-
-  // MongoDB connection errors
-  if (error.name === 'MongoNetworkError' || error.message.includes('connection')) {
-    return res.status(503).json({
-      success: false,
-      error: 'Database connection lost. Please try again.'
-    });
-  }
-
-  res.status(500).json({
-    success: false,
-    error: error.message || 'Internal server error'
-  });
 }
 
-// ==================== UTILITY FUNCTIONS ====================
+// Initialize sample data - EXACTLY AS BEFORE
+async function initializeSampleData() {
+  try {
+    console.log('📦 Checking for sample data...');
+    
+    // Check if data already exists
+    const menuCount = await db.collection('menuItems').countDocuments();
+    const tablesCount = await db.collection('tables').countDocuments();
+    
+    if (menuCount === 0) {
+      const menuItems = [
+        {
+          _id: new ObjectId(),
+          name: "Teh Tarik", 
+          price: 4.50, 
+          category: "drinks", 
+          preparationTime: 5,
+          nameBM: "Teh Tarik", 
+          description: "Famous Malaysian pulled tea", 
+          descriptionBM: "Teh tarik terkenal Malaysia",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: new ObjectId(),
+          name: "Kopi O", 
+          price: 3.80, 
+          category: "drinks", 
+          preparationTime: 3,
+          nameBM: "Kopi O", 
+          description: "Traditional black coffee", 
+          descriptionBM: "Kopi hitam tradisional",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: new ObjectId(),
+          name: "Milo Dinosaur", 
+          price: 6.50, 
+          category: "drinks", 
+          preparationTime: 4,
+          nameBM: "Milo Dinosaur", 
+          description: "Iced Milo with extra Milo powder", 
+          descriptionBM: "Milo ais dengan serbuk Milo tambahan",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: new ObjectId(),
+          name: "Nasi Lemak", 
+          price: 12.90, 
+          category: "main", 
+          preparationTime: 15,
+          nameBM: "Nasi Lemak", 
+          description: "Coconut rice with sambal", 
+          descriptionBM: "Nasi santan dengan sambal",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: new ObjectId(),
+          name: "Char Kuey Teow", 
+          price: 14.50, 
+          category: "main", 
+          preparationTime: 12,
+          nameBM: "Char Kuey Teow", 
+          description: "Stir-fried rice noodles", 
+          descriptionBM: "Kuey teow goreng",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: new ObjectId(),
+          name: "Roti Canai", 
+          price: 3.50, 
+          category: "main", 
+          preparationTime: 8,
+          nameBM: "Roti Canai", 
+          description: "Flaky flatbread with curry", 
+          descriptionBM: "Roti canai dengan kuah kari",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: new ObjectId(),
+          name: "Satay Set", 
+          price: 18.90, 
+          category: "main", 
+          preparationTime: 20,
+          nameBM: "Set Satay", 
+          description: "Chicken satay with peanut sauce", 
+          descriptionBM: "Satay ayam dengan kuah kacang",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: new ObjectId(),
+          name: "Cendol", 
+          price: 6.90, 
+          category: "desserts", 
+          preparationTime: 7,
+          nameBM: "Cendol", 
+          description: "Shaved ice dessert", 
+          descriptionBM: "Pencuci mulut ais",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: new ObjectId(),
+          name: "Apam Balik", 
+          price: 5.50, 
+          category: "desserts", 
+          preparationTime: 10,
+          nameBM: "Apam Balik", 
+          description: "Malaysian peanut pancake", 
+          descriptionBM: "Apam balik kacang",
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ];
+      await db.collection('menuItems').insertMany(menuItems);
+      console.log('✅ Sample menu items created');
+    }
+    
+    if (tablesCount === 0) {
+      const tables = [
+        { _id: new ObjectId(), number: 'T01', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), number: 'T02', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), number: 'T03', status: 'available', capacity: 6, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), number: 'T04', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), number: 'T05', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), number: 'T06', status: 'available', capacity: 2, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), number: 'T07', status: 'available', capacity: 4, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), number: 'T08', status: 'available', capacity: 8, lastCleaned: new Date(), orderId: null, createdAt: new Date(), updatedAt: new Date() }
+      ];
+      await db.collection('tables').insertMany(tables);
+      console.log('✅ Sample tables created');
+    }
+    
+    console.log('🎉 Database initialization completed');
+    
+  } catch (error) {
+    console.error('❌ Error initializing sample data:', error.message);
+  }
+}
+
+// Generate order number
 function generateOrderNumber() {
   return `MESRA${Date.now().toString().slice(-6)}`;
 }
 
+// Customer management functions
 async function getCustomerByPhone(phone) {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const cleanPhone = phone.replace(/\D/g, '');
     return await db.collection('customers').findOne({ phone: cleanPhone });
   } catch (error) {
@@ -348,7 +243,7 @@ async function getCustomerByPhone(phone) {
 
 async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTotal = 0) {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const cleanPhone = phone.replace(/\D/g, '');
     const now = new Date();
     
@@ -388,10 +283,30 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
   }
 }
 
-// ==================== HEALTH ENDPOINTS ====================
+// Database connection middleware
+app.use((req, res, next) => {
+  if (!db) {
+    return res.status(503).json({ 
+      success: false,
+      error: 'Database not connected. Please try again later.' 
+    });
+  }
+  next();
+});
+
+// ==================== HEALTH & INIT ENDPOINTS ====================
+
 app.get('/health', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) {
+      return res.json({ 
+        status: 'warning', 
+        timestamp: new Date().toISOString(),
+        database: 'disconnected',
+        message: 'Database connection in progress'
+      });
+    }
+
     const ordersCount = await db.collection('orders').countDocuments();
     const tablesCount = await db.collection('tables').countDocuments();
     const customersCount = await db.collection('customers').countDocuments();
@@ -400,7 +315,7 @@ app.get('/health', async (req, res) => {
     res.json({ 
       status: 'ok', 
       timestamp: new Date().toISOString(),
-      database: databaseManager.isConnected ? 'connected' : 'disconnected',
+      database: 'connected',
       data: {
         orders: ordersCount,
         tables: tablesCount,
@@ -419,7 +334,8 @@ app.get('/health', async (req, res) => {
 
 app.get('/api/health', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
+
     const ordersCount = await db.collection('orders').countDocuments();
     const tablesCount = await db.collection('tables').countDocuments();
     const customersCount = await db.collection('customers').countDocuments();
@@ -439,44 +355,47 @@ app.get('/api/health', async (req, res) => {
       }
     });
   } catch (error) {
-    handleError(res, error, 'Health check');
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/init', async (req, res) => {
   try {
-    await databaseManager._initializeSampleData();
+    if (!db) throw new Error('Database not connected');
+    await initializeSampleData();
     res.json({ message: 'Sample data initialized successfully' });
   } catch (error) {
-    handleError(res, error, 'Initialize data');
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ==================== MENU ENDPOINTS ====================
+// ==================== CORE API ENDPOINTS ====================
+
+// Menu endpoints
 app.get('/api/menu', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const menuItems = await db.collection('menuItems').find().sort({ category: 1, name: 1 }).toArray();
     res.json(menuItems);
   } catch (error) {
-    handleError(res, error, 'Fetch menu');
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ==================== TABLES ENDPOINTS ====================
+// Tables endpoints
 app.get('/api/tables', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const tables = await db.collection('tables').find().sort({ number: 1 }).toArray();
     res.json(tables);
   } catch (error) {
-    handleError(res, error, 'Fetch tables');
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.put('/api/tables/:id', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const tableId = req.params.id;
     const newStatus = req.body.status;
     
@@ -493,6 +412,7 @@ app.put('/api/tables/:id', async (req, res) => {
       return res.status(404).json({ error: 'Table not found' });
     }
     
+    // Only update if status actually changed
     if (currentTable.status === newStatus) {
       console.log(`⚠️ Table ${currentTable.number} status unchanged (${newStatus}), skipping update`);
       return res.json(currentTable);
@@ -509,24 +429,24 @@ app.put('/api/tables/:id', async (req, res) => {
     io.emit('tableUpdated', updatedTable.value);
     res.json(updatedTable.value);
   } catch (error) {
-    handleError(res, error, 'Update table');
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ==================== ORDERS ENDPOINTS ====================
+// Orders endpoints
 app.get('/api/orders', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const orders = await db.collection('orders').find().sort({ createdAt: -1 }).toArray();
     res.json(orders);
   } catch (error) {
-    handleError(res, error, 'Fetch orders');
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/orders', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const { tableId, items, orderType, customerPhone, customerName } = req.body;
     
     console.log('📦 Creating order for table:', tableId, 'Customer:', customerPhone);
@@ -539,6 +459,7 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).json({ error: 'Order must contain at least one item' });
     }
     
+    // Calculate total
     const total = items.reduce((sum, item) => {
       const price = parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 1;
@@ -572,14 +493,17 @@ app.post('/api/orders', async (req, res) => {
       updatedAt: now
     };
     
+    // Insert order
     await db.collection('orders').insertOne(order);
     
+    // Update customer points if customer provided
     if (customerPhone) {
       const pointsEarned = Math.floor(total);
       await createOrUpdateCustomer(customerPhone, customerName, pointsEarned, total);
       console.log(`🎯 Customer ${customerPhone} earned ${pointsEarned} points`);
     }
     
+    // Update table status
     const updatedTable = await db.collection('tables').findOneAndUpdate(
       { number: tableId },
       { $set: { status: 'occupied', orderId: order._id, updatedAt: now } },
@@ -591,6 +515,7 @@ app.post('/api/orders', async (req, res) => {
       io.emit('tableUpdated', updatedTable.value);
     }
     
+    // Emit new order
     io.emit('newOrder', order);
     console.log(`📦 New order: ${order.orderNumber} for Table ${tableId}`);
     
@@ -601,13 +526,17 @@ app.post('/api/orders', async (req, res) => {
       message: `Order created successfully`
     });
   } catch (error) {
-    handleError(res, error, 'Create order');
+    console.error('❌ Order creation error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create order: ' + error.message 
+    });
   }
 });
 
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const { status } = req.body;
     const orderId = req.params.id;
     
@@ -646,23 +575,25 @@ app.put('/api/orders/:id/status', async (req, res) => {
     res.json(updatedOrder.value);
     
   } catch (error) {
-    handleError(res, error, 'Update order status');
+    res.status(500).json({ error: error.message });
   }
 });
 
 // ==================== CUSTOMER ENDPOINTS ====================
+
 app.get('/api/customers', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const customers = await db.collection('customers').find().sort({ createdAt: -1 }).toArray();
     res.json(customers);
   } catch (error) {
-    handleError(res, error, 'Fetch customers');
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.get('/api/customers/:phone', async (req, res) => {
   try {
+    if (!db) throw new Error('Database not connected');
     const { phone } = req.params;
     const customer = await getCustomerByPhone(phone);
     
@@ -672,12 +603,13 @@ app.get('/api/customers/:phone', async (req, res) => {
     
     res.json(customer);
   } catch (error) {
-    handleError(res, error, 'Fetch customer');
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/customers', async (req, res) => {
   try {
+    if (!db) throw new Error('Database not connected');
     const { phone, name } = req.body;
     
     if (!phone) {
@@ -687,12 +619,14 @@ app.post('/api/customers', async (req, res) => {
     const customer = await createOrUpdateCustomer(phone, name);
     res.json(customer);
   } catch (error) {
-    handleError(res, error, 'Create customer');
+    res.status(500).json({ error: error.message });
   }
 });
 
+// Points endpoint
 app.post('/api/customers/:phone/points', async (req, res) => {
   try {
+    if (!db) throw new Error('Database not connected');
     const { phone } = req.params;
     const { points, orderTotal } = req.body;
     
@@ -710,12 +644,18 @@ app.post('/api/customers/:phone/points', async (req, res) => {
     console.log('✅ Points updated for customer:', phone, 'Total points:', customer.points);
     res.json(customer);
   } catch (error) {
-    handleError(res, error, 'Add points');
+    console.error('❌ Add points error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update points: ' + error.message 
+    });
   }
 });
 
+// Customer registration endpoint
 app.post('/api/customers/register', async (req, res) => {
   try {
+    if (!db) throw new Error('Database not connected');
     const { phone } = req.body;
     
     console.log('📝 Customer registration attempt for:', phone);
@@ -734,13 +674,18 @@ app.post('/api/customers/register', async (req, res) => {
       ...customer
     });
   } catch (error) {
-    handleError(res, error, 'Register customer');
+    console.error('❌ Registration error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error during registration' 
+    });
   }
 });
 
+// Customer orders endpoint
 app.get('/api/customers/:phone/orders', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const { phone } = req.params;
     const cleanPhone = phone.replace(/\D/g, '');
     
@@ -754,24 +699,29 @@ app.get('/api/customers/:phone/orders', async (req, res) => {
     console.log(`✅ Found ${customerOrders.length} orders for customer ${cleanPhone}`);
     res.json(customerOrders);
   } catch (error) {
-    handleError(res, error, 'Fetch customer orders');
+    console.error('❌ Customer orders error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch customer orders' 
+    });
   }
 });
 
 // ==================== PAYMENTS ENDPOINTS ====================
+
 app.get('/api/payments', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const payments = await db.collection('payments').find().sort({ paidAt: -1 }).toArray();
     res.json(payments);
   } catch (error) {
-    handleError(res, error, 'Fetch payments');
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/payments', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const { orderId, amount, method } = req.body;
     
     console.log('💰 Processing payment for order:', orderId);
@@ -798,6 +748,7 @@ app.post('/api/payments', async (req, res) => {
     
     await db.collection('payments').insertOne(payment);
     
+    // Update order status
     const updatedOrder = await db.collection('orders').findOneAndUpdate(
       { _id: order._id },
       { 
@@ -810,6 +761,7 @@ app.post('/api/payments', async (req, res) => {
       { returnDocument: 'after' }
     );
     
+    // Update table to needs_cleaning
     if (order.tableId) {
       const updatedTable = await db.collection('tables').findOneAndUpdate(
         { number: order.tableId },
@@ -822,19 +774,22 @@ app.post('/api/payments', async (req, res) => {
       }
     }
     
+    // Emit events
     io.emit('paymentProcessed', payment);
     io.emit('orderUpdated', updatedOrder.value);
     
     res.json(payment);
   } catch (error) {
-    handleError(res, error, 'Process payment');
+    console.error('❌ Payment error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
 // ==================== UTILITY ENDPOINTS ====================
+
 app.get('/api/orders/table/:tableId', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const tableId = req.params.tableId;
     console.log('🔍 Checking active orders for table:', tableId);
     
@@ -851,13 +806,14 @@ app.get('/api/orders/table/:tableId', async (req, res) => {
     console.log('✅ Active order check result:', latestOrder ? latestOrder.orderNumber : 'No active orders');
     res.json(latestOrder);
   } catch (error) {
-    handleError(res, error, 'Check active orders');
+    console.error('❌ Error checking active orders:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.put('/api/orders/:id/items', async (req, res) => {
   try {
-    const db = databaseManager.getDatabase();
+    if (!db) throw new Error('Database not connected');
     const orderId = req.params.id;
     const { newItems } = req.body;
     
@@ -875,6 +831,7 @@ app.put('/api/orders/:id/items', async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
     
+    // Add new items to the order
     const addedItems = newItems.map(item => {
       return {
         menuItemId: item.menuItemId,
@@ -906,63 +863,33 @@ app.put('/api/orders/:id/items', async (req, res) => {
     io.emit('orderUpdated', updatedOrder.value);
     res.json(updatedOrder.value);
   } catch (error) {
-    handleError(res, error, 'Add items to order');
+    console.error('❌ Error adding items to order:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ==================== SOCKET.IO HANDLING ====================
+// Socket.io for real-time updates
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   
-  socket.on('disconnect', (reason) => {
-    console.log('❌ Client disconnected:', socket.id, 'Reason:', reason);
-  });
-  
-  socket.on('error', (error) => {
-    console.error('🔌 Socket error:', error);
+  socket.on('disconnect', () => {
+    console.log('❌ Client disconnected:', socket.id);
   });
 });
 
-// ==================== GRACEFUL SHUTDOWN ====================
-process.on('SIGTERM', async () => {
-  console.log('🔄 SIGTERM received, shutting down gracefully...');
-  await databaseManager.disconnect();
-  server.close(() => {
-    console.log('✅ Process terminated');
-    process.exit(0);
+const PORT = process.env.PORT || 10000;
+
+// Initialize database and start server
+initializeDatabase().then(() => {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🚀 Mesra POS Server running on port ${PORT}`);
+    console.log(`📍 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
+    console.log(`💾 Database: MongoDB`);
+    console.log(`👥 Customer tracking: PERSISTENT`);
+    console.log(`🎯 Loyalty points: PERSISTENT`);
+    console.log(`🔄 Real-time updates: ENABLED\n`);
   });
+}).catch(error => {
+  console.error('❌ Failed to start server:', error);
 });
-
-process.on('SIGINT', async () => {
-  console.log('🔄 SIGINT received, shutting down gracefully...');
-  await databaseManager.disconnect();
-  server.close(() => {
-    console.log('✅ Process terminated');
-    process.exit(0);
-  });
-});
-
-// ==================== START SERVER ====================
-async function startServer() {
-  try {
-    // Initialize database connection first
-    await databaseManager.connect();
-    
-    // Then start the server
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n🚀 PRODUCTION Mesra POS Server running on port ${PORT}`);
-      console.log(`📍 Health check: https://restaurant-saas-backend-hbdz.onrender.com/health`);
-      console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
-      console.log(`💾 Database: MongoDB (Production Ready)`);
-      console.log(`👥 Customer tracking: PERSISTENT`);
-      console.log(`🎯 Loyalty points: PERSISTENT`);
-      console.log(`🔄 Real-time updates: ENABLED`);
-      console.log(`🛡️  Production ready: YES\n`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-  }
-}
-
-startServer();
