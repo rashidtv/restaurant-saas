@@ -619,12 +619,23 @@ app.post('/api/orders', async (req, res) => {
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
+      return res.status(503).json({ 
+        success: false,
+        error: 'Database not connected' 
+      });
     }
+    
     const { status } = req.body;
     const orderId = req.params.id;
     
     console.log(`🔄 Updating order ${orderId} to status: ${status}`);
+    
+    if (!status) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Status is required' 
+      });
+    }
     
     let query;
     try {
@@ -636,7 +647,10 @@ app.put('/api/orders/:id/status', async (req, res) => {
     const order = await db.collection('orders').findOne(query);
     
     if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Order not found' 
+      });
     }
     
     const updateData = {
@@ -646,7 +660,6 @@ app.put('/api/orders/:id/status', async (req, res) => {
     
     if (status === 'completed') {
       updateData.completedAt = new Date();
-      updateData.paymentStatus = 'pending';
     }
     
     const updatedOrder = await db.collection('orders').findOneAndUpdate(
@@ -656,10 +669,18 @@ app.put('/api/orders/:id/status', async (req, res) => {
     );
     
     io.emit('orderUpdated', updatedOrder.value);
-    res.json(updatedOrder.value);
+    
+    res.json({
+      success: true,
+      order: updatedOrder.value
+    });
     
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Order status update error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
   }
 });
 
@@ -715,15 +736,30 @@ app.post('/api/customers', async (req, res) => {
 
 app.post('/api/customers/:phone/points', async (req, res) => {
   try {
+    console.log('➕ Add points request:', req.params.phone, req.body);
+    
     if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
+      return res.status(503).json({ 
+        success: false,
+        message: 'Database not connected' 
+      });
     }
+    
     const { phone } = req.params;
     const { points, orderTotal } = req.body;
     
-    console.log('➕ Adding points:', points, 'for customer:', phone);
+    if (!phone || phone === 'undefined') {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Valid phone number is required' 
+      });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
     
-    const customer = await createOrUpdateCustomer(phone, '', parseInt(points) || 0, parseFloat(orderTotal) || 0);
+    console.log('➕ Adding points:', points, 'for customer:', cleanPhone);
+    
+    const customer = await createOrUpdateCustomer(cleanPhone, '', parseInt(points) || 0, parseFloat(orderTotal) || 0);
     
     if (!customer) {
       return res.status(404).json({ 
@@ -732,10 +768,16 @@ app.post('/api/customers/:phone/points', async (req, res) => {
       });
     }
     
-    console.log('✅ Points updated for customer:', phone, 'Total points:', customer.points);
-    res.json(customer);
+    console.log('✅ Points updated for customer:', cleanPhone, 'Total points:', customer.points);
+    
+    res.json({
+      success: true,
+      customer: customer
+    });
+    
   } catch (error) {
     console.error('❌ Add points error:', error);
+    
     res.status(500).json({ 
       success: false,
       message: 'Failed to update points: ' + error.message 
@@ -840,19 +882,35 @@ app.get('/api/payments', async (req, res) => {
 
 app.post('/api/payments', async (req, res) => {
   try {
+    console.log('💰 Processing payment:', req.body);
+    
     if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
+      return res.status(503).json({ 
+        success: false,
+        error: 'Database not connected' 
+      });
     }
+    
     const { orderId, amount, method } = req.body;
     
     console.log('💰 Processing payment for order:', orderId);
+    
+    if (!orderId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Order ID is required' 
+      });
+    }
     
     const order = await db.collection('orders').findOne({ 
       $or: [{ orderNumber: orderId }, { _id: new ObjectId(orderId) }] 
     });
     
     if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Order not found' 
+      });
     }
     
     const now = new Date();
@@ -896,10 +954,17 @@ app.post('/api/payments', async (req, res) => {
     io.emit('paymentProcessed', payment);
     io.emit('orderUpdated', updatedOrder.value);
     
-    res.json(payment);
+    res.json({
+      success: true,
+      payment: payment
+    });
+    
   } catch (error) {
     console.error('❌ Payment error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: 'Payment failed: ' + error.message 
+    });
   }
 });
 

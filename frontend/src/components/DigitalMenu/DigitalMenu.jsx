@@ -439,7 +439,7 @@ useEffect(() => {
               />
             )}
 
-            // FIXED: Orders Section with scroll and auto-cleanup
+          
 {customer && (
   <div className="orders-section">
     <div className="section-header">
