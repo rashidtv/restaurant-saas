@@ -147,7 +147,6 @@ export const DigitalMenu = ({
     }
   }, [selectedTable, customer]);
 
-// FIXED: WebSocket integration with dynamic import
 // 🎯 PERMANENT FIX: Enhanced WebSocket integration for real-time updates
 useEffect(() => {
   if (!selectedTable || !customer) return;
@@ -172,8 +171,8 @@ useEffect(() => {
         .then(freshCustomer => {
           if (freshCustomer) {
             // Update customer state with fresh data including points
-            setCustomer(freshCustomer);
-            setPoints(freshCustomer.points || 0);
+            customerHook.setCustomer(freshCustomer); // FIXED: Use hook method
+            customerHook.setPoints(freshCustomer.points || 0); // FIXED: Use hook method
             console.log('✅ Customer points refreshed:', freshCustomer.points);
           }
         })
@@ -197,8 +196,9 @@ useEffect(() => {
       customerService.refreshCustomerData(customer.phone)
         .then(freshCustomer => {
           if (freshCustomer) {
-            setCustomer(freshCustomer);
-            setPoints(freshCustomer.points || 0);
+            // FIXED: Use hook methods instead of direct state setters
+            customerHook.setCustomer(freshCustomer);
+            customerHook.setPoints(freshCustomer.points || 0);
             console.log('✅ Points updated after payment:', freshCustomer.points);
           }
         })
@@ -225,7 +225,7 @@ useEffect(() => {
       console.log('🧹 DigitalMenu WebSocket listeners cleaned up');
     }
   };
-}, [selectedTable, customer, loadTableOrders, getCustomerOrders]);
+}, [selectedTable, customer, loadTableOrders, getCustomerOrders, customerHook]); // FIXED: Added customerHook dependency
 
   // FIXED: Enhanced add to cart with proper quantity handling
   const handleAddToCart = useCallback((item, quantity = 1) => {
@@ -439,73 +439,87 @@ useEffect(() => {
               />
             )}
 
-            {/* FIXED: Orders Section - Restore original functionality */}
-            {customer && (
-              <div className="orders-section">
-                <div className="section-header">
-                  <h2>Your Orders</h2>
-                  <button 
-                    onClick={async () => {
-                      try {
-                        await loadTableOrders(selectedTable);
-                        if (customer && getCustomerOrders) {
-                          const updatedOrders = await getCustomerOrders();
-                          setCustomerOrders(updatedOrders);
-                        }
-                      } catch (error) {
-                        console.error('Error refreshing orders:', error);
-                      }
-                    }}
-                    disabled={ordersLoading}
-                    className="refresh-btn"
-                  >
-                    {ordersLoading ? '...' : '↻'}
-                  </button>
-                </div>
+            // FIXED: Orders Section with scroll and auto-cleanup
+{customer && (
+  <div className="orders-section">
+    <div className="section-header">
+      <h2>Your Orders</h2>
+      <button 
+        onClick={async () => {
+          try {
+            await loadTableOrders(selectedTable);
+            if (customer && getCustomerOrders) {
+              const updatedOrders = await getCustomerOrders();
+              setCustomerOrders(updatedOrders);
+            }
+          } catch (error) {
+            console.error('Error refreshing orders:', error);
+          }
+        }}
+        disabled={ordersLoading}
+        className="refresh-btn"
+      >
+        {ordersLoading ? '...' : '↻'}
+      </button>
+    </div>
 
-                {ordersLoading ? (
-                  <div className="loading-state">Loading orders...</div>
-                ) : (
-                  <>
-                    {activeOrders.length > 0 && (
-                      <div className="orders-group">
-                        <h3 className="group-title">Active Orders ({activeOrders.length})</h3>
-                        <div className="orders-list">
-                          {activeOrders.map((order, index) => (
-                            <OrderCard 
-                              key={order._id || `order-${index}`} 
-                              order={order} 
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {completedOrders.length > 0 && (
-                      <div className="orders-group">
-                        <h3 className="group-title">Order History ({completedOrders.length})</h3>
-                        <div className="orders-list">
-                          {completedOrders.map((order, index) => (
-                            <OrderCard 
-                              key={order._id || `completed-${index}`} 
-                              order={order} 
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {displayOrders.length === 0 && (
-                      <div className="empty-orders">
-                        <div className="empty-icon">📦</div>
-                        <p>No orders yet</p>
-                        <p className="empty-subtitle">Your orders will appear here</p>
-                      </div>
-                    )}
-                  </>
-                )}
+    {ordersLoading ? (
+      <div className="loading-state">Loading orders...</div>
+    ) : (
+      <>
+        {/* 🎯 FIXED: Only show ACTIVE orders (pending, preparing, ready) */}
+        {activeOrders.length > 0 && (
+          <div className="orders-group">
+            <h3 className="group-title">Active Orders ({activeOrders.length})</h3>
+            <div className="orders-scroll-container">
+              <div className="orders-list">
+                {activeOrders.map((order, index) => (
+                  <OrderCard 
+                    key={order._id || `order-${index}`} 
+                    order={order} 
+                  />
+                ))}
               </div>
-            )}
+            </div>
+          </div>
+        )}
+
+        {/* 🎯 FIXED: Hide completed orders after payment - only show briefly */}
+        {completedOrders.length > 0 && (
+          <div className="orders-group completed-orders">
+            <h3 className="group-title">Recently Completed ({completedOrders.length})</h3>
+            <div className="orders-scroll-container">
+              <div className="orders-list">
+                {completedOrders
+                  .filter(order => {
+                    // Only show orders completed in the last 5 minutes
+                    const completedTime = new Date(order.completedAt || order.updatedAt);
+                    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+                    return completedTime > fiveMinutesAgo;
+                  })
+                  .map((order, index) => (
+                    <OrderCard 
+                      key={order._id || `completed-${index}`} 
+                      order={order} 
+                    />
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        )}
+
+        {displayOrders.length === 0 && (
+          <div className="empty-orders">
+            <div className="empty-icon">📦</div>
+            <p>No active orders</p>
+            <p className="empty-subtitle">Your orders will appear here</p>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+)}
 
             {/* Menu Section */}
             <div className="menu-section">

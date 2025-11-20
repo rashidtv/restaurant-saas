@@ -163,6 +163,35 @@ export const useCustomer = () => {
     return customer?.phone || customerService.getSessionPhone();
   }, [customer]);
 
+// Add these methods to your useCustomer hook return statement
+return {
+  // State
+  customer,
+  points,
+  isLoading,
+  error,
+  
+  // Actions
+  registerCustomer,
+  updateCustomerAfterOrder,
+  addPoints,
+  clearCustomer,
+  getCustomerOrders,
+  
+  // 🎯 NEW: State setters for WebSocket integration
+  setCustomer: setCustomer, // Expose setCustomer
+  setPoints: setPoints,     // Expose setPoints
+  
+  // Utilities
+  hasCustomer: !!customer,
+  customerPhone: getCustomerPhone(),
+  hasValidSession: hasValidSession(),
+  
+  // Status
+  isRegistered: !!customer,
+  isGuest: !customer
+};  
+
   return {
     // State
     customer,

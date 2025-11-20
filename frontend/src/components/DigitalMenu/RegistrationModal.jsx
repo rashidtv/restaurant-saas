@@ -57,8 +57,8 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
         {/* Clean Header */}
         <div className="modal-header">
           <div className="modal-icon">📱</div>
-          <h2>Welcome to Table {selectedTable}!</h2>
-          <p>Enter your phone number to start ordering and earn points</p>
+          <h2>Table {selectedTable}!</h2>
+          <p>Enter number to continue</p>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">

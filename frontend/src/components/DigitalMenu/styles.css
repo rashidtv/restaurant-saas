@@ -1648,3 +1648,59 @@ input:focus-visible {
   background: rgba(255, 255, 255, 0.3);
   border-color: rgba(255, 255, 255, 0.5);
 }
+
+/* Orders Scroll Container */
+.orders-scroll-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.orders-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.orders-scroll-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.orders-scroll-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.orders-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Completed orders styling */
+.orders-group.completed-orders {
+  opacity: 0.8;
+}
+
+.orders-group.completed-orders .order-card {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+/* Order card improvements */
+.order-card {
+  margin-bottom: 0.75rem;
+  border-radius: 8px;
+  padding: 1rem;
+  background: white;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.order-card:last-child {
+  margin-bottom: 0;
+}
+
+.order-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
