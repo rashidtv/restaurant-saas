@@ -8,10 +8,11 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// MongoDB Configuration - FIXED TLS ISSUE
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/flavorflow?retryWrites=true&w=majority';
+// MongoDB Configuration - FIXED FOR RENDER.COM
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/flavorflow?retryWrites=true&w=majority&ssl=true';
 const DB_NAME = process.env.DB_NAME || 'flavorflow';
 let db;
+let mongoClient;
 
 // CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
@@ -41,21 +42,27 @@ const io = new Server(server, {
 
 app.use(express.json());
 
-// Initialize MongoDB Connection - FIXED VERSION
+// Initialize MongoDB Connection - UPDATED WITH WORKING TLS CONFIG
 async function initializeDatabase() {
   try {
     console.log('🔗 Connecting to MongoDB...');
     
-    // FIX: Use simpler connection string without complex TLS options
+    // FIX: Use connection options that work with Render.com
     const client = new MongoClient(MONGODB_URI, {
-      // Remove problematic TLS settings that break on Render
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 10000,
+      // TLS settings that work with Render.com
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+      // Remove other problematic options
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
     });
 
     await client.connect();
+    mongoClient = client;
     db = client.db(DB_NAME);
     
+    // Test the connection
+    await db.command({ ping: 1 });
     console.log('✅ Connected to MongoDB successfully');
     
     // Create indexes for better performance
@@ -73,8 +80,9 @@ async function initializeDatabase() {
     
   } catch (error) {
     console.error('❌ MongoDB connection failed:', error.message);
-    // Don't exit process - let server start and handle requests gracefully
-    console.log('🔄 Server starting without database connection');
+    console.log('🔄 Retrying connection in 10 seconds...');
+    // Retry connection after 10 seconds
+    setTimeout(initializeDatabase, 10000);
   }
 }
 
@@ -281,13 +289,24 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
   }
 }
 
+// Database connection check middleware
+app.use((req, res, next) => {
+  if (!db) {
+    return res.status(503).json({ 
+      success: false,
+      error: 'Database connection establishing. Please try again in a moment.' 
+    });
+  }
+  next();
+});
+
 // ==================== HEALTH & INIT ENDPOINTS ====================
 
 app.get('/health', async (req, res) => {
   try {
     if (!db) {
       return res.json({ 
-        status: 'warning', 
+        status: 'connecting', 
         timestamp: new Date().toISOString(),
         database: 'connecting',
         message: 'Database connection in progress'
@@ -324,7 +343,7 @@ app.get('/api/health', async (req, res) => {
     if (!db) {
       return res.status(503).json({ 
         status: 'ERROR', 
-        message: 'Database connection not established',
+        message: 'Database connection establishing',
         timestamp: new Date().toISOString()
       });
     }
@@ -354,6 +373,9 @@ app.get('/api/health', async (req, res) => {
 
 app.post('/api/init', async (req, res) => {
   try {
+    if (!db) {
+      return res.status(503).json({ error: 'Database not connected' });
+    }
     await initializeSampleData();
     res.json({ message: 'Sample data initialized successfully' });
   } catch (error) {
@@ -366,9 +388,6 @@ app.post('/api/init', async (req, res) => {
 // Menu endpoints
 app.get('/api/menu', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const menuItems = await db.collection('menuItems').find().sort({ category: 1, name: 1 }).toArray();
     res.json(menuItems);
   } catch (error) {
@@ -379,9 +398,6 @@ app.get('/api/menu', async (req, res) => {
 // Tables endpoints
 app.get('/api/tables', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const tables = await db.collection('tables').find().sort({ number: 1 }).toArray();
     res.json(tables);
   } catch (error) {
@@ -391,9 +407,6 @@ app.get('/api/tables', async (req, res) => {
 
 app.put('/api/tables/:id', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const tableId = req.params.id;
     const newStatus = req.body.status;
     
@@ -434,9 +447,6 @@ app.put('/api/tables/:id', async (req, res) => {
 // Orders endpoints
 app.get('/api/orders', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const orders = await db.collection('orders').find().sort({ createdAt: -1 }).toArray();
     res.json(orders);
   } catch (error) {
@@ -446,9 +456,6 @@ app.get('/api/orders', async (req, res) => {
 
 app.post('/api/orders', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const { tableId, items, orderType, customerPhone, customerName } = req.body;
     
     console.log('📦 Creating order for table:', tableId, 'Customer:', customerPhone);
@@ -538,9 +545,6 @@ app.post('/api/orders', async (req, res) => {
 
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const { status } = req.body;
     const orderId = req.params.id;
     
@@ -566,7 +570,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
     
     if (status === 'completed') {
       updateData.completedAt = new Date();
-      updateData.paymentStatus = 'pending';
+      updateData.paymentStatus: 'pending';
     }
     
     const updatedOrder = await db.collection('orders').findOneAndUpdate(
@@ -587,9 +591,6 @@ app.put('/api/orders/:id/status', async (req, res) => {
 
 app.get('/api/customers', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const customers = await db.collection('customers').find().sort({ createdAt: -1 }).toArray();
     res.json(customers);
   } catch (error) {
@@ -599,9 +600,6 @@ app.get('/api/customers', async (req, res) => {
 
 app.get('/api/customers/:phone', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const { phone } = req.params;
     const customer = await getCustomerByPhone(phone);
     
@@ -617,9 +615,6 @@ app.get('/api/customers/:phone', async (req, res) => {
 
 app.post('/api/customers', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const { phone, name } = req.body;
     
     if (!phone) {
@@ -636,9 +631,6 @@ app.post('/api/customers', async (req, res) => {
 // Points endpoint
 app.post('/api/customers/:phone/points', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const { phone } = req.params;
     const { points, orderTotal } = req.body;
     
@@ -667,9 +659,6 @@ app.post('/api/customers/:phone/points', async (req, res) => {
 // Customer registration endpoint
 app.post('/api/customers/register', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const { phone } = req.body;
     
     console.log('📝 Customer registration attempt for:', phone);
@@ -699,9 +688,6 @@ app.post('/api/customers/register', async (req, res) => {
 // Customer orders endpoint
 app.get('/api/customers/:phone/orders', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const { phone } = req.params;
     const cleanPhone = phone.replace(/\D/g, '');
     
@@ -727,9 +713,6 @@ app.get('/api/customers/:phone/orders', async (req, res) => {
 
 app.get('/api/payments', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const payments = await db.collection('payments').find().sort({ paidAt: -1 }).toArray();
     res.json(payments);
   } catch (error) {
@@ -739,9 +722,6 @@ app.get('/api/payments', async (req, res) => {
 
 app.post('/api/payments', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const { orderId, amount, method } = req.body;
     
     console.log('💰 Processing payment for order:', orderId);
@@ -809,9 +789,6 @@ app.post('/api/payments', async (req, res) => {
 
 app.get('/api/orders/table/:tableId', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const tableId = req.params.tableId;
     console.log('🔍 Checking active orders for table:', tableId);
     
@@ -835,9 +812,6 @@ app.get('/api/orders/table/:tableId', async (req, res) => {
 
 app.put('/api/orders/:id/items', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
     const orderId = req.params.id;
     const { newItems } = req.body;
     

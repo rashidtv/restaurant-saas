@@ -1,7 +1,7 @@
 {
   "name": "restaurant-saas-backend",
   "version": "1.0.0",
-  "description": "Backend API for Restaurant SaaS with MongoDB - Production Ready",
+  "description": "Backend API for Restaurant SaaS with MongoDB",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -27,8 +27,7 @@
     "api",
     "mongodb",
     "pos",
-    "loyalty",
-    "production"
+    "loyalty"
   ],
   "author": "Rashid",
   "license": "MIT"
