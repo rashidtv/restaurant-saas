@@ -46,71 +46,82 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected, 
     return completed;
   };
 
-  // ENHANCED: processPayment function with customer validation
-  const processPayment = async (order, method) => {
-    try {
-      console.log('💳 Processing payment for:', order.orderNumber || order.id);
+  // ENHANCED: processPayment function with auto-registration
+const processPayment = async (order, method) => {
+  try {
+    console.log('💳 Processing payment for:', order.orderNumber || order.id);
+    
+    // AUTO-REGISTER CUSTOMER IF NOT EXISTS
+    if (!validateCustomer()) {
+      console.log('🔄 No customer found, auto-registering...');
       
-      // NEW: Validate customer before payment
-      if (!validateCustomer()) {
-        alert('⚠️ Please register customer before processing payment');
-        return;
+      // Generate customer phone from table number
+      const tableNumber = order.tableId || order.table;
+      const customerPhone = `01${tableNumber.replace(/\D/g, '').padStart(8, '0')}`;
+      
+      try {
+        await registerCustomer(customerPhone, `Table-${tableNumber}-Customer`);
+        console.log('✅ Customer auto-registered:', customerPhone);
+      } catch (regError) {
+        console.log('⚠️ Auto-registration failed, continuing without customer:', regError.message);
+        // Continue payment without customer (no points will be added)
       }
+    }
 
-      const paymentData = {
+    const paymentData = {
+      orderId: order.orderNumber || order.id,
+      amount: order.total,
+      method: method,
+      tableId: order.tableId || order.table
+    };
+
+    let paymentResult;
+
+    // Use the enhanced onProcessPayment if provided, otherwise fallback to original logic
+    if (onProcessPayment && typeof onProcessPayment === 'function') {
+      console.log('🔄 Using enhanced payment processing');
+      paymentResult = await onProcessPayment(order.orderNumber || order.id, order.total, method);
+    } else if (apiConnected) {
+      // ORIGINAL LOGIC
+      console.log('🔄 Using original payment processing');
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paymentData),
+      });
+
+      if (!response.ok) throw new Error(`Payment failed: ${response.status}`);
+      paymentResult = await response.json();
+      
+      // Update local state
+      setPayments(prev => [...prev, paymentResult]);
+    } else {
+      // OFFLINE FALLBACK
+      console.log('🔄 Using offline payment fallback');
+      paymentResult = {
+        _id: Date.now().toString(),
         orderId: order.orderNumber || order.id,
         amount: order.total,
         method: method,
-        tableId: order.tableId || order.table
+        status: 'completed',
+        paidAt: new Date()
       };
-
-      let paymentResult;
-
-      // NEW: Use the enhanced onProcessPayment if provided, otherwise fallback to original logic
-      if (onProcessPayment && typeof onProcessPayment === 'function') {
-        console.log('🔄 Using enhanced payment processing');
-        paymentResult = await onProcessPayment(order.orderNumber || order.id, order.total, method);
-      } else if (apiConnected) {
-        // ORIGINAL LOGIC - preserved exactly as is
-        console.log('🔄 Using original payment processing');
-        const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/payments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(paymentData),
-        });
-
-        if (!response.ok) throw new Error(`Payment failed: ${response.status}`);
-        paymentResult = await response.json();
-        
-        // Update local state
-        setPayments(prev => [...prev, paymentResult]);
-      } else {
-        // ORIGINAL OFFLINE FALLBACK - preserved exactly as is
-        console.log('🔄 Using offline payment fallback');
-        paymentResult = {
-          _id: Date.now().toString(),
-          orderId: order.orderNumber || order.id,
-          amount: order.total,
-          method: method,
-          status: 'completed',
-          paidAt: new Date()
-        };
-        setPayments(prev => [...prev, paymentResult]);
-      }
-
-      console.log('✅ Payment successful:', paymentResult);
-      setShowPaymentModal(false);
-      setSelectedOrder(null);
-      
-      alert(`Payment of RM ${order.total.toFixed(2)} processed successfully!`);
-
-    } catch (error) {
-      console.error('❌ Payment error:', error);
-      alert(`Payment failed: ${error.message}`);
+      setPayments(prev => [...prev, paymentResult]);
     }
-  };
+
+    console.log('✅ Payment successful:', paymentResult);
+    setShowPaymentModal(false);
+    setSelectedOrder(null);
+    
+    alert(`Payment of RM ${order.total.toFixed(2)} processed successfully!`);
+
+  } catch (error) {
+    console.error('❌ Payment error:', error);
+    alert(`Payment failed: ${error.message}`);
+  }
+};
 
   const pendingPayments = getPendingPayments();
   const completedPayments = getCompletedPayments();

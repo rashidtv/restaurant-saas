@@ -101,21 +101,32 @@ function App() {
           console.log('❌ WebSocket disconnected:', reason);
         });
 
-        // Socket event listeners
-        socketInstance.on('newOrder', (order) => {
-          console.log('📦 New order received via WebSocket:', order.orderNumber);
-          setOrders(prev => {
-            const exists = prev.some(o => o._id === order._id);
-            return exists ? prev : [...prev, order];
-          });
-        });
+      socketInstance.on('newOrder', (order) => {
+  // ADD NULL CHECK
+  if (!order || !order.orderNumber) {
+    console.error('❌ Received invalid new order via WebSocket:', order);
+    return;
+  }
+  
+  console.log('📦 New order received via WebSocket:', order.orderNumber);
+  setOrders(prev => {
+    const exists = prev.some(o => o && o._id === order._id);
+    return exists ? prev : [...prev, order];
+  });
+});
 
         socketInstance.on('orderUpdated', (updatedOrder) => {
-          console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
-          setOrders(prev => prev.map(order => 
-            order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
-          ));
-        });
+  // ADD NULL CHECK
+  if (!updatedOrder || !updatedOrder.orderNumber) {
+    console.error('❌ Received invalid order update via WebSocket:', updatedOrder);
+    return;
+  }
+  
+  console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
+  setOrders(prev => prev.map(order => 
+    order && order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
+  ));
+});
 
         socketInstance.on('tableUpdated', (updatedTable) => {
           console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
@@ -134,9 +145,15 @@ function App() {
         });
 
         socketInstance.on('paymentProcessed', (payment) => {
-          console.log('💰 Payment processed via WebSocket:', payment.orderId);
-          setPayments(prev => [...prev, payment]);
-        });
+  // ADD NULL CHECK
+  if (!payment || !payment.orderId) {
+    console.error('❌ Received invalid payment via WebSocket:', payment);
+    return;
+  }
+  
+  console.log('💰 Payment processed via WebSocket:', payment.orderId);
+  setPayments(prev => [...prev, payment]);
+});
 
       } catch (error) {
         console.error('WebSocket initialization error:', error);

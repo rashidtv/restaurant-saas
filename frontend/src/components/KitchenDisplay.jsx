@@ -13,38 +13,46 @@ const KitchenDisplay = ({ orders, setOrders, getPrepTimeRemaining, isMobile, onU
     return () => clearInterval(timer);
   }, []);
 
-  // In KitchenDisplay.jsx - Ensure no table cleaning happens
-const handleUpdateOrderStatus = async (orderId, newStatus) => {
-  try {
-    console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
-    
-    // JUST update order status - NO table cleaning
-    await onUpdateOrderStatus(orderId, newStatus);
-    
-    console.log(`✅ Order ${orderId} updated to ${newStatus}`);
-    
-  } catch (error) {
-    console.error('❌ Status update failed:', error);
-    alert(`Failed: ${error.message}`);
-  }
-};
+  // ENHANCED: Order status update with null safety
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    try {
+      console.log(`🔄 Kitchen: Updating ${orderId} to ${newStatus}`);
+      
+      // Validate order exists before updating
+      const orderExists = orders.some(order => 
+        order && (order._id === orderId || order.id === orderId || order.orderNumber === orderId)
+      );
+      
+      if (!orderExists) {
+        console.error('❌ Order not found:', orderId);
+        alert('Order not found. Please refresh the page.');
+        return;
+      }
+      
+      await onUpdateOrderStatus(orderId, newStatus);
+      console.log(`✅ Order ${orderId} updated to ${newStatus}`);
+      
+    } catch (error) {
+      console.error('❌ Status update failed:', error);
+      alert(`Failed: ${error.message}`);
+    }
+  };
 
-// Remove any markTableForCleaning calls from the complete order button
-
+  // ENHANCED: Filter with null safety
   const filteredOrders = activeFilter === 'all' 
-    ? orders 
-    : orders.filter(order => order.status === activeFilter);
+    ? orders.filter(order => order != null) // Remove any null orders
+    : orders.filter(order => order && order.status === activeFilter);
 
   const stats = {
-    pending: orders.filter(o => o.status === 'pending').length,
-    preparing: orders.filter(o => o.status === 'preparing').length,
-    ready: orders.filter(o => o.status === 'ready').length,
-    total: orders.length
+    pending: orders.filter(o => o && o.status === 'pending').length,
+    preparing: orders.filter(o => o && o.status === 'preparing').length,
+    ready: orders.filter(o => o && o.status === 'ready').length,
+    total: orders.filter(o => o != null).length
   };
 
   // Check if order is urgent (less than 2 minutes remaining)
   const isOrderUrgent = (order) => {
-    if (order.status !== 'preparing' || !order.orderedAt) return false;
+    if (!order || order.status !== 'preparing' || !order.orderedAt) return false;
     
     const prepTimeRemaining = getPrepTimeRemaining(order);
     if (prepTimeRemaining === 'Overdue') return true;
@@ -54,7 +62,7 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
   };
 
   const getProgressPercentage = (order) => {
-    if (!order.orderedAt || order.status !== 'preparing') return 0;
+    if (!order || !order.orderedAt || order.status !== 'preparing') return 0;
     
     const now = new Date();
     const orderTime = new Date(order.orderedAt);
@@ -79,29 +87,32 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
 
   // Get table number safely
   const getTableNumber = (order) => {
-    return order.table || order.tableId || 'Takeaway';
+    return order && (order.table || order.tableId || 'Takeaway');
   };
 
   // Get order ID safely
   const getOrderId = (order) => {
-    return order.id || order._id || order.orderNumber || `ORD-${Date.now()}`;
+    return order && (order.id || order._id || order.orderNumber || `ORD-${Date.now()}`);
   };
 
   // Get order total safely
   const getOrderTotal = (order) => {
+    if (!order) return 0;
     if (order.total) return order.total;
     if (order.items) {
       return order.items.reduce((sum, item) => {
-        const itemPrice = item.price || 0;
-        const itemQuantity = item.quantity || 1;
+        const itemPrice = item && (item.price || 0);
+        const itemQuantity = item && (item.quantity || 1);
         return sum + (itemPrice * itemQuantity);
       }, 0);
     }
     return 0;
   };
 
-  // Enhanced getItemName function
+  // Enhanced getItemName function with null safety
   const getItemName = (item) => {
+    if (!item) return 'Unknown Item';
+    
     // Priority 1: Direct name property
     if (item.name && item.name !== 'Unknown Item') {
       return item.name;
@@ -137,12 +148,12 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
 
   // Get item price safely
   const getItemPrice = (item) => {
-    return item.price || (item.menuItem && item.menuItem.price) || 0;
+    return item && (item.price || (item.menuItem && item.menuItem.price) || 0);
   };
 
   // Get item quantity safely
   const getItemQuantity = (item) => {
-    return item.quantity || 1;
+    return item && (item.quantity || 1);
   };
 
   // Safe text truncation
@@ -202,6 +213,8 @@ const handleUpdateOrderStatus = async (orderId, newStatus) => {
       {/* Kitchen Orders Grid */}
       <div className="kitchen-grid">
         {filteredOrders.map(order => {
+          if (!order) return null; // Skip null orders
+          
           const prepTimeRemaining = getPrepTimeRemaining(order);
           const isUrgent = isOrderUrgent(order);
           const progressPercentage = getProgressPercentage(order);

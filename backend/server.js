@@ -529,23 +529,37 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
+// ENHANCED ORDER CREATION ENDPOINT - PRODUCTION READY
 app.post('/api/orders', async (req, res) => {
   try {
     if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
+      return res.status(503).json({ 
+        success: false,
+        error: 'Database connection establishing. Please try again in a moment.',
+        retry: true
+      });
     }
+
     const { tableId, items, orderType, customerPhone, customerName } = req.body;
     
-    console.log('📦 Creating order for table:', tableId, 'Customer:', customerPhone);
+    console.log('📦 Creating order for table:', tableId, 'Customer:', customerPhone || 'No customer');
     
+    // VALIDATION: Check for required fields
     if (!tableId || tableId === 'undefined') {
-      return res.status(400).json({ error: 'Valid table ID is required' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Valid table ID is required' 
+      });
     }
     
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'Order must contain at least one item' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Order must contain at least one item' 
+      });
     }
-    
+
+    // Calculate total with validation
     const total = items.reduce((sum, item) => {
       const price = parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 1;
@@ -553,6 +567,8 @@ app.post('/api/orders', async (req, res) => {
     }, 0);
 
     const now = new Date();
+    
+    // Create order object
     const order = {
       _id: new ObjectId(),
       orderNumber: generateOrderNumber(),
@@ -579,14 +595,29 @@ app.post('/api/orders', async (req, res) => {
       updatedAt: now
     };
     
+    console.log('💾 Saving order to database:', order.orderNumber);
+    
+    // Save order to database
     await db.collection('orders').insertOne(order);
     
-    if (customerPhone) {
-      const pointsEarned = Math.floor(total);
-      await createOrUpdateCustomer(customerPhone, customerName, pointsEarned, total);
-      console.log(`🎯 Customer ${customerPhone} earned ${pointsEarned} points`);
+    // ENHANCED CUSTOMER HANDLING: Only process if valid phone provided
+    if (customerPhone && customerPhone !== 'undefined' && customerPhone.length >= 10) {
+      try {
+        const pointsEarned = Math.floor(total);
+        console.log(`🎯 Attempting to add ${pointsEarned} points for customer:`, customerPhone);
+        
+        await createOrUpdateCustomer(customerPhone, customerName, pointsEarned, total);
+        console.log(`✅ Customer ${customerPhone} earned ${pointsEarned} points`);
+      } catch (customerError) {
+        console.log('⚠️ Customer points skipped:', customerError.message);
+        // Continue with order even if customer update fails - DON'T BREAK ORDER CREATION
+      }
+    } else {
+      console.log('ℹ️ No valid customer phone provided, skipping points system');
     }
     
+    // Update table status
+    console.log('🔄 Updating table status for:', tableId);
     const updatedTable = await db.collection('tables').findOneAndUpdate(
       { number: tableId },
       { $set: { status: 'occupied', orderId: order._id, updatedAt: now } },
@@ -594,19 +625,22 @@ app.post('/api/orders', async (req, res) => {
     );
     
     if (updatedTable.value) {
-      console.log(`🔄 Emitting table update for: ${updatedTable.value.number}`);
+      console.log(`✅ Table ${updatedTable.value.number} updated to: ${updatedTable.value.status}`);
       io.emit('tableUpdated', updatedTable.value);
     }
     
+    // Emit new order event
     io.emit('newOrder', order);
-    console.log(`📦 New order: ${order.orderNumber} for Table ${tableId}`);
+    console.log(`📦 New order created: ${order.orderNumber} for Table ${tableId}`);
     
+    // SUCCESS RESPONSE
     res.json({
       success: true,
       orderNumber: order.orderNumber,
       order: order,
       message: `Order created successfully`
     });
+    
   } catch (error) {
     console.error('❌ Order creation error:', error);
     res.status(500).json({ 
@@ -1008,7 +1042,7 @@ app.post('/api/payments', async (req, res) => {
       message: 'Payment processing failed: ' + error.message 
     });
   }
-});
+}); 
 
 // ==================== UTILITY ENDPOINTS ====================
 
