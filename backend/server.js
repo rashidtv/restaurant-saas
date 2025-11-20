@@ -8,7 +8,7 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/restaurant_saas?retryWrites=true&w=majority&appName=flavorflow';
 const DB_NAME = process.env.DB_NAME || 'restaurant_saas';
 
 // Validate required environment variables
@@ -51,32 +51,30 @@ const io = new Server(server, {
 
 app.use(express.json());
 
-// Robust MongoDB Connection
+// Replace your initializeDatabase function with this simplified version
 async function initializeDatabase() {
   try {
     connectionAttempts++;
     console.log(`🔗 MongoDB connection attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}...`);
-    console.log(`📁 Database: ${DB_NAME}`);
 
-    // Simple connection without complex options
+    // Use simpler connection options - remove complex TLS settings
     const client = new MongoClient(MONGODB_URI, {
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 30000,
+      maxPoolSize: 10,
     });
 
     await client.connect();
     mongoClient = client;
     db = client.db(DB_NAME);
 
-    // Test connection
+    // Test the connection
     await db.command({ ping: 1 });
     console.log('✅ Connected to MongoDB successfully!');
 
     // Initialize database structure
     await createDatabaseIndexes();
     await initializeSampleData();
-
-    console.log('🎉 Database initialization completed');
 
   } catch (error) {
     console.error(`❌ MongoDB connection failed: ${error.message}`);
