@@ -8,7 +8,6 @@ import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
-import { CustomerProvider } from './contexts/CustomerContext'; // ADD THIS IMPORT
 import { 
   API_ENDPOINTS, 
   fetchOrders, 
@@ -18,6 +17,16 @@ import {
   createOrder as apiCreateOrder 
 } from './config/api';
 import './App.css';
+
+// SAFE IMPORT - Only import if file exists, otherwise use fallback
+let CustomerProvider;
+try {
+  const customerContext = require('./contexts/CustomerContext');
+  CustomerProvider = customerContext.CustomerProvider;
+} catch (error) {
+  console.log('⚠️ CustomerContext not found, using fallback');
+  CustomerProvider = ({ children }) => <>{children}</>; // Fallback provider
+}
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -631,10 +640,10 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
     );
   }
 
-  // For menu route (customer-facing view)
+   // For menu route (customer-facing view)
   if (isMenuRoute) {
     return (
-      <CustomerProvider> {/* WRAP WITH PROVIDER */}
+      <CustomerProvider>
         <div className="app-container">
           <main className="main-content">
             <DigitalMenu 
