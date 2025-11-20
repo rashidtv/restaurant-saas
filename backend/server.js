@@ -8,20 +8,20 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
+// MongoDB Configuration - FIXED FOR RENDER
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/restaurant_saas?retryWrites=true&w=majority&appName=flavorflow';
 const DB_NAME = process.env.DB_NAME || 'restaurant_saas';
 
-// Validate required environment variables
+// Validate environment variables
 if (!MONGODB_URI) {
   console.error('❌ MONGODB_URI environment variable is required');
-  console.error('💡 Please set MONGODB_URI in your Render environment variables');
   process.exit(1);
 }
 
 let db = null;
 let mongoClient = null;
 let connectionAttempts = 0;
-const MAX_CONNECTION_ATTEMPTS = 5;
+const MAX_CONNECTION_ATTEMPTS = 3;
 
 // CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
@@ -51,41 +51,58 @@ const io = new Server(server, {
 
 app.use(express.json());
 
-// Replace your initializeDatabase function with this simplified version
+// Fixed MongoDB Connection for Render
 async function initializeDatabase() {
   try {
     connectionAttempts++;
     console.log(`🔗 MongoDB connection attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}...`);
 
-    // Use simpler connection options - remove complex TLS settings
+    // FIX: Use connection options that work with Render's environment
     const client = new MongoClient(MONGODB_URI, {
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 30000,
-      maxPoolSize: 10,
+      // Remove all TLS options - let MongoDB driver handle it automatically
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 15000,
+      maxPoolSize: 5,
+      minPoolSize: 1,
+      // Critical: Let the driver handle TLS negotiation automatically
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+      tlsAllowInvalidHostnames: false,
+      // Use new URL parser and unified topology (handled automatically in newer versions)
     });
 
+    console.log('🔄 Connecting to MongoDB...');
     await client.connect();
+    
     mongoClient = client;
     db = client.db(DB_NAME);
 
     // Test the connection
     await db.command({ ping: 1 });
     console.log('✅ Connected to MongoDB successfully!');
+    console.log(`📊 Database: ${DB_NAME}`);
 
-    // Initialize database structure
+    // Initialize database
     await createDatabaseIndexes();
     await initializeSampleData();
 
+    console.log('🎉 Database initialization completed');
+
   } catch (error) {
     console.error(`❌ MongoDB connection failed: ${error.message}`);
+    console.error(`🔧 Error details:`, error);
     
     if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
-      const retryDelay = Math.min(3000 * connectionAttempts, 30000);
+      const retryDelay = Math.min(3000 * connectionAttempts, 15000);
       console.log(`🔄 Retrying in ${retryDelay/1000} seconds...`);
       setTimeout(initializeDatabase, retryDelay);
     } else {
-      console.error('💡 Server will start without database connection');
-      console.error('🔧 Check your MONGODB_URI in Render environment variables');
+      console.error('💡 Server running without database connection');
+      console.error('🔧 Please check:');
+      console.error('   1. MongoDB Atlas IP whitelist includes 0.0.0.0/0');
+      console.error('   2. Database user has correct permissions');
+      console.error('   3. MongoDB Atlas cluster is running');
     }
   }
 }
