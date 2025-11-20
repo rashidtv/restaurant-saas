@@ -291,41 +291,57 @@ async function getCustomerByPhone(phone) {
 async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTotal = 0) {
   try {
     if (!db) throw new Error('Database not connected');
+    
     const cleanPhone = phone.replace(/\D/g, '');
     const now = new Date();
     
+    console.log('🔄 Creating/updating customer:', cleanPhone, 'Points to add:', pointsToAdd);
+    
+    // FIXED: Use separate update operations to avoid conflicts
+    const updateOperations = {
+      $set: {
+        lastVisit: now,
+        updatedAt: now
+      },
+      $setOnInsert: {
+        name: name || `Customer-${cleanPhone.slice(-4)}`,
+        points: 0,
+        totalOrders: 0,
+        totalSpent: 0,
+        firstVisit: now,
+        tier: 'member',
+        createdAt: now
+      }
+    };
+    
+    // Only add increment operations if we're adding points/orders
+    if (pointsToAdd > 0) {
+      updateOperations.$inc = {
+        points: pointsToAdd,
+        totalOrders: 1,
+        totalSpent: orderTotal
+      };
+    }
+    
+    // If name is provided, update it
+    if (name) {
+      updateOperations.$set.name = name;
+    }
+    
     const result = await db.collection('customers').findOneAndUpdate(
       { phone: cleanPhone },
-      { 
-        $setOnInsert: {
-          name: name || `Customer-${cleanPhone.slice(-4)}`,
-          points: 0,
-          totalOrders: 0,
-          totalSpent: 0,
-          firstVisit: now,
-          tier: 'member',
-          createdAt: now
-        },
-        $inc: {
-          points: pointsToAdd,
-          totalOrders: pointsToAdd > 0 ? 1 : 0,
-          totalSpent: orderTotal
-        },
-        $set: {
-          lastVisit: now,
-          updatedAt: now,
-          ...(name && { name })
-        }
-      },
+      updateOperations,
       { 
         upsert: true,
         returnDocument: 'after'
       }
     );
     
+    console.log('✅ Customer updated successfully:', cleanPhone);
     return result.value;
+    
   } catch (error) {
-    console.error('Error creating/updating customer:', error);
+    console.error('❌ Error creating/updating customer:', error);
     throw error;
   }
 }
@@ -729,31 +745,55 @@ app.post('/api/customers/:phone/points', async (req, res) => {
 
 app.post('/api/customers/register', async (req, res) => {
   try {
+    console.log('📝 Registration request received:', req.body);
+    
     if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
+      return res.status(503).json({ 
+        success: false,
+        message: 'Database not connected' 
+      });
     }
+    
     const { phone } = req.body;
     
-    console.log('📝 Customer registration attempt for:', phone);
+    if (!phone) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone number is required' 
+      });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
     
-    if (!phone || phone.length < 10) {
+    if (cleanPhone.length < 10) {
       return res.status(400).json({ 
         success: false,
         message: 'Valid phone number required (at least 10 digits)' 
       });
     }
 
-    const customer = await createOrUpdateCustomer(phone);
+    // FIX: Call without points for registration
+    const customer = await createOrUpdateCustomer(cleanPhone);
     
+    console.log('✅ Registration successful for:', cleanPhone);
     res.json({
       success: true,
-      ...customer
+      customer: customer
     });
+    
   } catch (error) {
-    console.error('❌ Registration error:', error);
+    console.error('💥 Registration endpoint error:', error);
+    
+    if (error.code === 11000) {
+      return res.status(409).json({ 
+        success: false,
+        message: 'Phone number already registered' 
+      });
+    }
+    
     res.status(500).json({ 
       success: false,
-      message: 'Internal server error during registration' 
+      message: 'Registration failed: ' + error.message 
     });
   }
 });
