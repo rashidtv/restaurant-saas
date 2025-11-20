@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { customerService } from '../../services/customerService';
-import './PointsDisplay.css';
+// No CSS import needed - using existing styles.css
 
 export const PointsDisplay = ({ points, phone, onClear }) => {
   const [currentPoints, setCurrentPoints] = useState(points);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 🎯 PERMANENT FIX: Real-time points updates via WebSocket
+  // Real-time points updates via WebSocket
   useEffect(() => {
     const refreshPoints = async () => {
       if (!phone) return;
@@ -25,13 +25,11 @@ export const PointsDisplay = ({ points, phone, onClear }) => {
       }
     };
 
-    // Listen for payment processed events
     const handlePaymentProcessed = (payment) => {
       console.log('💰 Payment processed, refreshing points...');
       refreshPoints();
     };
 
-    // Listen for order updates that might affect points
     const handleOrderUpdated = (updatedOrder) => {
       if (updatedOrder.customerPhone === phone) {
         console.log('📦 Order updated for customer, refreshing points...');
@@ -39,7 +37,6 @@ export const PointsDisplay = ({ points, phone, onClear }) => {
       }
     };
 
-    // Use global WebSocket instance (from App.jsx)
     if (window.socket) {
       window.socket.on('paymentProcessed', handlePaymentProcessed);
       window.socket.on('orderUpdated', handleOrderUpdated);
@@ -53,7 +50,6 @@ export const PointsDisplay = ({ points, phone, onClear }) => {
     };
   }, [phone]);
 
-  // Also refresh when points prop changes
   useEffect(() => {
     setCurrentPoints(points);
   }, [points]);
