@@ -8,6 +8,7 @@ import PaymentSystem from './components/PaymentSystem';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
+import { CustomerProvider } from './contexts/CustomerContext'; // ADD THIS IMPORT
 import { 
   API_ENDPOINTS, 
   fetchOrders, 
@@ -495,6 +496,7 @@ socketInstance.on('connect', () => {
       return fallbackOrder;
     }
   };
+
 const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
   console.log('🛒 Creating order for table:', tableNumber);
   
@@ -632,126 +634,130 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
   // For menu route (customer-facing view)
   if (isMenuRoute) {
     return (
-      <div className="app-container">
-        <main className="main-content">
-          <DigitalMenu 
-            cart={cart} 
-            setCart={setCart}
-            onCreateOrder={handleCustomerOrder}
-            isMobile={isMobile}
-            menu={menu}
-            apiConnected={apiConnected}
-            currentTable={currentTable}
-            isCustomerView={true}
-          />
-        </main>
-      </div>
+      <CustomerProvider> {/* WRAP WITH PROVIDER */}
+        <div className="app-container">
+          <main className="main-content">
+            <DigitalMenu 
+              cart={cart} 
+              setCart={setCart}
+              onCreateOrder={handleCustomerOrder}
+              isMobile={isMobile}
+              menu={menu}
+              apiConnected={apiConnected}
+              currentTable={currentTable}
+              isCustomerView={true}
+            />
+          </main>
+        </div>
+      </CustomerProvider>
     );
   }
 
   // Staff/admin view
   return (
-    <div className="app-container">
-      <Header 
-        notifications={notifications}
-        isMobile={isMobile}
-        toggleSidebar={toggleSidebar}
-        apiConnected={apiConnected}
-      />
-      
-      {sidebarOpen && isMobile && (
-        <div className="sidebar-overlay" onClick={closeSidebar}></div>
-      )}
-
-      <div className="app-body">
-        <Sidebar 
-          currentPage={currentPage}
-          onNavigate={handleNavigation}
-          sidebarOpen={sidebarOpen}
+    <CustomerProvider> {/* WRAP WITH PROVIDER */}
+      <div className="app-container">
+        <Header 
+          notifications={notifications}
           isMobile={isMobile}
-          orders={orders}
-          tables={tables}
+          toggleSidebar={toggleSidebar}
+          apiConnected={apiConnected}
         />
+        
+        {sidebarOpen && isMobile && (
+          <div className="sidebar-overlay" onClick={closeSidebar}></div>
+        )}
 
-        <main className="main-content">
-          {/* FIXED: Only show warning if API is actually disconnected */}
-          {!apiConnected && (
-            <div className="api-warning">
-              ⚠️ Running in offline mode. Data will reset on page refresh.
-            </div>
-          )}
-          
-          {currentPage === 'dashboard' && (
-            <Dashboard 
-              orders={orders} 
-              tables={tables}
-              payments={payments}
-              notifications={notifications}
-              onNotificationRead={markNotificationAsRead}
-              getPrepTimeRemaining={getPrepTimeRemaining}
-              isMobile={isMobile}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'tables' && (
-            <TableManagement 
-              tables={tables} 
-              setTables={setTables}
-              orders={orders}
-              setOrders={setOrders}
-              onCreateOrder={createNewOrder}
-              onCompleteOrder={completeOrder}
-              getTimeAgo={getTimeAgo}
-              isMobile={isMobile}
-              menu={menu}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'qr-generator' && (
-            <QRGenerator tables={tables} isMobile={isMobile} apiConnected={apiConnected} />
-          )}
-          {currentPage === 'menu' && (
-  <DigitalMenu 
-    cart={cart} 
-    setCart={setCart}
-    onCreateOrder={handleCustomerOrder}
-    isMobile={isMobile}
-    menu={menu}
-    apiConnected={apiConnected}
-    currentTable={currentTable}
-    isCustomerView={true}
-  />
-)}
-          {currentPage === 'kitchen' && (
-            <KitchenDisplay 
-              orders={orders} 
-              setOrders={setOrders}
-              getPrepTimeRemaining={getPrepTimeRemaining}
-              isMobile={isMobile}
-              onUpdateOrderStatus={updateOrderStatus}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'payments' && (
-            <PaymentSystem 
-              orders={orders}
-              payments={payments}
-              setPayments={setPayments}
-              isMobile={isMobile}
-              apiConnected={apiConnected}
-            />
-          )}
-          {currentPage === 'analytics' && (
-            <AnalyticsDashboard 
-              orders={orders} 
-              payments={payments} 
-              tables={tables} 
-              isMobile={isMobile} 
-            />
-          )}
-        </main>
+        <div className="app-body">
+          <Sidebar 
+            currentPage={currentPage}
+            onNavigate={handleNavigation}
+            sidebarOpen={sidebarOpen}
+            isMobile={isMobile}
+            orders={orders}
+            tables={tables}
+          />
+
+          <main className="main-content">
+            {/* FIXED: Only show warning if API is actually disconnected */}
+            {!apiConnected && (
+              <div className="api-warning">
+                ⚠️ Running in offline mode. Data will reset on page refresh.
+              </div>
+            )}
+            
+            {currentPage === 'dashboard' && (
+              <Dashboard 
+                orders={orders} 
+                tables={tables}
+                payments={payments}
+                notifications={notifications}
+                onNotificationRead={markNotificationAsRead}
+                getPrepTimeRemaining={getPrepTimeRemaining}
+                isMobile={isMobile}
+                apiConnected={apiConnected}
+              />
+            )}
+            {currentPage === 'tables' && (
+              <TableManagement 
+                tables={tables} 
+                setTables={setTables}
+                orders={orders}
+                setOrders={setOrders}
+                onCreateOrder={createNewOrder}
+                onCompleteOrder={completeOrder}
+                getTimeAgo={getTimeAgo}
+                isMobile={isMobile}
+                menu={menu}
+                apiConnected={apiConnected}
+              />
+            )}
+            {currentPage === 'qr-generator' && (
+              <QRGenerator tables={tables} isMobile={isMobile} apiConnected={apiConnected} />
+            )}
+            {currentPage === 'menu' && (
+      <DigitalMenu 
+        cart={cart} 
+        setCart={setCart}
+        onCreateOrder={handleCustomerOrder}
+        isMobile={isMobile}
+        menu={menu}
+        apiConnected={apiConnected}
+        currentTable={currentTable}
+        isCustomerView={true}
+      />
+    )}
+            {currentPage === 'kitchen' && (
+              <KitchenDisplay 
+                orders={orders} 
+                setOrders={setOrders}
+                getPrepTimeRemaining={getPrepTimeRemaining}
+                isMobile={isMobile}
+                onUpdateOrderStatus={updateOrderStatus}
+                apiConnected={apiConnected}
+              />
+            )}
+            {currentPage === 'payments' && (
+              <PaymentSystem 
+                orders={orders}
+                payments={payments}
+                setPayments={setPayments}
+                isMobile={isMobile}
+                apiConnected={apiConnected}
+              />
+            )}
+            {currentPage === 'analytics' && (
+              <AnalyticsDashboard 
+                orders={orders} 
+                payments={payments} 
+                tables={tables} 
+                isMobile={isMobile} 
+              />
+            )}
+          </main>
+        </div>
       </div>
-    </div>
+    </CustomerProvider>
   );
 }
 
