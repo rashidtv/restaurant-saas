@@ -8,13 +8,20 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// MongoDB Configuration
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/flavorflow?retryWrites=true&w=majority';
-const DB_NAME = process.env.DB_NAME || 'flavorflow';
+const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = process.env.DB_NAME || 'restaurant_saas';
+
+// Validate required environment variables
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI environment variable is required');
+  console.error('💡 Please set MONGODB_URI in your Render environment variables');
+  process.exit(1);
+}
+
 let db = null;
 let mongoClient = null;
 let connectionAttempts = 0;
-const MAX_CONNECTION_ATTEMPTS = 10;
+const MAX_CONNECTION_ATTEMPTS = 5;
 
 // CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
@@ -44,77 +51,43 @@ const io = new Server(server, {
 
 app.use(express.json());
 
-// Enhanced MongoDB Connection with Multiple Fallback Options
+// Robust MongoDB Connection
 async function initializeDatabase() {
   try {
     connectionAttempts++;
     console.log(`🔗 MongoDB connection attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}...`);
+    console.log(`📁 Database: ${DB_NAME}`);
 
-    // Try different connection configurations
-    const connectionOptions = [
-      // Option 1: Simple connection (no TLS options)
-      {},
-      
-      // Option 2: With TLS but allow invalid certificates
-      {
-        tls: true,
-        tlsAllowInvalidCertificates: true,
-        tlsAllowInvalidHostnames: true,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 10000,
-      },
-      
-      // Option 3: Without TLS
-      {
-        tls: false,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 10000,
-      }
-    ];
+    // Simple connection without complex options
+    const client = new MongoClient(MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 30000,
+    });
 
-    let connected = false;
-    
-    for (const options of connectionOptions) {
-      try {
-        console.log(`🔄 Trying connection with options:`, Object.keys(options).join(', ') || 'default');
-        
-        const client = new MongoClient(MONGODB_URI, options);
-        await client.connect();
-        
-        mongoClient = client;
-        db = client.db(DB_NAME);
-        
-        // Test the connection
-        await db.command({ ping: 1 });
-        
-        console.log('✅ Connected to MongoDB successfully!');
-        connected = true;
-        
-        // Initialize database
-        await createDatabaseIndexes();
-        await initializeSampleData();
-        
-        break; // Exit loop if connection successful
-        
-      } catch (optionError) {
-        console.log(`❌ Connection option failed: ${optionError.message}`);
-        continue; // Try next option
-      }
-    }
+    await client.connect();
+    mongoClient = client;
+    db = client.db(DB_NAME);
 
-    if (!connected) {
-      throw new Error('All connection options failed');
-    }
+    // Test connection
+    await db.command({ ping: 1 });
+    console.log('✅ Connected to MongoDB successfully!');
+
+    // Initialize database structure
+    await createDatabaseIndexes();
+    await initializeSampleData();
+
+    console.log('🎉 Database initialization completed');
 
   } catch (error) {
     console.error(`❌ MongoDB connection failed: ${error.message}`);
     
     if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
-      const retryDelay = Math.min(1000 * Math.pow(2, connectionAttempts), 30000);
-      console.log(`🔄 Retrying connection in ${retryDelay/1000} seconds...`);
+      const retryDelay = Math.min(3000 * connectionAttempts, 30000);
+      console.log(`🔄 Retrying in ${retryDelay/1000} seconds...`);
       setTimeout(initializeDatabase, retryDelay);
     } else {
-      console.error('❌ Maximum connection attempts reached. Server running without database.');
+      console.error('💡 Server will start without database connection');
+      console.error('🔧 Check your MONGODB_URI in Render environment variables');
     }
   }
 }
