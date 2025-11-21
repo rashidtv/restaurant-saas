@@ -147,11 +147,19 @@ export const DigitalMenu = ({
     }
   }, [selectedTable, customer]);
 
-// 🎯 PERMANENT FIX: Enhanced WebSocket integration for real-time updates
+// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - Fix WebSocket handlers
+
+// Replace the current WebSocket useEffect with this enhanced version:
 useEffect(() => {
   if (!selectedTable || !customer) return;
 
   const handleOrderUpdated = (updatedOrder) => {
+    // VALIDATION: Check for null/undefined data
+    if (!updatedOrder || !updatedOrder.orderNumber) {
+      console.warn('⚠️ Received invalid order update via WebSocket');
+      return;
+    }
+    
     console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
     
     // Refresh orders when order status changes
@@ -159,30 +167,43 @@ useEffect(() => {
       loadTableOrders(selectedTable);
     }
     
-    // If this order belongs to current customer, refresh customer orders and points
+    // If this order belongs to current customer, refresh customer data
     if (customer && updatedOrder.customerPhone === customer.phone) {
       console.log('🎯 Order belongs to current customer, refreshing data...');
       
       // Refresh customer orders
-      getCustomerOrders().then(setCustomerOrders);
+      getCustomerOrders().then(orders => {
+        if (Array.isArray(orders)) {
+          setCustomerOrders(orders);
+        }
+      }).catch(error => {
+        console.error('Failed to refresh customer orders:', error);
+      });
       
-      // 🎯 CRITICAL: Refresh customer points data
-      customerService.refreshCustomerData(customer.phone)
-        .then(freshCustomer => {
-          if (freshCustomer) {
-            // Update customer state with fresh data including points
-            customerHook.setCustomer(freshCustomer); // FIXED: Use hook method
-            customerHook.setPoints(freshCustomer.points || 0); // FIXED: Use hook method
-            console.log('✅ Customer points refreshed:', freshCustomer.points);
-          }
-        })
-        .catch(error => {
-          console.error('Failed to refresh customer data:', error);
-        });
+      // Refresh customer points data with validation
+      if (customer.phone && customer.phone !== 'undefined') {
+        customerService.refreshCustomerData(customer.phone)
+          .then(freshCustomer => {
+            if (freshCustomer && freshCustomer.phone) {
+              customerHook.setCustomer(freshCustomer);
+              customerHook.setPoints(freshCustomer.points || 0);
+              console.log('✅ Customer points refreshed:', freshCustomer.points);
+            }
+          })
+          .catch(error => {
+            console.error('Failed to refresh customer data:', error);
+          });
+      }
     }
   };
 
   const handlePaymentProcessed = (payment) => {
+    // VALIDATION: Check for null/undefined data
+    if (!payment || !payment.orderId) {
+      console.warn('⚠️ Received invalid payment via WebSocket');
+      return;
+    }
+    
     console.log('💰 Payment processed via WebSocket:', payment.orderId);
     
     // Refresh orders when payment is completed
@@ -190,13 +211,12 @@ useEffect(() => {
       loadTableOrders(selectedTable);
     }
     
-    // 🎯 CRITICAL: Always refresh customer data after payment
-    if (customer) {
+    // Refresh customer data after payment with validation
+    if (customer && customer.phone && customer.phone !== 'undefined') {
       console.log('💰 Payment completed, refreshing customer data...');
       customerService.refreshCustomerData(customer.phone)
         .then(freshCustomer => {
-          if (freshCustomer) {
-            // FIXED: Use hook methods instead of direct state setters
+          if (freshCustomer && freshCustomer.phone) {
             customerHook.setCustomer(freshCustomer);
             customerHook.setPoints(freshCustomer.points || 0);
             console.log('✅ Points updated after payment:', freshCustomer.points);
@@ -208,7 +228,7 @@ useEffect(() => {
     }
   };
 
-  // Use global WebSocket instance from App.jsx
+  // Use global WebSocket instance with error handling
   if (window.socket) {
     window.socket.on('orderUpdated', handleOrderUpdated);
     window.socket.on('paymentProcessed', handlePaymentProcessed);
@@ -225,7 +245,7 @@ useEffect(() => {
       console.log('🧹 DigitalMenu WebSocket listeners cleaned up');
     }
   };
-}, [selectedTable, customer, loadTableOrders, getCustomerOrders, customerHook]); // FIXED: Added customerHook dependency
+}, [selectedTable, customer, loadTableOrders, getCustomerOrders, customerHook]);
 
   // FIXED: Enhanced add to cart with proper quantity handling
   const handleAddToCart = useCallback((item, quantity = 1) => {

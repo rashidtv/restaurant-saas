@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useReducer } from 'react';
 
+const validateCustomerPhone = (phone) => {
+  if (!phone || phone === 'undefined' || phone === 'null') {
+    console.error('❌ Invalid customer phone:', phone);
+    return false;
+  }
+  
+  const cleanPhone = phone.replace(/\D/g, '');
+  return cleanPhone.length >= 10; // Minimum 10 digits
+};
+
 // Customer context
 const CustomerContext = createContext();
 
@@ -41,47 +51,57 @@ const customerReducer = (state, action) => {
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
 
-  // Register customer function
-  const registerCustomer = async (phone, name = '') => {
-    try {
-      console.log('📝 CustomerContext: Registering customer', phone);
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      const cleanPhone = phone.replace(/\D/g, '');
-      
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone: cleanPhone, name }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Registration failed');
-      }
-
-      const customerData = await response.json();
-      console.log('✅ CustomerContext: Registration successful', customerData);
-      
-      // Set customer in context
-      dispatch({ 
-        type: 'SET_CUSTOMER', 
-        payload: {
-          ...customerData.customer,
-          phone: cleanPhone,
-          name: name || customerData.customer?.name || `Customer-${cleanPhone.slice(-4)}`
-        }
-      });
-      
-      return customerData;
-    } catch (error) {
-      console.error('❌ CustomerContext: Registration error', error);
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-      throw error;
+// ENHANCED registerCustomer function - UPDATE EXISTING FUNCTION
+const registerCustomer = async (phone, name = '') => {
+  try {
+    console.log('📝 CustomerContext: Registering customer', phone);
+    
+    // 🛠️ ADD VALIDATION CHECK HERE
+    if (!validateCustomerPhone(phone)) {
+      throw new Error('Please enter a valid phone number (at least 10 digits)');
     }
-  };
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    dispatch({ type: 'SET_LOADING', payload: true });
+    
+    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone: cleanPhone, name }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Registration failed');
+    }
+
+    const customerData = await response.json();
+    console.log('✅ CustomerContext: Registration successful', customerData);
+    
+    // 🛠️ ADD RESPONSE VALIDATION
+    if (!customerData.customer || !customerData.customer.phone) {
+      throw new Error('Invalid customer data received from server');
+    }
+    
+    dispatch({ 
+      type: 'SET_CUSTOMER', 
+      payload: {
+        ...customerData.customer,
+        phone: cleanPhone,
+        name: name || customerData.customer?.name || `Customer-${cleanPhone.slice(-4)}`
+      }
+    });
+    
+    return customerData;
+  } catch (error) {
+    console.error('❌ CustomerContext: Registration error', error);
+    dispatch({ type: 'SET_ERROR', payload: error.message });
+    throw error;
+  }
+};
 
   // Add points to customer
   const addPoints = async (points, orderTotal = 0) => {
@@ -157,14 +177,15 @@ export const CustomerProvider = ({ children }) => {
     return isValid;
   };
 
-  // Get current customer phone with validation
-  const getCustomerPhone = () => {
-    if (!customer?.phone) {
-      console.error('❌ CustomerContext: No customer phone available');
-      return null;
-    }
-    return customer.phone;
-  };
+// ENHANCED getCustomerPhone - UPDATE EXISTING FUNCTION
+const getCustomerPhone = () => {
+  // 🛠️ ADD VALIDATION CHECK
+  if (!customer?.phone || !validateCustomerPhone(customer.phone)) {
+    console.error('❌ CustomerContext: No valid customer phone available');
+    return null;
+  }
+  return customer.phone;
+};
 
   const value = {
     customer,

@@ -49,6 +49,50 @@ const io = new Server(server, {
   }
 });
 
+// 🛠️ WEB SOCKET VALIDATION MIDDLEWARE - ADDED FOR PRODUCTION
+const validateSocketData = (data, eventName) => {
+  if (data === null || data === undefined) {
+    console.warn(`⚠️ Blocking null data for event: ${eventName}`);
+    return false;
+  }
+  
+  // Validate order updates
+  if (eventName === 'orderUpdate' || eventName === 'orderUpdated') {
+    if (!data.orderId && !data.orderNumber) {
+      console.warn(`⚠️ Invalid order data for ${eventName}:`, data);
+      return false;
+    }
+  }
+  
+  // Validate table updates
+  if (eventName === 'tableUpdate' || eventName === 'tableUpdated') {
+    if (!data._id && !data.number) {
+      console.warn(`⚠️ Invalid table data for ${eventName}:`, data);
+      return false;
+    }
+  }
+  
+  // Validate payment updates
+  if (eventName === 'paymentProcessed') {
+    if (!data.orderId && !data._id) {
+      console.warn(`⚠️ Invalid payment data for ${eventName}:`, data);
+      return false;
+    }
+  }
+  
+  return true;
+};
+
+// Enhanced event emitter
+const safeEmit = (event, data) => {
+  if (validateSocketData(data, event)) {
+    io.emit(event, data);
+    console.log(`✅ Emitted ${event} successfully`);
+  } else {
+    console.warn(`🚫 Blocked invalid ${event} emission:`, data);
+  }
+};
+
 app.use(express.json());
 
 // Fixed MongoDB Connection for Render
@@ -59,17 +103,14 @@ async function initializeDatabase() {
 
     // FIX: Use connection options that work with Render's environment
     const client = new MongoClient(MONGODB_URI, {
-      // Remove all TLS options - let MongoDB driver handle it automatically
       serverSelectionTimeoutMS: 15000,
       socketTimeoutMS: 45000,
       connectTimeoutMS: 15000,
       maxPoolSize: 5,
       minPoolSize: 1,
-      // Critical: Let the driver handle TLS negotiation automatically
       tls: true,
       tlsAllowInvalidCertificates: false,
       tlsAllowInvalidHostnames: false,
-      // Use new URL parser and unified topology (handled automatically in newer versions)
     });
 
     console.log('🔄 Connecting to MongoDB...');
@@ -474,13 +515,36 @@ app.get('/api/tables', async (req, res) => {
   }
 });
 
+// 🛠️ ENHANCED TABLE UPDATE ENDPOINT - FIXED FOR PRODUCTION
 app.put('/api/tables/:id', async (req, res) => {
   try {
     if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not connected' 
+      });
     }
+    
     const tableId = req.params.id;
-    const newStatus = req.body.status;
+    const updateData = req.body;
+    
+    console.log('🔄 Table update request:', tableId, updateData);
+    
+    // VALIDATION: Check table ID
+    if (!tableId || tableId === 'undefined') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Valid table ID is required' 
+      });
+    }
+    
+    // VALIDATION: Check update data
+    if (!updateData || typeof updateData !== 'object') {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid update data' 
+      });
+    }
     
     let query;
     try {
@@ -489,29 +553,68 @@ app.put('/api/tables/:id', async (req, res) => {
       query = { number: tableId };
     }
     
+    // Check if table exists
     const currentTable = await db.collection('tables').findOne(query);
     
     if (!currentTable) {
-      return res.status(404).json({ error: 'Table not found' });
+      return res.status(404).json({ 
+        success: false,
+        error: 'Table not found' 
+      });
     }
     
-    if (currentTable.status === newStatus) {
-      console.log(`⚠️ Table ${currentTable.number} status unchanged (${newStatus}), skipping update`);
-      return res.json(currentTable);
+    // Validate status if provided
+    const allowedStatuses = ['available', 'occupied', 'reserved', 'cleaning', 'needs_cleaning'];
+    if (updateData.status && !allowedStatuses.includes(updateData.status)) {
+      return res.status(400).json({ 
+        success: false,
+        error: `Invalid table status. Allowed: ${allowedStatuses.join(', ')}` 
+      });
     }
+    
+    // Skip update if status unchanged
+    if (updateData.status === currentTable.status) {
+      console.log(`⚠️ Table ${currentTable.number} status unchanged (${updateData.status}), skipping update`);
+      return res.json({
+        success: true,
+        table: currentTable,
+        message: 'Status unchanged'
+      });
+    }
+    
+    // Perform update with timestamp
+    const updatePayload = {
+      ...updateData,
+      updatedAt: new Date()
+    };
     
     const updatedTable = await db.collection('tables').findOneAndUpdate(
       query,
-      { $set: { ...req.body, updatedAt: new Date() } },
+      { $set: updatePayload },
       { returnDocument: 'after' }
     );
     
-    console.log(`🔄 Table ${updatedTable.value.number} status changed from ${currentTable.status} to ${newStatus}`);
+    if (!updatedTable.value) {
+      throw new Error('Failed to update table');
+    }
     
-    io.emit('tableUpdated', updatedTable.value);
-    res.json(updatedTable.value);
+    console.log(`✅ Table ${updatedTable.value.number} status changed from ${currentTable.status} to ${updateData.status}`);
+    
+    // Safe WebSocket emission
+    safeEmit('tableUpdated', updatedTable.value);
+    
+    res.json({
+      success: true,
+      table: updatedTable.value,
+      message: `Table ${updatedTable.value.number} updated successfully`
+    });
+    
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Table update error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error: ' + error.message 
+    });
   }
 });
 
@@ -626,11 +729,11 @@ app.post('/api/orders', async (req, res) => {
     
     if (updatedTable.value) {
       console.log(`✅ Table ${updatedTable.value.number} updated to: ${updatedTable.value.status}`);
-      io.emit('tableUpdated', updatedTable.value);
+      safeEmit('tableUpdated', updatedTable.value);
     }
     
     // Emit new order event
-    io.emit('newOrder', order);
+    safeEmit('newOrder', order);
     console.log(`📦 New order created: ${order.orderNumber} for Table ${tableId}`);
     
     // SUCCESS RESPONSE
@@ -702,7 +805,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
       { returnDocument: 'after' }
     );
     
-    io.emit('orderUpdated', updatedOrder.value);
+    safeEmit('orderUpdated', updatedOrder.value);
     
     res.json({
       success: true,
@@ -768,6 +871,7 @@ app.post('/api/customers', async (req, res) => {
   }
 });
 
+// 🛠️ ENHANCED POINTS ENDPOINT - FIXED FOR PRODUCTION
 app.post('/api/customers/:phone/points', async (req, res) => {
   try {
     console.log('➕ Add points request:', req.params.phone, req.body);
@@ -782,7 +886,8 @@ app.post('/api/customers/:phone/points', async (req, res) => {
     const { phone } = req.params;
     const { points, orderTotal } = req.body;
     
-    if (!phone || phone === 'undefined') {
+    // ENHANCED VALIDATION
+    if (!phone || phone === 'undefined' || phone === 'null') {
       return res.status(400).json({ 
         success: false,
         message: 'Valid phone number is required' 
@@ -791,9 +896,24 @@ app.post('/api/customers/:phone/points', async (req, res) => {
 
     const cleanPhone = phone.replace(/\D/g, '');
     
-    console.log('➕ Adding points:', points, 'for customer:', cleanPhone);
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone number must be at least 10 digits' 
+      });
+    }
+
+    const pointsToAdd = parseInt(points) || 0;
+    if (pointsToAdd <= 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Valid points value is required' 
+      });
+    }
+
+    console.log('➕ Adding points:', pointsToAdd, 'for customer:', cleanPhone);
     
-    const customer = await createOrUpdateCustomer(cleanPhone, '', parseInt(points) || 0, parseFloat(orderTotal) || 0);
+    const customer = await createOrUpdateCustomer(cleanPhone, '', pointsToAdd, parseFloat(orderTotal) || 0);
     
     if (!customer) {
       return res.status(404).json({ 
@@ -806,7 +926,9 @@ app.post('/api/customers/:phone/points', async (req, res) => {
     
     res.json({
       success: true,
-      customer: customer
+      customer: customer,
+      pointsAdded: pointsToAdd,
+      totalPoints: customer.points
     });
     
   } catch (error) {
@@ -1011,13 +1133,13 @@ app.post('/api/payments', async (req, res) => {
         );
         
         if (updatedTable.value) {
-          io.emit('tableUpdated', updatedTable.value);
+          safeEmit('tableUpdated', updatedTable.value);
         }
       }
 
       // Emit events
-      io.emit('paymentProcessed', payment);
-      io.emit('orderUpdated', updatedOrder.value);
+      safeEmit('paymentProcessed', payment);
+      safeEmit('orderUpdated', updatedOrder.value);
 
       console.log('✅ Payment processed successfully for order:', order.orderNumber);
       
@@ -1122,7 +1244,7 @@ app.put('/api/orders/:id/items', async (req, res) => {
     
     console.log('✅ Order updated with new items:', updatedOrder.value.orderNumber);
     
-    io.emit('orderUpdated', updatedOrder.value);
+    safeEmit('orderUpdated', updatedOrder.value);
     res.json(updatedOrder.value);
   } catch (error) {
     console.error('❌ Error adding items to order:', error);
@@ -1130,12 +1252,26 @@ app.put('/api/orders/:id/items', async (req, res) => {
   }
 });
 
-// Socket.io for real-time updates
+// 🛠️ ENHANCED Socket.io for real-time updates - FIXED FOR PRODUCTION
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   
-  socket.on('disconnect', () => {
-    console.log('❌ Client disconnected:', socket.id);
+  // Wrap emit function with validation
+  const originalEmit = socket.emit;
+  socket.emit = function(event, data) {
+    if (validateSocketData(data, event)) {
+      originalEmit.call(this, event, data);
+    } else {
+      console.warn(`🚫 Blocked invalid socket.emit for ${event}:`, data);
+    }
+  };
+
+  socket.on('disconnect', (reason) => {
+    console.log('❌ Client disconnected:', socket.id, reason);
+  });
+
+  socket.on('error', (error) => {
+    console.error('❌ Socket error:', error);
   });
 });
 
@@ -1149,7 +1285,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`💾 Database: MongoDB (Auto-connecting)`);
   console.log(`👥 Customer tracking: PERSISTENT`);
   console.log(`🎯 Loyalty points: PERSISTENT`);
-  console.log(`🔄 Real-time updates: ENABLED\n`);
+  console.log(`🔄 Real-time updates: ENABLED`);
+  console.log(`🛠️ Production fixes: ✅ WebSocket Validation, ✅ Customer Validation, ✅ Error Handling\n`);
   
   // Start database connection in background
   initializeDatabase();
