@@ -518,27 +518,13 @@ app.get('/api/tables', async (req, res) => {
   }
 });
 
-// In backend/server.js - ENHANCE table update endpoint
+// In backend/server.js - Enhanced table update
 app.put('/api/tables/:id', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ 
-        success: false, 
-        error: 'Database not connected' 
-      });
-    }
-    
     const tableId = req.params.id;
     const updateData = req.body;
     
     console.log('🔄 Table update request:', tableId, updateData);
-    
-    if (!tableId || tableId === 'undefined') {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Valid table ID is required' 
-      });
-    }
     
     let query;
     try {
@@ -547,68 +533,53 @@ app.put('/api/tables/:id', async (req, res) => {
       query = { number: tableId };
     }
     
-    // Check if table exists
-    const currentTable = await db.collection('tables').findOne(query);
-    
-    if (!currentTable) {
-      return res.status(404).json({ 
-        success: false,
-        error: 'Table not found' 
-      });
-    }
-    
-    // Perform update with timestamp
-    const updatePayload = {
-      ...updateData,
-      updatedAt: new Date()
-    };
-    
-    console.log('💾 Updating table with payload:', updatePayload);
-    
-    const updatedTable = await db.collection('tables').findOneAndUpdate(
+    // Try direct update first
+    const updateResult = await db.collection('tables').updateOne(
       query,
-      { $set: updatePayload },
-      { returnDocument: 'after' }
+      { 
+        $set: {
+          ...updateData,
+          updatedAt: new Date()
+        }
+      }
     );
     
-    // 🛠️ FIX: Better error handling for update failure
-    if (!updatedTable.value) {
-      console.error('❌ Table update returned no value');
-      // Try a direct update as fallback
-      const directUpdate = await db.collection('tables').updateOne(
-        query,
-        { $set: updatePayload }
+    if (updateResult.modifiedCount === 0) {
+      console.log('❌ No documents matched, trying alternative query...');
+      // Try alternative query approaches
+      const alternativeQuery = { $or: [
+        { _id: new ObjectId(tableId) },
+        { number: tableId },
+        { _id: tableId }
+      ]};
+      
+      const fallbackUpdate = await db.collection('tables').updateOne(
+        alternativeQuery,
+        { $set: { ...updateData, updatedAt: new Date() } }
       );
       
-      if (directUpdate.modifiedCount === 0) {
-        throw new Error('Failed to update table - no documents modified');
+      if (fallbackUpdate.modifiedCount === 0) {
+        return res.status(404).json({ 
+          success: false,
+          error: 'Table not found with any identifier' 
+        });
       }
-      
-      // Get the updated table
-      const finalTable = await db.collection('tables').findOne(query);
-      safeEmit('tableUpdated', finalTable);
-      
-      res.json({
-        success: true,
-        table: finalTable,
-        message: `Table ${finalTable.number} updated successfully`
-      });
-    } else {
-      console.log(`✅ Table ${updatedTable.value.number} updated successfully`);
-      safeEmit('tableUpdated', updatedTable.value);
-      
-      res.json({
-        success: true,
-        table: updatedTable.value,
-        message: `Table ${updatedTable.value.number} updated successfully`
-      });
     }
+    
+    // Get updated table
+    const updatedTable = await db.collection('tables').findOne(query);
+    safeEmit('tableUpdated', updatedTable);
+    
+    res.json({
+      success: true,
+      table: updatedTable
+    });
     
   } catch (error) {
     console.error('❌ Table update error:', error);
     res.status(500).json({ 
       success: false,
-      error: 'Internal server error: ' + error.message 
+      error: error.message 
     });
   }
 });
