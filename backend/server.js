@@ -703,21 +703,6 @@ app.post('/api/orders', async (req, res) => {
     // Save order to database
     await db.collection('orders').insertOne(order);
     
-    // ENHANCED CUSTOMER HANDLING: Only process if valid phone provided
-    if (customerPhone && customerPhone !== 'undefined' && customerPhone.length >= 10) {
-      try {
-        const pointsEarned = Math.floor(total);
-        console.log(`🎯 Attempting to add ${pointsEarned} points for customer:`, customerPhone);
-        
-        await createOrUpdateCustomer(customerPhone, customerName, pointsEarned, total);
-        console.log(`✅ Customer ${customerPhone} earned ${pointsEarned} points`);
-      } catch (customerError) {
-        console.log('⚠️ Customer points skipped:', customerError.message);
-        // Continue with order even if customer update fails - DON'T BREAK ORDER CREATION
-      }
-    } else {
-      console.log('ℹ️ No valid customer phone provided, skipping points system');
-    }
     
     // Update table status
     console.log('🔄 Updating table status for:', tableId);

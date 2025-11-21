@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useCustomer } from '../contexts/CustomerContext'; // ADD THIS IMPORT
+import { useCustomer } from '../contexts/CustomerContext';
 import './PaymentSystem.css';
 
 const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected, onProcessPayment }) => {
@@ -7,9 +7,11 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected, 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [activeTab, setActiveTab] = useState('pending');
-  const { validateCustomer } = useCustomer(); // ADD THIS HOOK
+  
+  // 🛠️ FIXED: Added registerCustomer and addPoints imports
+  const { registerCustomer, validateCustomer, addPoints } = useCustomer();
 
-  // FIXED: Get ALL unpaid orders regardless of status (EXACTLY THE SAME)
+  // FIXED: Get ALL unpaid orders regardless of status
   const getPendingPayments = () => {
     console.log('🔍 PaymentSystem - Checking orders:', orders.length);
     
@@ -46,82 +48,98 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected, 
     return completed;
   };
 
-  // ENHANCED: processPayment function with auto-registration
-const processPayment = async (order, method) => {
-  try {
-    console.log('💳 Processing payment for:', order.orderNumber || order.id);
-    
-    // AUTO-REGISTER CUSTOMER IF NOT EXISTS
-    if (!validateCustomer()) {
-      console.log('🔄 No customer found, auto-registering...');
+  // 🛠️ FIXED: Enhanced processPayment with PROPER points timing
+  const processPayment = async (order, method) => {
+    try {
+      console.log('💳 Processing payment for:', order.orderNumber || order.id);
       
-      // Generate customer phone from table number
-      const tableNumber = order.tableId || order.table;
-      const customerPhone = `01${tableNumber.replace(/\D/g, '').padStart(8, '0')}`;
-      
-      try {
-        await registerCustomer(customerPhone, `Table-${tableNumber}-Customer`);
-        console.log('✅ Customer auto-registered:', customerPhone);
-      } catch (regError) {
-        console.log('⚠️ Auto-registration failed, continuing without customer:', regError.message);
-        // Continue payment without customer (no points will be added)
+      // AUTO-REGISTER CUSTOMER IF NOT EXISTS
+      let customerPhone = null;
+      if (!validateCustomer()) {
+        console.log('🔄 No customer found, auto-registering...');
+        
+        // Generate customer phone from table number
+        const tableNumber = order.tableId || order.table;
+        customerPhone = `01${tableNumber.replace(/\D/g, '').padStart(8, '0')}`;
+        
+        try {
+          // Use the imported registerCustomer
+          await registerCustomer(customerPhone, `Table-${tableNumber}-Customer`);
+          console.log('✅ Customer auto-registered:', customerPhone);
+        } catch (regError) {
+          console.log('⚠️ Auto-registration failed, continuing without customer:', regError.message);
+          // Continue payment without customer (no points will be added)
+        }
       }
-    }
 
-    const paymentData = {
-      orderId: order.orderNumber || order.id,
-      amount: order.total,
-      method: method,
-      tableId: order.tableId || order.table
-    };
-
-    let paymentResult;
-
-    // Use the enhanced onProcessPayment if provided, otherwise fallback to original logic
-    if (onProcessPayment && typeof onProcessPayment === 'function') {
-      console.log('🔄 Using enhanced payment processing');
-      paymentResult = await onProcessPayment(order.orderNumber || order.id, order.total, method);
-    } else if (apiConnected) {
-      // ORIGINAL LOGIC
-      console.log('🔄 Using original payment processing');
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(paymentData),
-      });
-
-      if (!response.ok) throw new Error(`Payment failed: ${response.status}`);
-      paymentResult = await response.json();
-      
-      // Update local state
-      setPayments(prev => [...prev, paymentResult]);
-    } else {
-      // OFFLINE FALLBACK
-      console.log('🔄 Using offline payment fallback');
-      paymentResult = {
-        _id: Date.now().toString(),
+      const paymentData = {
         orderId: order.orderNumber || order.id,
         amount: order.total,
         method: method,
-        status: 'completed',
-        paidAt: new Date()
+        tableId: order.tableId || order.table
       };
-      setPayments(prev => [...prev, paymentResult]);
+
+      let paymentResult;
+
+      // Process payment first
+      if (onProcessPayment && typeof onProcessPayment === 'function') {
+        console.log('🔄 Using enhanced payment processing');
+        paymentResult = await onProcessPayment(order.orderNumber || order.id, order.total, method);
+      } else if (apiConnected) {
+        console.log('🔄 Using original payment processing');
+        const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/payments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(paymentData),
+        });
+
+        if (!response.ok) throw new Error(`Payment failed: ${response.status}`);
+        paymentResult = await response.json();
+        
+        setPayments(prev => [...prev, paymentResult]);
+      } else {
+        // OFFLINE FALLBACK
+        console.log('🔄 Using offline payment fallback');
+        paymentResult = {
+          _id: Date.now().toString(),
+          orderId: order.orderNumber || order.id,
+          amount: order.total,
+          method: method,
+          status: 'completed',
+          paidAt: new Date()
+        };
+        setPayments(prev => [...prev, paymentResult]);
+      }
+
+      console.log('✅ Payment successful:', paymentResult);
+
+      // 🎯 CRITICAL FIX: ADD POINTS AFTER PAYMENT SUCCESS (NOT BEFORE)
+      try {
+        // Calculate points based on order total (RM 1 = 1 point)
+        const pointsEarned = Math.floor(order.total);
+        
+        if (pointsEarned > 0) {
+          console.log(`🎯 Adding ${pointsEarned} points after payment`);
+          await addPoints(pointsEarned, order.total);
+          console.log('✅ Points added successfully after payment');
+        }
+      } catch (pointsError) {
+        console.log('⚠️ Points addition failed, but payment was successful:', pointsError.message);
+        // Don't fail the payment if points addition fails
+      }
+
+      setShowPaymentModal(false);
+      setSelectedOrder(null);
+      
+      alert(`Payment of RM ${order.total.toFixed(2)} processed successfully! ${pointsEarned > 0 ? `You earned ${pointsEarned} points!` : ''}`);
+
+    } catch (error) {
+      console.error('❌ Payment error:', error);
+      alert(`Payment failed: ${error.message}`);
     }
-
-    console.log('✅ Payment successful:', paymentResult);
-    setShowPaymentModal(false);
-    setSelectedOrder(null);
-    
-    alert(`Payment of RM ${order.total.toFixed(2)} processed successfully!`);
-
-  } catch (error) {
-    console.error('❌ Payment error:', error);
-    alert(`Payment failed: ${error.message}`);
-  }
-};
+  };
 
   const pendingPayments = getPendingPayments();
   const completedPayments = getCompletedPayments();
@@ -289,7 +307,7 @@ const processPayment = async (order, method) => {
         )}
       </div>
 
-      {/* Payment Modal - EXACTLY THE SAME AS BEFORE */}
+      {/* Payment Modal */}
       {showPaymentModal && selectedOrder && (
         <div className="modal-overlay">
           <div className="payment-modal">

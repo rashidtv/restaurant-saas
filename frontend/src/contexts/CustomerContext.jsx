@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer } from 'react';
 
+// 🛠️ ADD VALIDATION FUNCTION HERE - RIGHT AFTER IMPORTS
 const validateCustomerPhone = (phone) => {
   if (!phone || phone === 'undefined' || phone === 'null') {
     console.error('❌ Invalid customer phone:', phone);
@@ -51,63 +52,66 @@ const customerReducer = (state, action) => {
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
 
-// ENHANCED registerCustomer function - UPDATE EXISTING FUNCTION
-const registerCustomer = async (phone, name = '') => {
-  try {
-    console.log('📝 CustomerContext: Registering customer', phone);
-    
-    // 🛠️ ADD VALIDATION CHECK HERE
-    if (!validateCustomerPhone(phone)) {
-      throw new Error('Please enter a valid phone number (at least 10 digits)');
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
-    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ phone: cleanPhone, name }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Registration failed');
-    }
-
-    const customerData = await response.json();
-    console.log('✅ CustomerContext: Registration successful', customerData);
-    
-    // 🛠️ ADD RESPONSE VALIDATION
-    if (!customerData.customer || !customerData.customer.phone) {
-      throw new Error('Invalid customer data received from server');
-    }
-    
-    dispatch({ 
-      type: 'SET_CUSTOMER', 
-      payload: {
-        ...customerData.customer,
-        phone: cleanPhone,
-        name: name || customerData.customer?.name || `Customer-${cleanPhone.slice(-4)}`
+  // 🛠️ FIXED: Enhanced registerCustomer function
+  const registerCustomer = async (phone, name = '') => {
+    try {
+      console.log('📝 CustomerContext: Registering customer', phone);
+      
+      // SIMPLE VALIDATION
+      if (!phone || phone === 'undefined') {
+        throw new Error('Please enter a valid phone number');
       }
-    });
-    
-    return customerData;
-  } catch (error) {
-    console.error('❌ CustomerContext: Registration error', error);
-    dispatch({ type: 'SET_ERROR', payload: error.message });
-    throw error;
-  }
-};
 
-  // Add points to customer
+      const cleanPhone = phone.replace(/\D/g, '');
+      
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone: cleanPhone, name }),
+      });
+
+      // DEBUG: Check what the backend returns
+      console.log('🔍 Registration Response Status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`Registration failed: ${response.status}`);
+      }
+
+      const customerData = await response.json();
+      console.log('✅ CustomerContext: Registration response:', customerData);
+      
+      // SIMPLIFIED: Set basic customer data
+      const customerPayload = {
+        phone: cleanPhone,
+        name: name || `Customer-${cleanPhone.slice(-4)}`,
+        points: 0, // Start with 0 points
+        isRegistered: true
+      };
+      
+      dispatch({ 
+        type: 'SET_CUSTOMER', 
+        payload: customerPayload
+      });
+      
+      return customerData;
+    } catch (error) {
+      console.error('❌ CustomerContext: Registration error', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+      throw error;
+    }
+  };
+
+  // 🛠️ FIXED: Enhanced addPoints function with better error handling
   const addPoints = async (points, orderTotal = 0) => {
     try {
-      if (!customer?.phone) {
-        throw new Error('No customer registered');
+      // CRITICAL: Check if we have a valid customer
+      if (!customer?.phone || !validateCustomerPhone(customer.phone)) {
+        console.warn('⚠️ Cannot add points: No valid customer registered');
+        return { success: false, message: 'No customer registered' };
       }
 
       console.log('➕ CustomerContext: Adding points', points, 'to customer', customer.phone);
@@ -123,23 +127,42 @@ const registerCustomer = async (phone, name = '') => {
         }),
       });
 
+      console.log('📥 Add points response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error('Failed to add points');
+        const errorText = await response.text();
+        console.error('❌ Add points failed:', errorText);
+        throw new Error('Failed to update points');
       }
 
-      const updatedCustomer = await response.json();
-      console.log('✅ CustomerContext: Points added successfully', updatedCustomer);
+      const result = await response.json();
+      console.log('✅ CustomerContext: Points added successfully', result);
       
       // Update customer with new points
-      dispatch({ 
-        type: 'UPDATE_CUSTOMER', 
-        payload: updatedCustomer.customer || updatedCustomer 
-      });
+      if (result.customer) {
+        dispatch({ 
+          type: 'UPDATE_CUSTOMER', 
+          payload: { 
+            ...customer, 
+            points: result.customer.points || (customer.points || 0) + points 
+          }
+        });
+      } else {
+        // Fallback: Update points locally
+        dispatch({ 
+          type: 'UPDATE_CUSTOMER', 
+          payload: { 
+            ...customer, 
+            points: (customer.points || 0) + points 
+          }
+        });
+      }
       
-      return updatedCustomer;
+      return result;
     } catch (error) {
       console.error('❌ CustomerContext: Add points error', error);
-      throw error;
+      // Don't throw error - just return failure
+      return { success: false, message: error.message };
     }
   };
 
@@ -172,20 +195,36 @@ const registerCustomer = async (phone, name = '') => {
 
   // Validate if customer exists and has phone
   const validateCustomer = () => {
-    const isValid = !!(customer?.phone);
+    const isValid = !!(customer?.phone && validateCustomerPhone(customer.phone));
     console.log('🔍 CustomerContext: Validation check', { isValid, customer });
     return isValid;
   };
 
-// ENHANCED getCustomerPhone - UPDATE EXISTING FUNCTION
-const getCustomerPhone = () => {
-  // 🛠️ ADD VALIDATION CHECK
-  if (!customer?.phone || !validateCustomerPhone(customer.phone)) {
-    console.error('❌ CustomerContext: No valid customer phone available');
-    return null;
-  }
-  return customer.phone;
-};
+  // Get current customer phone with validation
+  const getCustomerPhone = () => {
+    if (!customer?.phone || !validateCustomerPhone(customer.phone)) {
+      console.error('❌ CustomerContext: No valid customer phone available');
+      return null;
+    }
+    return customer.phone;
+  };
+
+  // Update customer after order (without adding points)
+  const updateCustomerAfterOrder = (orderTotal = 0) => {
+    // This function now only updates order stats, not points
+    // Points are added separately after payment
+    if (customer) {
+      dispatch({ 
+        type: 'UPDATE_CUSTOMER', 
+        payload: {
+          ...customer,
+          lastOrder: new Date().toISOString(),
+          totalOrders: (customer.totalOrders || 0) + 1,
+          totalSpent: (customer.totalSpent || 0) + orderTotal
+        }
+      });
+    }
+  };
 
   const value = {
     customer,
@@ -195,6 +234,7 @@ const getCustomerPhone = () => {
     clearCustomer,
     validateCustomer,
     getCustomerPhone,
+    updateCustomerAfterOrder,
     isRegistered: !!customer?.phone
   };
 
