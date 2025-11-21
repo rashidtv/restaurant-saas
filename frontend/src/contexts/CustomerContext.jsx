@@ -52,58 +52,68 @@ const customerReducer = (state, action) => {
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
 
-  // 🛠️ FIXED: Enhanced registerCustomer function
-  const registerCustomer = async (phone, name = '') => {
-    try {
-      console.log('📝 CustomerContext: Registering customer', phone);
-      
-      // SIMPLE VALIDATION
-      if (!phone || phone === 'undefined') {
-        throw new Error('Please enter a valid phone number');
-      }
-
-      const cleanPhone = phone.replace(/\D/g, '');
-      
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone: cleanPhone, name }),
-      });
-
-      // DEBUG: Check what the backend returns
-      console.log('🔍 Registration Response Status:', response.status);
-      
-      if (!response.ok) {
-        throw new Error(`Registration failed: ${response.status}`);
-      }
-
-      const customerData = await response.json();
-      console.log('✅ CustomerContext: Registration response:', customerData);
-      
-      // SIMPLIFIED: Set basic customer data
-      const customerPayload = {
-        phone: cleanPhone,
-        name: name || `Customer-${cleanPhone.slice(-4)}`,
-        points: 0, // Start with 0 points
-        isRegistered: true
-      };
-      
-      dispatch({ 
-        type: 'SET_CUSTOMER', 
-        payload: customerPayload
-      });
-      
-      return customerData;
-    } catch (error) {
-      console.error('❌ CustomerContext: Registration error', error);
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-      throw error;
+// In CustomerContext.jsx - FIX registerCustomer function
+const registerCustomer = async (phone, name = '') => {
+  try {
+    console.log('📝 CustomerContext: Registering customer', phone);
+    
+    if (!phone || phone === 'undefined') {
+      throw new Error('Please enter a valid phone number');
     }
-  };
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    dispatch({ type: 'SET_LOADING', payload: true });
+    
+    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone: cleanPhone, name }),
+    });
+
+    console.log('🔍 Registration Response Status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`Registration failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ CustomerContext: Registration API result:', result);
+    
+    // 🛠️ FIX: Handle the backend response structure correctly
+    const customerData = result.customer || result;
+    
+    if (!customerData) {
+      throw new Error('No customer data received from server');
+    }
+
+    // 🛠️ FIX: Create proper customer object from backend response
+    const customerPayload = {
+      _id: customerData._id,
+      phone: cleanPhone,
+      name: name || customerData.name || `Customer-${cleanPhone.slice(-4)}`,
+      points: customerData.points || 0,
+      totalOrders: customerData.totalOrders || 0,
+      totalSpent: customerData.totalSpent || 0,
+      isRegistered: true
+    };
+    
+    console.log('✅ CustomerContext: Setting customer payload:', customerPayload);
+    
+    dispatch({ 
+      type: 'SET_CUSTOMER', 
+      payload: customerPayload
+    });
+    
+    return customerPayload;
+  } catch (error) {
+    console.error('❌ CustomerContext: Registration error', error);
+    dispatch({ type: 'SET_ERROR', payload: error.message });
+    throw error;
+  }
+};
 
 // In CustomerContext.jsx - ENHANCED addPoints function
 const addPoints = async (points, orderTotal = 0) => {

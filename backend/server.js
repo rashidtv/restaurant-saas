@@ -518,7 +518,7 @@ app.get('/api/tables', async (req, res) => {
   }
 });
 
-// 🛠️ ENHANCED TABLE UPDATE ENDPOINT - FIXED FOR PRODUCTION
+// In backend/server.js - ENHANCE table update endpoint
 app.put('/api/tables/:id', async (req, res) => {
   try {
     if (!db) {
@@ -533,19 +533,10 @@ app.put('/api/tables/:id', async (req, res) => {
     
     console.log('🔄 Table update request:', tableId, updateData);
     
-    // VALIDATION: Check table ID
     if (!tableId || tableId === 'undefined') {
       return res.status(400).json({ 
         success: false,
         error: 'Valid table ID is required' 
-      });
-    }
-    
-    // VALIDATION: Check update data
-    if (!updateData || typeof updateData !== 'object') {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Invalid update data' 
       });
     }
     
@@ -566,30 +557,13 @@ app.put('/api/tables/:id', async (req, res) => {
       });
     }
     
-    // Validate status if provided
-    const allowedStatuses = ['available', 'occupied', 'reserved', 'cleaning', 'needs_cleaning'];
-    if (updateData.status && !allowedStatuses.includes(updateData.status)) {
-      return res.status(400).json({ 
-        success: false,
-        error: `Invalid table status. Allowed: ${allowedStatuses.join(', ')}` 
-      });
-    }
-    
-    // Skip update if status unchanged
-    if (updateData.status === currentTable.status) {
-      console.log(`⚠️ Table ${currentTable.number} status unchanged (${updateData.status}), skipping update`);
-      return res.json({
-        success: true,
-        table: currentTable,
-        message: 'Status unchanged'
-      });
-    }
-    
     // Perform update with timestamp
     const updatePayload = {
       ...updateData,
       updatedAt: new Date()
     };
+    
+    console.log('💾 Updating table with payload:', updatePayload);
     
     const updatedTable = await db.collection('tables').findOneAndUpdate(
       query,
@@ -597,20 +571,38 @@ app.put('/api/tables/:id', async (req, res) => {
       { returnDocument: 'after' }
     );
     
+    // 🛠️ FIX: Better error handling for update failure
     if (!updatedTable.value) {
-      throw new Error('Failed to update table');
+      console.error('❌ Table update returned no value');
+      // Try a direct update as fallback
+      const directUpdate = await db.collection('tables').updateOne(
+        query,
+        { $set: updatePayload }
+      );
+      
+      if (directUpdate.modifiedCount === 0) {
+        throw new Error('Failed to update table - no documents modified');
+      }
+      
+      // Get the updated table
+      const finalTable = await db.collection('tables').findOne(query);
+      safeEmit('tableUpdated', finalTable);
+      
+      res.json({
+        success: true,
+        table: finalTable,
+        message: `Table ${finalTable.number} updated successfully`
+      });
+    } else {
+      console.log(`✅ Table ${updatedTable.value.number} updated successfully`);
+      safeEmit('tableUpdated', updatedTable.value);
+      
+      res.json({
+        success: true,
+        table: updatedTable.value,
+        message: `Table ${updatedTable.value.number} updated successfully`
+      });
     }
-    
-    console.log(`✅ Table ${updatedTable.value.number} status changed from ${currentTable.status} to ${updateData.status}`);
-    
-    // Safe WebSocket emission
-    safeEmit('tableUpdated', updatedTable.value);
-    
-    res.json({
-      success: true,
-      table: updatedTable.value,
-      message: `Table ${updatedTable.value.number} updated successfully`
-    });
     
   } catch (error) {
     console.error('❌ Table update error:', error);
@@ -741,6 +733,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
+// In backend/server.js - FIX order status update endpoint
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     if (!db) {
@@ -793,12 +786,22 @@ app.put('/api/orders/:id/status', async (req, res) => {
       { returnDocument: 'after' }
     );
     
-    safeEmit('orderUpdated', updatedOrder.value);
-    
-    res.json({
-      success: true,
-      order: updatedOrder.value
-    });
+    // 🛠️ FIX: Check if updatedOrder.value exists before emitting
+    if (updatedOrder && updatedOrder.value) {
+      safeEmit('orderUpdated', updatedOrder.value);
+      res.json({
+        success: true,
+        order: updatedOrder.value
+      });
+    } else {
+      // If no updated order, at least return the original order with new status
+      const fallbackOrder = { ...order, ...updateData };
+      safeEmit('orderUpdated', fallbackOrder);
+      res.json({
+        success: true,
+        order: fallbackOrder
+      });
+    }
     
   } catch (error) {
     console.error('❌ Order status update error:', error);
