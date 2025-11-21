@@ -1,15 +1,4 @@
-import React, { createContext, useContext, useReducer } from 'react';
-
-// 🛠️ ADD VALIDATION FUNCTION HERE - RIGHT AFTER IMPORTS
-const validateCustomerPhone = (phone) => {
-  if (!phone || phone === 'undefined' || phone === 'null') {
-    console.error('❌ Invalid customer phone:', phone);
-    return false;
-  }
-  
-  const cleanPhone = phone.replace(/\D/g, '');
-  return cleanPhone.length >= 10; // Minimum 10 digits
-};
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
 
 // Customer context
 const CustomerContext = createContext();
@@ -19,18 +8,23 @@ const customerReducer = (state, action) => {
   switch (action.type) {
     case 'SET_CUSTOMER':
       console.log('✅ CustomerContext: Setting customer', action.payload);
+      // Persist to localStorage
+      if (action.payload) {
+        localStorage.setItem('customer_data', JSON.stringify(action.payload));
+      }
       return { 
         ...action.payload,
         isRegistered: true 
       };
     case 'UPDATE_CUSTOMER':
       console.log('🔄 CustomerContext: Updating customer', action.payload);
-      return { 
-        ...state, 
-        ...action.payload 
-      };
+      const updatedCustomer = { ...state, ...action.payload };
+      // Persist updates
+      localStorage.setItem('customer_data', JSON.stringify(updatedCustomer));
+      return updatedCustomer;
     case 'CLEAR_CUSTOMER':
       console.log('🧹 CustomerContext: Clearing customer');
+      localStorage.removeItem('customer_data');
       return null;
     case 'SET_LOADING':
       return { 
@@ -52,140 +46,137 @@ const customerReducer = (state, action) => {
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
 
-// In CustomerContext.jsx - FIX registerCustomer function
-const registerCustomer = async (phone, name = '') => {
-  try {
-    console.log('📝 CustomerContext: Registering customer', phone);
-    
-    if (!phone || phone === 'undefined') {
-      throw new Error('Please enter a valid phone number');
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
-    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ phone: cleanPhone, name }),
-    });
-
-    console.log('🔍 Registration Response Status:', response.status);
-    
-    if (!response.ok) {
-      throw new Error(`Registration failed: ${response.status}`);
-    }
-
-    const result = await response.json();
-    console.log('✅ CustomerContext: Registration API result:', result);
-    
-    // 🛠️ FIX: Handle the backend response structure correctly
-    const customerData = result.customer || result;
-    
-    if (!customerData) {
-      throw new Error('No customer data received from server');
-    }
-
-    // 🛠️ FIX: Create proper customer object from backend response
-    const customerPayload = {
-      _id: customerData._id,
-      phone: cleanPhone,
-      name: name || customerData.name || `Customer-${cleanPhone.slice(-4)}`,
-      points: customerData.points || 0,
-      totalOrders: customerData.totalOrders || 0,
-      totalSpent: customerData.totalSpent || 0,
-      isRegistered: true
-    };
-    
-    console.log('✅ CustomerContext: Setting customer payload:', customerPayload);
-    
-    dispatch({ 
-      type: 'SET_CUSTOMER', 
-      payload: customerPayload
-    });
-    
-    return customerPayload;
-  } catch (error) {
-    console.error('❌ CustomerContext: Registration error', error);
-    dispatch({ type: 'SET_ERROR', payload: error.message });
-    throw error;
-  }
-};
-
-// In CustomerContext.jsx - ENHANCED addPoints function
-const addPoints = async (points, orderTotal = 0) => {
-  try {
-    // CRITICAL: Check if we have a valid customer
-    if (!customer?.phone || !validateCustomerPhone(customer.phone)) {
-      console.warn('⚠️ Cannot add points: No valid customer registered');
-      return { success: false, message: 'No customer registered' };
-    }
-
-    console.log('➕ CustomerContext: Adding points', points, 'to customer', customer.phone);
-    
-    const response = await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/customers/${customer.phone}/points`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        points: points,
-        orderTotal: orderTotal
-      }),
-    });
-
-    console.log('📥 Add points response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Add points failed:', errorText);
-      
-      // Try to parse error message
-      let errorMessage = 'Failed to update points';
+  // 🛠️ FIX: Load customer from localStorage on mount
+  useEffect(() => {
+    const loadCustomerFromStorage = () => {
       try {
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.message || errorMessage;
-      } catch {
-        errorMessage = errorText || errorMessage;
+        const storedCustomer = localStorage.getItem('customer_data');
+        if (storedCustomer) {
+          const customerData = JSON.parse(storedCustomer);
+          console.log('📂 Loaded customer from storage:', customerData);
+          dispatch({ type: 'SET_CUSTOMER', payload: customerData });
+        }
+      } catch (error) {
+        console.error('❌ Error loading customer from storage:', error);
+        localStorage.removeItem('customer_data');
       }
-      
-      throw new Error(errorMessage);
-    }
+    };
 
-    const result = await response.json();
-    console.log('✅ CustomerContext: Points added successfully', result);
-    
-    // Update customer with new points
-    if (result.customer) {
-      dispatch({ 
-        type: 'UPDATE_CUSTOMER', 
-        payload: { 
-          ...customer, 
-          points: result.customer.points || (customer.points || 0) + points 
-        }
+    loadCustomerFromStorage();
+  }, []);
+
+  // 🛠️ FIX: Enhanced registerCustomer with proper error handling
+  const registerCustomer = async (phone, name = '') => {
+    try {
+      console.log('📝 CustomerContext: Registering customer', phone);
+      
+      // Validation
+      if (!phone || phone === 'undefined') {
+        throw new Error('Please enter a valid phone number');
+      }
+
+      const cleanPhone = phone.replace(/\D/g, '');
+      
+      if (cleanPhone.length < 10) {
+        throw new Error('Phone number must be at least 10 digits');
+      }
+
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone: cleanPhone, name }),
       });
-    } else {
-      // Fallback: Update points locally
+
+      console.log('🔍 Registration Response Status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Registration failed: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ CustomerContext: Registration API result:', result);
+      
+      // Create customer object
+      const customerPayload = {
+        _id: result.customer?._id || result._id,
+        phone: cleanPhone,
+        name: name || result.customer?.name || result.name || `Customer-${cleanPhone.slice(-4)}`,
+        points: result.customer?.points || result.points || 0,
+        totalOrders: result.customer?.totalOrders || result.totalOrders || 0,
+        totalSpent: result.customer?.totalSpent || result.totalSpent || 0,
+        isRegistered: true
+      };
+      
+      console.log('✅ CustomerContext: Setting customer payload:', customerPayload);
+      
       dispatch({ 
-        type: 'UPDATE_CUSTOMER', 
-        payload: { 
-          ...customer, 
-          points: (customer.points || 0) + points 
-        }
+        type: 'SET_CUSTOMER', 
+        payload: customerPayload
       });
+      
+      return customerPayload;
+    } catch (error) {
+      console.error('❌ CustomerContext: Registration error', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+      throw error;
     }
-    
-    return { success: true, ...result };
-    
-  } catch (error) {
-    console.error('❌ CustomerContext: Add points error', error);
-    // Return failure but don't break the flow
-    return { success: false, message: error.message };
-  }
-};
+  };
+
+  // 🛠️ FIX: Enhanced addPoints with proper validation
+  const addPoints = async (points, orderTotal = 0) => {
+    try {
+      // CRITICAL: Check if we have a valid customer
+      if (!customer?.phone) {
+        console.error('❌ Cannot add points: No customer in context');
+        throw new Error('No customer registered. Please register first.');
+      }
+
+      console.log('➕ CustomerContext: Adding points', points, 'to customer', customer.phone);
+      
+      const response = await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/customers/${customer.phone}/points`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          points: points,
+          orderTotal: orderTotal
+        }),
+      });
+
+      console.log('📥 Add points response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Add points failed:', errorText);
+        throw new Error(`Points update failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ CustomerContext: Points added successfully', result);
+      
+      // Update customer with new points
+      const updatedPoints = result.customer?.points || result.points || (customer.points || 0) + points;
+      
+      dispatch({ 
+        type: 'UPDATE_CUSTOMER', 
+        payload: { 
+          points: updatedPoints
+        }
+      });
+      
+      return { success: true, points: updatedPoints, ...result };
+      
+    } catch (error) {
+      console.error('❌ CustomerContext: Add points error', error);
+      throw error;
+    }
+  };
 
   // Get customer by phone
   const getCustomer = async (phone) => {
@@ -216,29 +207,27 @@ const addPoints = async (points, orderTotal = 0) => {
 
   // Validate if customer exists and has phone
   const validateCustomer = () => {
-    const isValid = !!(customer?.phone && validateCustomerPhone(customer.phone));
+    const isValid = !!(customer?.phone && customer.phone !== 'undefined');
     console.log('🔍 CustomerContext: Validation check', { isValid, customer });
     return isValid;
   };
 
   // Get current customer phone with validation
   const getCustomerPhone = () => {
-    if (!customer?.phone || !validateCustomerPhone(customer.phone)) {
+    if (!customer?.phone || customer.phone === 'undefined') {
       console.error('❌ CustomerContext: No valid customer phone available');
       return null;
     }
     return customer.phone;
   };
 
-  // Update customer after order (without adding points)
+  // 🛠️ FIX: Remove points from order creation - only update stats
   const updateCustomerAfterOrder = (orderTotal = 0) => {
-    // This function now only updates order stats, not points
-    // Points are added separately after payment
     if (customer) {
+      // Only update order stats, NOT points
       dispatch({ 
         type: 'UPDATE_CUSTOMER', 
         payload: {
-          ...customer,
           lastOrder: new Date().toISOString(),
           totalOrders: (customer.totalOrders || 0) + 1,
           totalSpent: (customer.totalSpent || 0) + orderTotal

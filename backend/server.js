@@ -627,7 +627,7 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// ENHANCED ORDER CREATION ENDPOINT - PRODUCTION READY
+// In backend/server.js - ORDER CREATION ENDPOINT
 app.post('/api/orders', async (req, res) => {
   try {
     if (!db) {
@@ -657,7 +657,7 @@ app.post('/api/orders', async (req, res) => {
       });
     }
 
-    // Calculate total with validation
+    // Calculate total
     const total = items.reduce((sum, item) => {
       const price = parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 1;
@@ -683,7 +683,7 @@ app.post('/api/orders', async (req, res) => {
       })),
       total,
       status: 'pending',
-      paymentStatus: 'pending',
+      paymentStatus: 'pending', // 🛠️ IMPORTANT: Start as pending
       orderType: orderType || 'dine-in',
       customerPhone: customerPhone || '',
       customerName: customerName || '',
@@ -698,6 +698,9 @@ app.post('/api/orders', async (req, res) => {
     // Save order to database
     await db.collection('orders').insertOne(order);
     
+    // 🛠️ CRITICAL FIX: REMOVE POINTS FROM ORDER CREATION
+    // Points will be added later during payment processing
+    console.log('ℹ️ Points will be added during payment processing, not order creation');
     
     // Update table status
     console.log('🔄 Updating table status for:', tableId);
