@@ -329,6 +329,7 @@ async function getCustomerByPhone(phone) {
   }
 }
 
+// In backend/server.js - FIX the createOrUpdateCustomer function
 async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTotal = 0) {
   try {
     if (!db) throw new Error('Database not connected');
@@ -338,7 +339,7 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
     
     console.log('🔄 Creating/updating customer:', cleanPhone, 'Points to add:', pointsToAdd);
     
-    // FIXED: Use separate update operations to avoid conflicts
+    // 🛠️ FIX: Use a cleaner update operation to avoid conflicts
     const updateOperations = {
       $set: {
         lastVisit: now,
@@ -346,7 +347,7 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
       },
       $setOnInsert: {
         name: name || `Customer-${cleanPhone.slice(-4)}`,
-        points: 0,
+        points: 0, // Start with 0 points
         totalOrders: 0,
         totalSpent: 0,
         firstVisit: now,
@@ -359,8 +360,10 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
     if (pointsToAdd > 0) {
       updateOperations.$inc = {
         points: pointsToAdd,
-        totalOrders: 1,
-        totalSpent: orderTotal
+        ...(orderTotal > 0 && {
+          totalOrders: 1,
+          totalSpent: orderTotal
+        })
       };
     }
     

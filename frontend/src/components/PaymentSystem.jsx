@@ -48,98 +48,104 @@ const PaymentSystem = ({ orders, payments, setPayments, isMobile, apiConnected, 
     return completed;
   };
 
-  // 🛠️ FIXED: Enhanced processPayment with PROPER points timing
-  const processPayment = async (order, method) => {
-    try {
-      console.log('💳 Processing payment for:', order.orderNumber || order.id);
+// In PaymentSystem.jsx - FIXED processPayment function
+const processPayment = async (order, method) => {
+  // 🛠️ FIX: Declare pointsEarned at the top level
+  let pointsEarned = 0;
+  
+  try {
+    console.log('💳 Processing payment for:', order.orderNumber || order.id);
+    
+    // AUTO-REGISTER CUSTOMER IF NOT EXISTS
+    let customerPhone = null;
+    if (!validateCustomer()) {
+      console.log('🔄 No customer found, auto-registering...');
       
-      // AUTO-REGISTER CUSTOMER IF NOT EXISTS
-      let customerPhone = null;
-      if (!validateCustomer()) {
-        console.log('🔄 No customer found, auto-registering...');
-        
-        // Generate customer phone from table number
-        const tableNumber = order.tableId || order.table;
-        customerPhone = `01${tableNumber.replace(/\D/g, '').padStart(8, '0')}`;
-        
-        try {
-          // Use the imported registerCustomer
-          await registerCustomer(customerPhone, `Table-${tableNumber}-Customer`);
-          console.log('✅ Customer auto-registered:', customerPhone);
-        } catch (regError) {
-          console.log('⚠️ Auto-registration failed, continuing without customer:', regError.message);
-          // Continue payment without customer (no points will be added)
-        }
+      // Generate customer phone from table number
+      const tableNumber = order.tableId || order.table;
+      customerPhone = `01${tableNumber.replace(/\D/g, '').padStart(8, '0')}`;
+      
+      try {
+        await registerCustomer(customerPhone, `Table-${tableNumber}-Customer`);
+        console.log('✅ Customer auto-registered:', customerPhone);
+      } catch (regError) {
+        console.log('⚠️ Auto-registration failed, continuing without customer:', regError.message);
       }
+    }
 
-      const paymentData = {
+    const paymentData = {
+      orderId: order.orderNumber || order.id,
+      amount: order.total,
+      method: method,
+      tableId: order.tableId || order.table
+    };
+
+    let paymentResult;
+
+    // Process payment first
+    if (onProcessPayment && typeof onProcessPayment === 'function') {
+      console.log('🔄 Using enhanced payment processing');
+      paymentResult = await onProcessPayment(order.orderNumber || order.id, order.total, method);
+    } else if (apiConnected) {
+      console.log('🔄 Using original payment processing');
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paymentData),
+      });
+
+      if (!response.ok) throw new Error(`Payment failed: ${response.status}`);
+      paymentResult = await response.json();
+      
+      setPayments(prev => [...prev, paymentResult]);
+    } else {
+      // OFFLINE FALLBACK
+      console.log('🔄 Using offline payment fallback');
+      paymentResult = {
+        _id: Date.now().toString(),
         orderId: order.orderNumber || order.id,
         amount: order.total,
         method: method,
-        tableId: order.tableId || order.table
+        status: 'completed',
+        paidAt: new Date()
       };
+      setPayments(prev => [...prev, paymentResult]);
+    }
 
-      let paymentResult;
+    console.log('✅ Payment successful:', paymentResult);
 
-      // Process payment first
-      if (onProcessPayment && typeof onProcessPayment === 'function') {
-        console.log('🔄 Using enhanced payment processing');
-        paymentResult = await onProcessPayment(order.orderNumber || order.id, order.total, method);
-      } else if (apiConnected) {
-        console.log('🔄 Using original payment processing');
-        const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/payments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(paymentData),
-        });
-
-        if (!response.ok) throw new Error(`Payment failed: ${response.status}`);
-        paymentResult = await response.json();
+    // 🎯 CRITICAL FIX: ADD POINTS AFTER PAYMENT SUCCESS
+    try {
+      // Calculate points based on order total (RM 1 = 1 point)
+      pointsEarned = Math.floor(order.total);
+      
+      if (pointsEarned > 0) {
+        console.log(`🎯 Adding ${pointsEarned} points after payment`);
+        const pointsResult = await addPoints(pointsEarned, order.total);
         
-        setPayments(prev => [...prev, paymentResult]);
-      } else {
-        // OFFLINE FALLBACK
-        console.log('🔄 Using offline payment fallback');
-        paymentResult = {
-          _id: Date.now().toString(),
-          orderId: order.orderNumber || order.id,
-          amount: order.total,
-          method: method,
-          status: 'completed',
-          paidAt: new Date()
-        };
-        setPayments(prev => [...prev, paymentResult]);
-      }
-
-      console.log('✅ Payment successful:', paymentResult);
-
-      // 🎯 CRITICAL FIX: ADD POINTS AFTER PAYMENT SUCCESS (NOT BEFORE)
-      try {
-        // Calculate points based on order total (RM 1 = 1 point)
-        const pointsEarned = Math.floor(order.total);
-        
-        if (pointsEarned > 0) {
-          console.log(`🎯 Adding ${pointsEarned} points after payment`);
-          await addPoints(pointsEarned, order.total);
+        if (pointsResult && !pointsResult.success) {
+          console.log('⚠️ Points addition returned failure:', pointsResult.message);
+        } else {
           console.log('✅ Points added successfully after payment');
         }
-      } catch (pointsError) {
-        console.log('⚠️ Points addition failed, but payment was successful:', pointsError.message);
-        // Don't fail the payment if points addition fails
       }
-
-      setShowPaymentModal(false);
-      setSelectedOrder(null);
-      
-      alert(`Payment of RM ${order.total.toFixed(2)} processed successfully! ${pointsEarned > 0 ? `You earned ${pointsEarned} points!` : ''}`);
-
-    } catch (error) {
-      console.error('❌ Payment error:', error);
-      alert(`Payment failed: ${error.message}`);
+    } catch (pointsError) {
+      console.log('⚠️ Points addition failed, but payment was successful:', pointsError.message);
     }
-  };
+
+    setShowPaymentModal(false);
+    setSelectedOrder(null);
+    
+    // 🛠️ FIX: pointsEarned is now accessible here
+    alert(`Payment of RM ${order.total.toFixed(2)} processed successfully! ${pointsEarned > 0 ? `You earned ${pointsEarned} points!` : ''}`);
+
+  } catch (error) {
+    console.error('❌ Payment error:', error);
+    alert(`Payment failed: ${error.message}`);
+  }
+};
 
   const pendingPayments = getPendingPayments();
   const completedPayments = getCompletedPayments();

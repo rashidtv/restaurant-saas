@@ -29,49 +29,54 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
     }
   }, [showOrderModal, selectedTable, menuItems]);
 
-  // Update table status function
-  const updateTableStatus = async (tableId, newStatus) => {
-    console.log('🔄 Updating table status:', tableId, 'to', newStatus);
-    
-    try {
-      setTables(prevTables => prevTables.map(table => {
-        if (table._id === tableId || table.id === tableId) {
-          const updatedTable = { 
-            ...table, 
-            status: newStatus
-          };
-          
-          if (newStatus === 'available') {
-            updatedTable.lastCleaned = new Date().toISOString();
-            updatedTable.orderId = null;
-            updatedTable.currentOrder = null;
-            console.log('✅ Cleared order data for table:', table.number);
-          }
-          
-          return updatedTable;
-        }
-        return table;
-      }));
-
-      if (apiConnected) {
-        await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/tables/${tableId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            status: newStatus,
-            ...(newStatus === 'available' && { 
-              orderId: null,
-              lastCleaned: new Date().toISOString()
-            })
-          })
-        });
+// In TableManagement.jsx - ENHANCED updateTableStatus
+const updateTableStatus = async (tableId, newStatus) => {
+  console.log('🔄 Updating table status:', tableId, 'to', newStatus);
+  
+  try {
+    // Update local state immediately for better UX
+    setTables(prevTables => prevTables.map(table => {
+      if (table._id === tableId || table.id === tableId) {
+        console.log('✅ Updating local table state:', table.number, '→', newStatus);
+        return { 
+          ...table, 
+          status: newStatus,
+          updatedAt: new Date().toISOString()
+        };
       }
-    } catch (error) {
-      console.error('❌ Error updating table status:', error);
+      return table;
+    }));
+
+    // Only call API if connected
+    if (apiConnected) {
+      console.log('📤 Calling table update API...');
+      const response = await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/tables/${tableId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          updatedAt: new Date().toISOString()
+        })
+      });
+
+      console.log('📥 Table update response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Table update failed:', errorText);
+        // Don't revert local state - keep it for better UX
+      } else {
+        const updatedTable = await response.json();
+        console.log('✅ Table update successful:', updatedTable);
+      }
     }
-  };
+  } catch (error) {
+    console.error('❌ Error in updateTableStatus:', error);
+    // Don't break the app - local state is already updated
+  }
+};
 
   const getCleaningStatus = (lastCleaned) => {
     const hoursSinceCleaned = (new Date() - new Date(lastCleaned)) / (1000 * 60 * 60);

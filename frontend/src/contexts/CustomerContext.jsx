@@ -105,66 +105,77 @@ export const CustomerProvider = ({ children }) => {
     }
   };
 
-  // 🛠️ FIXED: Enhanced addPoints function with better error handling
-  const addPoints = async (points, orderTotal = 0) => {
-    try {
-      // CRITICAL: Check if we have a valid customer
-      if (!customer?.phone || !validateCustomerPhone(customer.phone)) {
-        console.warn('⚠️ Cannot add points: No valid customer registered');
-        return { success: false, message: 'No customer registered' };
-      }
-
-      console.log('➕ CustomerContext: Adding points', points, 'to customer', customer.phone);
-      
-      const response = await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/customers/${customer.phone}/points`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          points: points,
-          orderTotal: orderTotal
-        }),
-      });
-
-      console.log('📥 Add points response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Add points failed:', errorText);
-        throw new Error('Failed to update points');
-      }
-
-      const result = await response.json();
-      console.log('✅ CustomerContext: Points added successfully', result);
-      
-      // Update customer with new points
-      if (result.customer) {
-        dispatch({ 
-          type: 'UPDATE_CUSTOMER', 
-          payload: { 
-            ...customer, 
-            points: result.customer.points || (customer.points || 0) + points 
-          }
-        });
-      } else {
-        // Fallback: Update points locally
-        dispatch({ 
-          type: 'UPDATE_CUSTOMER', 
-          payload: { 
-            ...customer, 
-            points: (customer.points || 0) + points 
-          }
-        });
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('❌ CustomerContext: Add points error', error);
-      // Don't throw error - just return failure
-      return { success: false, message: error.message };
+// In CustomerContext.jsx - ENHANCED addPoints function
+const addPoints = async (points, orderTotal = 0) => {
+  try {
+    // CRITICAL: Check if we have a valid customer
+    if (!customer?.phone || !validateCustomerPhone(customer.phone)) {
+      console.warn('⚠️ Cannot add points: No valid customer registered');
+      return { success: false, message: 'No customer registered' };
     }
-  };
+
+    console.log('➕ CustomerContext: Adding points', points, 'to customer', customer.phone);
+    
+    const response = await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/customers/${customer.phone}/points`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        points: points,
+        orderTotal: orderTotal
+      }),
+    });
+
+    console.log('📥 Add points response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Add points failed:', errorText);
+      
+      // Try to parse error message
+      let errorMessage = 'Failed to update points';
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    console.log('✅ CustomerContext: Points added successfully', result);
+    
+    // Update customer with new points
+    if (result.customer) {
+      dispatch({ 
+        type: 'UPDATE_CUSTOMER', 
+        payload: { 
+          ...customer, 
+          points: result.customer.points || (customer.points || 0) + points 
+        }
+      });
+    } else {
+      // Fallback: Update points locally
+      dispatch({ 
+        type: 'UPDATE_CUSTOMER', 
+        payload: { 
+          ...customer, 
+          points: (customer.points || 0) + points 
+        }
+      });
+    }
+    
+    return { success: true, ...result };
+    
+  } catch (error) {
+    console.error('❌ CustomerContext: Add points error', error);
+    // Return failure but don't break the flow
+    return { success: false, message: error.message };
+  }
+};
 
   // Get customer by phone
   const getCustomer = async (phone) => {
