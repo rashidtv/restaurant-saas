@@ -466,8 +466,7 @@ app.get('/api/health', async (req, res) => {
 
 // ==================== CUSTOMER ENDPOINTS ====================
 
-// 🎯 PRODUCTION: Customer Registration with Redis Session
-// 🎯 PRODUCTION: Customer Registration with Redis Session
+// 🎯 PRODUCTION: Customer Registration with Fixed Cookie Settings
 app.post('/api/customers/register', async (req, res) => {
   try {
     console.log('📝 Registration request received:', req.body);
@@ -480,25 +479,7 @@ app.post('/api/customers/register', async (req, res) => {
         message: 'Phone number is required' 
       });
     }
-    console.log('🍪 Setting cookie for domain:', '.onrender.com');
-    console.log('🍪 Cookie settings:', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 24 * 60 * 60 * 1000,
-      path: '/',
-      domain: '.onrender.com'
-    });
-    
-   // Enhanced cookie settings in registration endpoint
-res.cookie('customerSession', sessionId, {
-  httpOnly: true,
-  secure: true, // Must be true for HTTPS
-  sameSite: 'none', // Required for cross-site
-  maxAge: 24 * 60 * 60 * 1000,
-  path: '/',
-  domain: '.onrender.com' // Use your Render domain
-});
+
     const cleanPhone = phone.replace(/\D/g, '');
     
     if (cleanPhone.length < 10) {
@@ -508,9 +489,7 @@ res.cookie('customerSession', sessionId, {
       });
     }
 
-    // 🛠️ FIX: Pass empty string if no name provided to avoid default name conflict
     const customerName = name && name.trim() !== '' ? name : '';
-    
     const customer = await createOrUpdateCustomer(cleanPhone, customerName);
     
     // Generate secure session ID
@@ -527,15 +506,22 @@ res.cookie('customerSession', sessionId, {
       })
     );
     
-  // Update cookie settings for cross-domain
-res.cookie('customerSession', sessionId, {
-  httpOnly: true,
-  secure: true, // Must be true in production
-  sameSite: 'none', // Required for cross-site cookies
-  maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  path: '/',
-  domain: '.onrender.com' // Use your actual domain
-});
+    // 🛠️ FIXED: Production cookie settings
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction, // true in production, false in development
+      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: '/',
+    };
+    
+    // Only set domain in production for Render
+    if (isProduction) {
+      cookieOptions.domain = '.onrender.com';
+    }
+    
+    res.cookie('customerSession', sessionId, cookieOptions);
     
     console.log('✅ Customer registered with Redis session:', cleanPhone);
     
@@ -559,6 +545,15 @@ res.cookie('customerSession', sessionId, {
       message: 'Registration failed: ' + error.message 
     });
   }
+});
+
+// Add this endpoint for basic connectivity test
+app.get('/api/ping', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Backend is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // 🎯 PRODUCTION: Get Current Customer (Session Validation)

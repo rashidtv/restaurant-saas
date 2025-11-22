@@ -1,159 +1,102 @@
+import { apiClient } from './apiClient';
 import { CONFIG } from '../constants/config';
 
 class CustomerService {
-  constructor() {
-    this.baseURL = CONFIG.API_BASE_URL;
-    this.sessionKey = 'customer_session';
+  async registerCustomer(phone, name = '') {
+    try {
+      console.log('🔧 Attempting customer registration:', phone);
+      
+      const result = await apiClient.post('/api/customers/register', {
+        phone,
+        name: name || `Customer-${phone.slice(-4)}`
+      });
+
+      if (!result.success) {
+        throw new Error(result.message || 'Registration failed');
+      }
+
+      console.log('✅ Customer registered successfully:', phone);
+      return result.customer;
+
+    } catch (error) {
+      console.error('❌ Customer registration failed:', error);
+      throw error;
+    }
   }
 
-async registerCustomer(phone) {
-  try {
-    console.log('🔧 Attempting customer registration:', phone);
-    
-    const response = await fetch(`${this.baseURL}/api/customers/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ phone }),
-      timeout: 10000 // 10 second timeout
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Registration failed: ${response.status}`);
+  async getCurrentCustomer() {
+    try {
+      const result = await apiClient.get('/api/customers/me');
+      
+      if (result.success && result.customer) {
+        return result.customer;
+      }
+      return null;
+    } catch (error) {
+      console.log('ℹ️ No active customer session');
+      return null;
     }
-
-    const customer = await response.json();
-
-    
-    console.log('✅ Customer registered successfully:', phone);
-    return customer;
-  } catch (error) {
-    console.error('❌ Customer registration failed:', error);
-    
-    // 🎯 PRODUCTION: Provide specific error messages
-    if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
-      throw new Error('Network error. Please check your connection and try again.');
-    }
-    
-    if (error.message.includes('404') || error.message.includes('Not Found')) {
-      throw new Error('Registration service is currently unavailable. Please contact staff.');
-    }
-    
-    throw new Error(error.message || 'Registration failed. Please try again.');
   }
-}
+
+  async addPoints(pointsToAdd, orderTotal = 0) {
+    try {
+      const result = await apiClient.post(`/api/customers/${this.currentCustomer.phone}/points`, {
+        points: pointsToAdd,
+        orderTotal: orderTotal
+      });
+
+      if (!result.success) {
+        throw new Error(result.message || 'Points update failed');
+      }
+
+      return result.customer.points;
+    } catch (error) {
+      console.error('❌ Failed to add points:', error);
+      throw error;
+    }
+  }
+
+  async logout() {
+    try {
+      await apiClient.post('/api/customers/logout');
+      console.log('✅ Customer logged out successfully');
+    } catch (error) {
+      console.warn('Logout API call failed:', error);
+    }
+  }
+
+  async getCustomerOrders(phone) {
+    try {
+      console.log('📋 Fetching orders for customer:', phone);
+      const orders = await apiClient.get(`/api/customers/${phone}/orders`);
+      console.log('✅ Retrieved customer orders:', orders.length);
+      return orders;
+    } catch (error) {
+      console.error('❌ Failed to fetch customer orders:', error);
+      return [];
+    }
+  }
+
+  async refreshCustomerData(phone) {
+    try {
+      console.log('🔄 Refreshing customer data for:', phone);
+      const customer = await this.getCustomer(phone);
+      console.log('✅ Customer data refreshed, points:', customer?.points);
+      return customer;
+    } catch (error) {
+      console.error('Failed to refresh customer data:', error);
+      return null;
+    }
+  }
 
   async getCustomer(phone) {
     try {
-      const response = await fetch(`${this.baseURL}/api/customers/${phone}`);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null; // Customer not found
-        }
-        throw new Error('Failed to fetch customer data');
-      }
-
-      return await response.json();
+      return await apiClient.get(`/api/customers/${phone}`);
     } catch (error) {
       console.error('Failed to fetch customer:', error);
-      throw new Error('Unable to load customer data. Please check your connection.');
+      return null;
     }
-  }
-
-  async addPoints(phone, pointsToAdd, orderTotal = 0) {
-    try {
-      const response = await fetch(`${this.baseURL}/api/customers/${phone}/points`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          points: pointsToAdd,
-          orderTotal: orderTotal
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update points');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Failed to add points:', error);
-      throw new Error('Points update failed. Please contact staff.');
-    }
-  }
-
- // Update the getCustomerOrders method
-async getCustomerOrders(phone) {
-  try {
-    console.log('📋 Fetching orders for customer:', phone);
-    const response = await fetch(`${this.baseURL}/api/customers/${phone}/orders`);
-    
-    if (!response.ok) {
-      // If endpoint returns 404, try the alternative endpoint
-      if (response.status === 404) {
-        console.log('Customer orders endpoint not found, trying alternative endpoint');
-        return this.getCustomerOrdersAlternative(phone);
-      }
-      throw new Error(`Failed to fetch customer orders: ${response.status}`);
-    }
-
-    const orders = await response.json();
-    console.log('✅ Retrieved customer orders:', orders.length);
-    return orders;
-  } catch (error) {
-    console.error('❌ Failed to fetch customer orders:', error);
-    // Try alternative method as fallback
-    return this.getCustomerOrdersAlternative(phone);
   }
 }
 
-// 🎯 NEW: Refresh customer data after points update
-async refreshCustomerData(phone) {
-  try {
-    console.log('🔄 Refreshing customer data for:', phone);
-    
-    const customerData = await this.getCustomer(phone);
-    if (customerData) {
-      // Update session with fresh data
-      console.log('✅ Customer data refreshed, points:', customerData.points);
-      return customerData;
-    }
-    return null;
-  } catch (error) {
-    console.error('Failed to refresh customer data:', error);
-    throw new Error('Unable to refresh customer data');
-  }
-}
-
-// Alternative method to get customer orders
-async getCustomerOrdersAlternative(phone) {
-  try {
-    // Get all orders and filter by customer phone
-    const response = await fetch(`${this.baseURL}/api/orders`);
-    if (!response.ok) throw new Error('Failed to fetch orders');
-    
-    const allOrders = await response.json();
-    const customerOrders = allOrders.filter(order => 
-      order.customerPhone === phone
-    );
-    
-    console.log('✅ Retrieved customer orders (alternative):', customerOrders.length);
-    return customerOrders;
-  } catch (error) {
-    console.error('❌ Alternative method failed:', error);
-    return [];
-  }
-}
-
-  generateSessionId() {
-    return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-}
-
-// Create singleton instance
 export const customerService = new CustomerService();

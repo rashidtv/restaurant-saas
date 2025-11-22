@@ -1,8 +1,21 @@
 export const CONFIG = {
-  API_BASE_URL: process.env.NODE_ENV === 'production' 
-    ? 'https://restaurant-saas-backend-hbdz.onrender.com'
-    : 'https://restaurant-saas-backend-hbdz.onrender.com',
+  API_BASE_URL: import.meta.env.VITE_API_URL || 'https://restaurant-saas-backend-hbdz.onrender.com',
+  SOCKET_URL: import.meta.env.VITE_SOCKET_URL || 'https://restaurant-saas-backend-hbdz.onrender.com',
   
+  // Add production cookie settings
+  COOKIE_SETTINGS: {
+    domain: '.onrender.com',
+    secure: true,
+    sameSite: 'none'
+  },
+  
+  // Socket.IO configuration
+  SOCKET: {
+    RECONNECTION_ATTEMPTS: 5,
+    RECONNECTION_DELAY: 1000,
+    TIMEOUT: 10000
+  },
+
   STORAGE_KEYS: {
     CUSTOMER: 'flavorflow_customer',
     SESSION: 'flavorflow_session',

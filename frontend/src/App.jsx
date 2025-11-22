@@ -60,60 +60,25 @@ function App() {
     }
   };
 
-  // WebSocket initialization
-  useEffect(() => {
-    console.log('🔌 Initializing WebSocket connection...');
-    
-    let socketInstance;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 3;
+useEffect(() => {
+  const initializeWebSocket = async () => {
+    try {
+      await socketService.connect();
+      const socket = socketService.socket;
+      setSocket(socket);
 
-    const initializeWebSocket = async () => {
-      try {
-        const socketIO = await import('socket.io-client');
-        const io = socketIO.default || socketIO;
-        
-        socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
-          transports: ['websocket', 'polling'],
-          timeout: 10000,
-          reconnectionAttempts: maxReconnectAttempts
+      // Set up event listeners
+      socketService.on('newOrder', (order) => {
+        if (!order || !order.orderNumber) {
+          console.error('❌ Received invalid new order via WebSocket:', order);
+          return;
+        }
+        console.log('📦 New order received via WebSocket:', order.orderNumber);
+        setOrders(prev => {
+          const exists = prev.some(o => o && o._id === order._id);
+          return exists ? prev : [...prev, order];
         });
-
-        setSocket(socketInstance);
-
-        socketInstance.on('connect', () => {
-          console.log('🔌 Connected to backend via WebSocket');
-          setApiConnected(true);
-          reconnectAttempts = 0;
-          window.socket = socketInstance;
-        });
-
-        socketInstance.on('connect_error', (error) => {
-          console.log('❌ WebSocket connection error:', error.message);
-          reconnectAttempts++;
-          
-          if (reconnectAttempts >= maxReconnectAttempts) {
-            console.log('⚠️ Max WebSocket reconnection attempts reached, using HTTP fallback');
-          }
-        });
-
-        socketInstance.on('disconnect', (reason) => {
-          console.log('❌ WebSocket disconnected:', reason);
-        });
-
-      socketInstance.on('newOrder', (order) => {
-  // ADD NULL CHECK
-  if (!order || !order.orderNumber) {
-    console.error('❌ Received invalid new order via WebSocket:', order);
-    return;
-  }
-  
-  console.log('📦 New order received via WebSocket:', order.orderNumber);
-  setOrders(prev => {
-    const exists = prev.some(o => o && o._id === order._id);
-    return exists ? prev : [...prev, order];
-  });
-});
+      });
 
         socketInstance.on('orderUpdated', (updatedOrder) => {
   // ADD NULL CHECK

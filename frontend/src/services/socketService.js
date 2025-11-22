@@ -1,79 +1,54 @@
+import { CONFIG } from '../constants/config';
+
 class SocketService {
   constructor() {
     this.socket = null;
     this.isConnected = false;
-    this.eventHandlers = new Map();
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
   }
 
-  async connect(backendUrl) {
-    if (this.socket && this.isConnected) {
-      console.log('🔌 WebSocket already connected');
-      return this.socket;
-    }
+  connect() {
+    return new Promise((resolve, reject) => {
+      try {
+        console.log('🔌 Connecting to WebSocket...');
+        
+        this.socket = io(CONFIG.SOCKET_URL, {
+          transports: ['websocket', 'polling'],
+          timeout: 10000,
+          reconnectionAttempts: this.maxReconnectAttempts,
+          reconnectionDelay: 1000,
+          withCredentials: true
+        });
 
-    try {
-      // Dynamic import to avoid SSR/build issues
-      const socketIO = await import('socket.io-client');
-      const io = socketIO.default || socketIO;
+        this.socket.on('connect', () => {
+          console.log('✅ WebSocket connected successfully');
+          this.isConnected = true;
+          this.reconnectAttempts = 0;
+          resolve(this.socket);
+        });
 
-      this.socket = io(backendUrl, {
-        transports: ['websocket', 'polling'],
-        timeout: 10000,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-      });
+        this.socket.on('connect_error', (error) => {
+          console.error('❌ WebSocket connection error:', error.message);
+          this.isConnected = false;
+          this.reconnectAttempts++;
+          
+          if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.warn('⚠️ Max WebSocket reconnection attempts reached');
+            reject(error);
+          }
+        });
 
-      this.setupEventHandlers();
-      return this.socket;
-    } catch (error) {
-      console.error('🔌 Failed to initialize WebSocket:', error);
-      return null;
-    }
-  }
+        this.socket.on('disconnect', (reason) => {
+          console.log('🔌 WebSocket disconnected:', reason);
+          this.isConnected = false;
+        });
 
-  setupEventHandlers() {
-    if (!this.socket) return;
-
-    this.socket.on('connect', () => {
-      console.log('🔌 WebSocket connected successfully');
-      this.isConnected = true;
+      } catch (error) {
+        console.error('🚨 WebSocket initialization error:', error);
+        reject(error);
+      }
     });
-
-    this.socket.on('disconnect', (reason) => {
-      console.log('🔌 WebSocket disconnected:', reason);
-      this.isConnected = false;
-    });
-
-    this.socket.on('connect_error', (error) => {
-      console.error('🔌 WebSocket connection error:', error);
-      this.isConnected = false;
-    });
-
-    // Register all custom event handlers
-    this.eventHandlers.forEach((handler, event) => {
-      this.socket.on(event, handler);
-    });
-  }
-
-  on(event, handler) {
-    this.eventHandlers.set(event, handler);
-    if (this.socket) {
-      this.socket.on(event, handler);
-    }
-  }
-
-  off(event, handler) {
-    this.eventHandlers.delete(event);
-    if (this.socket) {
-      this.socket.off(event, handler);
-    }
-  }
-
-  emit(event, data) {
-    if (this.socket && this.isConnected) {
-      this.socket.emit(event, data);
-    }
   }
 
   disconnect() {
@@ -81,20 +56,29 @@ class SocketService {
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
-      this.eventHandlers.clear();
       console.log('🔌 WebSocket disconnected');
     }
   }
 
-  getSocket() {
-    return this.socket;
+  on(event, callback) {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
   }
 
-  getIsConnected() {
-    return this.isConnected;
+  off(event, callback) {
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
+  }
+
+  emit(event, data) {
+    if (this.socket && this.isConnected) {
+      this.socket.emit(event, data);
+    } else {
+      console.warn('⚠️ WebSocket not connected, cannot emit:', event);
+    }
   }
 }
 
-// Singleton instance
 export const socketService = new SocketService();
-export default socketService;

@@ -35,6 +35,46 @@ export const DigitalMenu = ({
     getCustomerOrders
   } = customerHook;
 
+
+  // Add this function inside the DigitalMenu component, after the hooks
+const handleAddToCart = useCallback((item, quantity = 1) => {
+  console.log('🛒 Adding to cart:', item.name, 'Quantity:', quantity);
+  
+  if (!item || !item.id) {
+    console.error('❌ Invalid item for cart:', item);
+    return;
+  }
+  
+  // Use the cart hook's addToCart function
+  addToCart(item, quantity);
+  
+  // Auto-open cart on mobile after adding first item
+  if (getItemCount() === 0 && isMobile) {
+    setIsCartOpen(true);
+  }
+}, [addToCart, getItemCount, isMobile, setIsCartOpen]);
+
+// Also add the missing handleRegistration function
+const handleRegistration = useCallback(async (phone, name) => {
+  try {
+    console.log('📝 Processing registration for:', phone);
+    
+    const registeredCustomer = await registerCustomer(phone, name);
+    
+    if (registeredCustomer) {
+      console.log('✅ Registration successful:', registeredCustomer.phone);
+      setShowRegistration(false);
+      setShowWelcome(false);
+      
+      // Refresh customer data
+      await refreshCustomerData();
+    }
+  } catch (error) {
+    console.error('❌ Registration failed:', error);
+    alert(`Registration failed: ${error.message}`);
+  }
+}, [registerCustomer, refreshCustomerData]);
+
   const { orders, isLoading: ordersLoading, loadTableOrders, createOrder: createOrderAPI } = useOrders();
   const { 
     cart, 
