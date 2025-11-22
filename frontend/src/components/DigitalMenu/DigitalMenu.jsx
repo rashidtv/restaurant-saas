@@ -269,7 +269,7 @@ useEffect(() => {
     }
   }, [registerCustomer]);
 
-// In frontend/src/components/DigitalMenu/DigitalMenu.jsx
+// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - FIX handlePlaceOrder
 const handlePlaceOrder = useCallback(async () => {
   if (cart.length === 0) {
     alert('Your cart is empty. Please add some items first.');
@@ -291,7 +291,7 @@ const handlePlaceOrder = useCallback(async () => {
 
   try {
     const orderData = cart.map(item => ({
-      menuItemId: item.id,
+      menuItemId: item.menuItemId || item.id,
       name: item.name,
       price: parseFloat(item.price),
       quantity: item.quantity,
@@ -301,25 +301,34 @@ const handlePlaceOrder = useCallback(async () => {
     const orderTotal = getCartTotal();
     const pointsEarned = pointsService.calculatePointsFromOrder(orderTotal);
 
-    // 🛠️ FIX: Pass customer data to order creation
-    const orderResult = onCreateOrder 
-      ? await onCreateOrder(selectedTable, orderData, 'dine-in', { 
-          customerPhone: customer.phone,
-          customerName: customer.name 
-        })
-      : await createOrderAPI({
-          tableId: selectedTable,
-          items: orderData,
-          orderType: 'dine-in',
-          customerPhone: customer.phone, // 🎯 CRITICAL
-          customerName: customer.name,   // 🎯 CRITICAL
-          status: 'pending'
-        });
+    console.log('🎯 Creating order with customer:', customer.phone);
 
-    if (orderResult && orderResult.success !== false) {
-      // 🛠️ FIX: Update customer stats and add points
-      await updateCustomerAfterOrder(orderTotal);
-      await addPoints(pointsEarned, orderTotal); // Pass orderTotal for stats
+    // 🛠️ FIX: Pass customer data properly
+    const orderResult = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        tableId: selectedTable,
+        items: orderData,
+        orderType: 'dine-in',
+        customerPhone: customer.phone, // 🎯 CRITICAL
+        customerName: customer.name    // 🎯 CRITICAL
+      })
+    });
+
+    if (!orderResult.ok) {
+      const errorData = await orderResult.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || 'Failed to place order');
+    }
+
+    const result = await orderResult.json();
+    
+    if (result.success) {
+      // Add points after successful order
+      await addPoints(pointsEarned, orderTotal);
       
       clearCart();
       setIsCartOpen(false);
@@ -329,10 +338,9 @@ const handlePlaceOrder = useCallback(async () => {
       const updatedCustomerOrders = await getCustomerOrders();
       setCustomerOrders(updatedCustomerOrders);
       
-      const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
-      alert(`Order #${orderNumber} placed successfully! You earned ${pointsEarned} points.`);
+      alert(`Order #${result.orderNumber} placed successfully! You earned ${pointsEarned} points.`);
     } else {
-      throw new Error(orderResult?.message || 'Failed to place order');
+      throw new Error(result.message || 'Failed to place order');
     }
   } catch (error) {
     console.error('Order placement error:', error);
@@ -340,7 +348,7 @@ const handlePlaceOrder = useCallback(async () => {
   } finally {
     setIsPlacingOrder(false);
   }
-}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, createOrderAPI, updateCustomerAfterOrder, addPoints, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
+}, [cart, selectedTable, customer, getCartTotal, addPoints, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
 
   // Fixed cart toggle function
   const toggleCart = useCallback(() => {

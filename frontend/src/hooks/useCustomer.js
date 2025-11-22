@@ -1,6 +1,5 @@
-// frontend/src/hooks/useCustomer.js - PRODUCTION READY
+// frontend/src/hooks/useCustomer.js - FIXED VERSION
 import { useState, useEffect, useCallback } from 'react';
-import { customerService } from '../services/customerService';
 import { validatePhoneNumber } from '../utils/validators';
 import { CONFIG } from '../constants/config';
 
@@ -10,7 +9,7 @@ export const useCustomer = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 🎯 PRODUCTION: Check active session on component mount
+  // Check active session on component mount
   useEffect(() => {
     const checkActiveSession = async () => {
       try {
@@ -21,7 +20,7 @@ export const useCustomer = () => {
         
         const response = await fetch(`${CONFIG.API_BASE_URL}/api/customers/me`, {
           method: 'GET',
-          credentials: 'include', // 🎯 CRITICAL: Send cookies
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -38,14 +37,12 @@ export const useCustomer = () => {
             console.log('ℹ️ No active customer session found');
           }
         } else if (response.status === 401) {
-          // No session - this is normal for new users
           console.log('ℹ️ No authenticated session (new user)');
         } else {
           console.warn('⚠️ Session check returned:', response.status);
         }
       } catch (error) {
         console.error('❌ Session check failed:', error);
-        // Don't show error to user - this is a background check
       } finally {
         setIsLoading(false);
       }
@@ -54,13 +51,12 @@ export const useCustomer = () => {
     checkActiveSession();
   }, []);
 
-  // 🎯 PRODUCTION: Register customer with session
+  // Register customer with session
   const registerCustomer = useCallback(async (phone, name = '') => {
     try {
       setError(null);
       setIsLoading(true);
       
-      // Validation
       if (!validatePhoneNumber(phone)) {
         throw new Error('Please enter a valid phone number (at least 10 digits)');
       }
@@ -77,7 +73,7 @@ export const useCustomer = () => {
           phone: cleanPhone, 
           name: name || `Customer-${cleanPhone.slice(-4)}` 
         }),
-        credentials: 'include', // 🎯 CRITICAL: Store session cookie
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -91,7 +87,6 @@ export const useCustomer = () => {
         throw new Error(result.message || 'Registration failed');
       }
 
-      // Set customer state
       setCustomer(result.customer);
       setPoints(result.customer.points || 0);
       
@@ -107,7 +102,7 @@ export const useCustomer = () => {
     }
   }, []);
 
-  // 🎯 PRODUCTION: Add points with session validation
+  // Add points with session validation
   const addPoints = useCallback(async (pointsToAdd, orderTotal = 0) => {
     if (!customer) {
       throw new Error('No customer found. Please register first.');
@@ -125,7 +120,7 @@ export const useCustomer = () => {
           points: pointsToAdd,
           orderTotal: orderTotal
         }),
-        credentials: 'include', // 🎯 CRITICAL: Include session
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -139,7 +134,6 @@ export const useCustomer = () => {
         throw new Error(result.message || 'Points update failed');
       }
 
-      // Update local state
       setCustomer(result.customer);
       setPoints(result.customer.points);
       
@@ -153,21 +147,18 @@ export const useCustomer = () => {
     }
   }, [customer]);
 
-  // 🎯 PRODUCTION: Logout customer
+  // Logout customer
   const clearCustomer = useCallback(async () => {
     try {
       console.log('🚪 Logging out customer...');
       
-      // Call logout endpoint to clear server session
       await fetch(`${CONFIG.API_BASE_URL}/api/customers/logout`, {
         method: 'POST',
         credentials: 'include',
       }).catch(error => {
         console.warn('Logout API call failed:', error);
-        // Continue with client-side cleanup anyway
       });
 
-      // Clear client state
       setCustomer(null);
       setPoints(0);
       setError(null);
@@ -176,13 +167,12 @@ export const useCustomer = () => {
       
     } catch (error) {
       console.error('❌ Logout error:', error);
-      // Still clear local state even if API call fails
       setCustomer(null);
       setPoints(0);
     }
   }, []);
 
-  // 🎯 PRODUCTION: Refresh customer data
+  // Refresh customer data - FIXED (no saveSession)
   const refreshCustomerData = useCallback(async () => {
     if (!customer) return null;
     
@@ -211,7 +201,7 @@ export const useCustomer = () => {
     }
   }, [customer]);
 
-  // 🎯 PRODUCTION: Get customer orders via session
+  // Get customer orders via session
   const getCustomerOrders = useCallback(async () => {
     if (!customer) {
       console.log('❌ No customer found for orders');
@@ -239,7 +229,7 @@ export const useCustomer = () => {
     }
   }, [customer]);
 
-  // 🎯 PRODUCTION: Update customer after order (local state only)
+  // Update customer after order (local state only)
   const updateCustomerAfterOrder = useCallback(async (orderTotal) => {
     if (!customer) return;
 
@@ -254,16 +244,6 @@ export const useCustomer = () => {
     
     setCustomer(updatedCustomer);
     return updatedCustomer;
-  }, [customer]);
-
-  // 🎯 PRODUCTION: Check if customer has valid session
-  const hasValidSession = useCallback(() => {
-    return !!customer;
-  }, [customer]);
-
-  // 🎯 PRODUCTION: Get customer phone safely
-  const getCustomerPhone = useCallback(() => {
-    return customer?.phone || null;
   }, [customer]);
 
   return {
@@ -283,8 +263,8 @@ export const useCustomer = () => {
     
     // Utilities
     hasCustomer: !!customer,
-    customerPhone: getCustomerPhone(),
-    hasValidSession: hasValidSession(),
+    customerPhone: customer?.phone || null,
+    hasValidSession: !!customer,
     
     // Status
     isRegistered: !!customer,
