@@ -1,136 +1,137 @@
-import React, { useState, useEffect } from 'react';
-import { validatePhoneNumber } from '../../utils/validators';
-import './styles.css';
+import React, { useState } from 'react';
+import { validatePhoneNumber, validateName } from '../../utils/validators';
 
-export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
+const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
   const [phone, setPhone] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isVisible, setIsVisible] = useState(false);
-
-  // Smooth entrance animation
-  useEffect(() => {
-    const timer = setTimeout(() => setIsVisible(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    if (!validatePhoneNumber(phone)) {
-      setError('Please enter a valid 10-digit phone number');
+
+    // 🎯 FIX: Ensure phone is treated as string
+    const phoneString = String(phone).trim();
+    const nameString = String(name).trim();
+
+    if (!validatePhoneNumber(phoneString)) {
+      setError('Please enter a valid phone number (at least 10 digits)');
       return;
     }
 
-    setIsSubmitting(true);
+    if (!validateName(nameString)) {
+      setError('Please enter your name (at least 2 characters)');
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      await onRegister({ phone: phone.trim() });
-    } catch (error) {
-      console.error('Registration failed:', error);
-      setError(error.message || 'Unable to register. Please try again.');
+      console.log('📝 Registration submitted:', { phone: phoneString, name: nameString });
+      
+      // 🎯 FIX: Pass plain string values
+      await onRegister(phoneString, nameString);
+      
+      // Modal will close on successful registration
+    } catch (err) {
+      console.error('Registration error:', err);
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
-  };
-
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
-
-  const handleClose = () => {
-    setIsVisible(false);
-    setTimeout(onClose, 300); // Wait for animation to complete
   };
 
   const handlePhoneChange = (e) => {
-    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    setPhone(value);
-    if (error) setError('');
+    const value = e.target.value;
+    // Allow only numbers and common phone characters
+    const cleanValue = value.replace(/[^\d\s\-\+\(\)]/g, '');
+    setPhone(cleanValue);
+    setError('');
+  };
+
+  const handleNameChange = (e) => {
+    setName(e.target.value);
+    setError('');
   };
 
   return (
-    <div className={`modal-overlay registration-overlay ${isVisible ? 'visible' : ''}`} onClick={handleOverlayClick}>
-      <div className="modal registration-modal">
-        {/* Clean Header */}
+    <div className="registration-modal-overlay">
+      <div className="registration-modal">
         <div className="modal-header">
-          <div className="modal-icon">📱</div>
-          <h2>Table {selectedTable}!</h2>
-          <p>Enter number to continue</p>
+          <h2>Join FlavorFlow Rewards</h2>
+          <p>Register to earn points and track your orders</p>
+          {selectedTable && (
+            <div className="table-badge">Table {selectedTable}</div>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-form">
-          {error && (
-            <div className="error-message" role="alert">
-              ⚠️ {error}
-            </div>
-          )}
-          
-          <div className="input-group">
-            <label htmlFor="phone-input">Your Phone Number</label>
+        <form onSubmit={handleSubmit} className="registration-form">
+          <div className="form-group">
+            <label htmlFor="phone">Phone Number *</label>
             <input
-              id="phone-input"
+              id="phone"
               type="tel"
-              placeholder="0123456789"
               value={phone}
               onChange={handlePhoneChange}
-              className="form-input"
+              placeholder="Enter your phone number"
               required
-              disabled={isSubmitting}
-              autoFocus
-              maxLength="10"
-              pattern="[0-9]{10}"
-              inputMode="numeric"
+              disabled={isLoading}
             />
-            <div className="input-hint">10-digit number only</div>
+            <small>We'll send your order updates via SMS</small>
           </div>
+
+          <div className="form-group">
+            <label htmlFor="name">Your Name *</label>
+            <input
+              id="name"
+              type="text"
+              value={name}
+              onChange={handleNameChange}
+              placeholder="Enter your name"
+              required
+              disabled={isLoading}
+            />
+            <small>How should we address you?</small>
+          </div>
+
+          {error && (
+            <div className="error-message">
+              {error}
+            </div>
+          )}
 
           <div className="modal-actions">
-            <button 
-              type="submit" 
-              className="btn-primary"
-              disabled={!phone.trim() || phone.length !== 10 || isSubmitting}
-              aria-label={isSubmitting ? 'Setting up your account' : 'Continue to menu'}
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="loading-spinner" aria-hidden="true"></span>
-                  Setting up your account...
-                </>
-              ) : (
-                'Continue to Menu'
-              )}
-            </button>
-            <button 
-              type="button" 
-              onClick={handleClose}
+            <button
+              type="button"
+              onClick={onClose}
               className="btn-secondary"
-              disabled={isSubmitting}
+              disabled={isLoading}
             >
-              Browse Menu First
+              Maybe Later
             </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Registering...' : 'Join & Start Ordering'}
+            </button>
+          </div>
+
+          <div className="benefits">
+            <h4>Benefits:</h4>
+            <ul>
+              <li>✅ Earn loyalty points on every order</li>
+              <li>✅ Track your order status in real-time</li>
+              <li>✅ Faster checkout for future orders</li>
+              <li>✅ Exclusive member-only offers</li>
+            </ul>
           </div>
         </form>
-
-        {/* Simple Benefits */}
-        <div className="benefits-section">
-          <h3>Why Register?</h3>
-          <div className="benefit-item">
-            <span className="benefit-icon">⚡</span>
-            <span>Earn points with every order</span>
-          </div>
-          <div className="benefit-item">
-            <span className="benefit-icon">📱</span>
-            <span>Track your order history</span>
-          </div>
-          <div className="benefit-item">
-            <span className="benefit-icon">🎁</span>
-            <span>Get exclusive rewards</span>
-          </div>
-        </div>
       </div>
     </div>
   );
 };
+
+export default RegistrationModal;
