@@ -304,47 +304,67 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
     
     console.log('🔄 Creating/updating customer:', cleanPhone, 'Points to add:', pointsToAdd);
     
-    const updateOperations = {
-      $set: {
-        lastVisit: now,
-        updatedAt: now
-      },
-      $setOnInsert: {
-        name: name || `Customer-${cleanPhone.slice(-4)}`,
-        points: 0,
-        totalOrders: 0,
-        totalSpent: 0,
-        firstVisit: now,
-        tier: 'member',
-        createdAt: now
-      }
-    };
+    // First, try to find existing customer
+    const existingCustomer = await db.collection('customers').findOne({ phone: cleanPhone });
     
-    if (pointsToAdd > 0) {
-      updateOperations.$inc = {
-        points: pointsToAdd,
-        ...(orderTotal > 0 && {
-          totalOrders: 1,
-          totalSpent: orderTotal
-        })
+    if (existingCustomer) {
+      // 🛠️ FIX: UPDATE EXISTING CUSTOMER
+      console.log('✅ Customer exists, updating:', cleanPhone);
+      
+      const updateOperations = {
+        $set: {
+          lastVisit: now,
+          updatedAt: now
+        }
       };
-    }
-    
-    if (name) {
-      updateOperations.$set.name = name;
-    }
-    
-    const result = await db.collection('customers').findOneAndUpdate(
-      { phone: cleanPhone },
-      updateOperations,
-      { 
-        upsert: true,
-        returnDocument: 'after'
+      
+      // Only update name if it's provided and different from current
+      if (name && name !== existingCustomer.name) {
+        updateOperations.$set.name = name;
       }
-    );
-    
-    console.log('✅ Customer updated successfully:', cleanPhone);
-    return result.value;
+      
+      // Add points if any
+      if (pointsToAdd > 0) {
+        updateOperations.$inc = {
+          points: pointsToAdd,
+          ...(orderTotal > 0 && {
+            totalOrders: 1,
+            totalSpent: orderTotal
+          })
+        };
+      }
+      
+      const result = await db.collection('customers').findOneAndUpdate(
+        { phone: cleanPhone },
+        updateOperations,
+        { returnDocument: 'after' }
+      );
+      
+      console.log('✅ Existing customer updated successfully:', cleanPhone);
+      return result.value;
+      
+    } else {
+      // 🛠️ FIX: CREATE NEW CUSTOMER
+      console.log('✅ Creating new customer:', cleanPhone);
+      
+      const newCustomer = {
+        phone: cleanPhone,
+        name: name || `Customer-${cleanPhone.slice(-4)}`,
+        points: pointsToAdd || 0,
+        totalOrders: orderTotal > 0 ? 1 : 0,
+        totalSpent: orderTotal || 0,
+        firstVisit: now,
+        lastVisit: now,
+        tier: 'member',
+        createdAt: now,
+        updatedAt: now
+      };
+      
+      const result = await db.collection('customers').insertOne(newCustomer);
+      console.log('✅ New customer created successfully:', cleanPhone);
+      
+      return { ...newCustomer, _id: result.insertedId };
+    }
     
   } catch (error) {
     console.error('❌ Error creating/updating customer:', error);
@@ -445,6 +465,7 @@ app.get('/api/health', async (req, res) => {
 // ==================== CUSTOMER ENDPOINTS ====================
 
 // 🎯 PRODUCTION: Customer Registration with Redis Session
+// 🎯 PRODUCTION: Customer Registration with Redis Session
 app.post('/api/customers/register', async (req, res) => {
   try {
     console.log('📝 Registration request received:', req.body);
@@ -467,7 +488,10 @@ app.post('/api/customers/register', async (req, res) => {
       });
     }
 
-    const customer = await createOrUpdateCustomer(cleanPhone, name);
+    // 🛠️ FIX: Pass empty string if no name provided to avoid default name conflict
+    const customerName = name && name.trim() !== '' ? name : '';
+    
+    const customer = await createOrUpdateCustomer(cleanPhone, customerName);
     
     // Generate secure session ID
     const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
