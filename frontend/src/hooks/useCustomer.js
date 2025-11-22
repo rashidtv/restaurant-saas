@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { validatePhoneNumber } from '../utils/validators';
-import { CONFIG } from '../constants/config';
+import { CONFIG } from '../constants/config'; // ✅ Now this will work
 
 export const useCustomer = () => {
   const [customer, setCustomer] = useState(null);
@@ -171,7 +171,7 @@ export const useCustomer = () => {
     }
   }, []);
 
-  // Refresh customer data - FIXED (no saveSession)
+  // Refresh customer data
   const refreshCustomerData = useCallback(async () => {
     if (!customer) return null;
     

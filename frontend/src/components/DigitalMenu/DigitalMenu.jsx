@@ -10,7 +10,7 @@ import { CartPanel } from './CartPanel';
 import { orderService } from '../../services/orderService';
 import { customerService } from '../../services/customerService';
 import { pointsService } from '../../services/pointsService';
-import CONFIG from '../../constants/config';
+import { CONFIG } from '../../constants/config'; // ✅ Use named import
 import { ORDER_STATUS_CONFIG } from '../../constants/config';
 import { apiClient, fetchOrders } from '../../config/api';
 import './styles.css';

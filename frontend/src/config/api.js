@@ -1,5 +1,5 @@
 // 🎯 PRODUCTION-READY: API configuration without circular imports
-import CONFIG from '../constants/config';
+import { CONFIG } from '../constants/config'; // ✅ Use named import
 
 // Enhanced API client with retry logic
 class ApiClient {

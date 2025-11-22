@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { CONFIG } from '../constants/config';
+import { CONFIG } from '../constants/config'; // ✅ Use named import
 
 class CustomerService {
   async registerCustomer(phone, name = '') {
