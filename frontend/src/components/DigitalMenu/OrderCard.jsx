@@ -1,9 +1,10 @@
 import React from 'react';
 import { ORDER_STATUS_CONFIG } from '../../constants/config';
-import { formatCurrency, formatTime, formatDate } from '../../utils/formatters';
+import { formatCurrency } from '../../utils/formatters';
 import { orderService } from '../../services/orderService';
 
-const OrderCard = ({ order, onStatusUpdate, showActions = false }) => {
+// 🎯 FIX: Use named export (or change import to default)
+export const OrderCard = ({ order, onStatusUpdate, showActions = false }) => {
   if (!order) return null;
 
   const statusConfig = ORDER_STATUS_CONFIG[order.status] || ORDER_STATUS_CONFIG.pending;
@@ -121,4 +122,5 @@ const OrderCard = ({ order, onStatusUpdate, showActions = false }) => {
   );
 };
 
+// 🎯 FIX: Also export as default for backward compatibility
 export default OrderCard;
