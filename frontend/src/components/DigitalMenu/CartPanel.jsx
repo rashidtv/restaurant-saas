@@ -1,74 +1,119 @@
 import React from 'react';
-import { formatCurrency } from '../../utils/formatters';
-import { pointsService } from '../../services/pointsService';
-import './styles.css';
 
-export const CartPanel = ({ 
-  cart, 
-  isOpen, 
-  onClose, 
-  onUpdateQuantity, 
-  onRemoveItem, 
+// 🎯 FIX: Use named export consistently
+export const CartPanel = ({
+  cart,
+  isOpen,
+  onClose,
+  onUpdateQuantity,
+  onRemoveItem,
   onPlaceOrder,
   selectedTable,
-  customer 
+  customer,
+  isPlacingOrder
 }) => {
-  if (!isOpen) return null;
-
-  // PERMANENT FIX: Use cart items directly - NO GROUPING
-  const cartItems = cart.map(item => ({
-    ...item,
-    totalPrice: item.price * item.quantity
-  }));
-
-  const cartTotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
-  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const pointsToEarn = pointsService.calculatePointsFromOrder(cartTotal);
-
-  const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+  const getCartTotal = () => {
+    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
+  const getItemCount = () => {
+    return cart.reduce((count, item) => count + item.quantity, 0);
+  };
+
+  if (!isOpen) return null;
+
   return (
-    <div className="cart-overlay" onClick={handleOverlayClick}>
+    <div className="cart-panel-overlay">
       <div className="cart-panel">
         <div className="cart-header">
-          <h2>Your Order ({itemCount} items)</h2>
-          <button 
-            onClick={onClose}
-            className="close-cart-btn"
-            aria-label="Close cart"
-          >
-            ×
+          <h2>Your Order</h2>
+          <button onClick={onClose} className="close-btn" aria-label="Close cart">
+            ✕
           </button>
         </div>
 
         <div className="cart-content">
-          {cartItems.length === 0 ? (
-            <EmptyCartState />
+          {cart.length === 0 ? (
+            <div className="empty-cart">
+              <div className="empty-icon">🛒</div>
+              <p>Your cart is empty</p>
+              <p className="empty-subtitle">Add some delicious items to get started!</p>
+            </div>
           ) : (
             <>
-              <CartItems 
-                items={cartItems}
-                onUpdateQuantity={onUpdateQuantity}
-                onRemoveItem={onRemoveItem}
-              />
-              
-              <CartSummary 
-                total={cartTotal}
-                pointsToEarn={pointsToEarn}
-                itemCount={itemCount}
-              />
-              
-              <PlaceOrderButton 
-                total={cartTotal}
-                itemCount={itemCount}
-                table={selectedTable}
-                customer={customer}
-                onPlaceOrder={onPlaceOrder}
-              />
+              <div className="cart-items">
+                {cart.map((item) => (
+                  <div key={item.id} className="cart-item">
+                    <div className="item-info">
+                      <h4 className="item-name">{item.name}</h4>
+                      <p className="item-price">RM {item.price.toFixed(2)}</p>
+                    </div>
+                    
+                    <div className="item-controls">
+                      <div className="quantity-controls">
+                        <button
+                          onClick={() => onUpdateQuantity(item.id, -1)}
+                          className="quantity-btn"
+                          aria-label="Decrease quantity"
+                        >
+                          −
+                        </button>
+                        <span className="quantity">{item.quantity}</span>
+                        <button
+                          onClick={() => onUpdateQuantity(item.id, 1)}
+                          className="quantity-btn"
+                          aria-label="Increase quantity"
+                        >
+                          +
+                        </button>
+                      </div>
+                      
+                      <button
+                        onClick={() => onRemoveItem(item.id)}
+                        className="remove-btn"
+                        aria-label="Remove item"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                    
+                    <div className="item-total">
+                      RM {(item.price * item.quantity).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="cart-summary">
+                <div className="summary-row">
+                  <span>Items:</span>
+                  <span>{getItemCount()}</span>
+                </div>
+                <div className="summary-row total">
+                  <span>Total:</span>
+                  <span>RM {getCartTotal().toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="cart-actions">
+                {!customer ? (
+                  <div className="customer-required">
+                    <p>Please register to place your order</p>
+                  </div>
+                ) : !selectedTable ? (
+                  <div className="table-required">
+                    <p>Table number required</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={onPlaceOrder}
+                    disabled={isPlacingOrder}
+                    className="place-order-btn"
+                  >
+                    {isPlacingOrder ? 'Placing Order...' : `Place Order • RM ${getCartTotal().toFixed(2)}`}
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -77,111 +122,5 @@ export const CartPanel = ({
   );
 };
 
-const EmptyCartState = () => (
-  <div className="empty-cart">
-    <div className="empty-cart-icon">🛒</div>
-    <p>Your cart is empty</p>
-    <p className="empty-subtitle">Add some delicious items to get started</p>
-  </div>
-);
-
-const CartItems = ({ items, onUpdateQuantity, onRemoveItem }) => (
-  <div className="cart-items">
-    {items.map(item => (
-      <CartItem 
-        key={`${item.id}-${item.addedAt || Date.now()}`} // Unique key for each item
-        item={item}
-        onUpdateQuantity={onUpdateQuantity}
-        onRemoveItem={onRemoveItem}
-      />
-    ))}
-  </div>
-);
-
-const CartItem = ({ item, onUpdateQuantity, onRemoveItem }) => (
-  <div className="cart-item">
-    <div className="cart-item-info">
-      <div className="cart-item-name">{item.name}</div>
-      <div className="cart-item-meta">
-        <span className="cart-item-price">{formatCurrency(item.price)} each</span>
-        {item.category && (
-          <span className="cart-item-category">{item.category}</span>
-        )}
-      </div>
-    </div>
-    
-    <div className="cart-item-controls">
-      <div className="quantity-controls">
-        <button 
-          onClick={() => onUpdateQuantity(item.id, -1)}
-          className="quantity-btn minus"
-          aria-label="Decrease quantity"
-        >
-          −
-        </button>
-        <span className="quantity-display">{item.quantity}</span>
-        <button 
-          onClick={() => onUpdateQuantity(item.id, 1)}
-          className="quantity-btn plus"
-          aria-label="Increase quantity"
-        >
-          +
-        </button>
-      </div>
-    </div>
-    
-    <div className="cart-item-total-section">
-      <div className="cart-item-total">
-        {formatCurrency(item.totalPrice)}
-      </div>
-      <button 
-        onClick={() => onRemoveItem(item.id)}
-        className="remove-item-btn"
-        aria-label="Remove item"
-      >
-        Remove
-      </button>
-    </div>
-  </div>
-);
-
-const CartSummary = ({ total, pointsToEarn, itemCount }) => (
-  <div className="cart-summary">
-    <div className="summary-row">
-      <span>Subtotal ({itemCount} items)</span>
-      <span>{formatCurrency(total)}</span>
-    </div>
-    
-    <div className="summary-row">
-      <span>Service Charge</span>
-      <span>{formatCurrency(0)}</span>
-    </div>
-    
-    <div className="summary-row">
-      <span>Tax</span>
-      <span>{formatCurrency(0)}</span>
-    </div>
-    
-    <div className="summary-row points-summary">
-      <span>Points to earn</span>
-      <span className="points-value">+{pointsToEarn}</span>
-    </div>
-    
-    <div className="summary-row total-row">
-      <span>Total Amount</span>
-      <span className="total-amount">{formatCurrency(total)}</span>
-    </div>
-  </div>
-);
-
-const PlaceOrderButton = ({ total, itemCount, table, customer, onPlaceOrder }) => (
-  <button 
-    className="place-order-btn"
-    onClick={onPlaceOrder}
-    disabled={!table || !customer}
-  >
-    {!table ? 'Select Table' : !customer ? 'Register to Order' : `Place Order • ${formatCurrency(total)}`}
-  </button>
-);
-
+// 🎯 FIX: Also export as default for backward compatibility
 export default CartPanel;

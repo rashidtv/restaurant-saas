@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useCustomer } from '../../hooks/useCustomer';
 import { useOrders } from '../../hooks/useOrders';
 import { useCart } from '../../hooks/useCart';
-import { RegistrationModal } from './RegistrationModal';
-import { PointsDisplay } from './PointsDisplay';
-import OrderCard from './OrderCard'; // 🎯 FIX: Default import
-import { MenuGrid } from './MenuGrid';
-import { CartPanel } from './CartPanel';
+import { RegistrationModal } from './RegistrationModal'; // ✅ Named import
+import { PointsDisplay } from './PointsDisplay'; // ✅ Named import  
+import OrderCard from './OrderCard'; // ✅ Default import
+import { MenuGrid } from './MenuGrid'; // ✅ Named import
+import { CartPanel } from './CartPanel'; // ✅ Named import
 import { customerService } from '../../services/customerService';
 import { CONFIG } from '../../constants/config';
 import './styles.css';

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { validatePhoneNumber, validateName } from '../../utils/validators';
 
-const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
+// 🎯 FIX: Use named export consistently
+export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -11,7 +12,6 @@ const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
     e.preventDefault();
     setError('');
 
-    // 🎯 FIX: Ensure phone is treated as string
     const phoneString = String(phone).trim();
     const nameString = String(name).trim();
 
@@ -29,11 +29,7 @@ const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
 
     try {
       console.log('📝 Registration submitted:', { phone: phoneString, name: nameString });
-      
-      // 🎯 FIX: Pass plain string values
       await onRegister(phoneString, nameString);
-      
-      // Modal will close on successful registration
     } catch (err) {
       console.error('Registration error:', err);
       setError(err.message || 'Registration failed. Please try again.');
@@ -44,7 +40,6 @@ const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
 
   const handlePhoneChange = (e) => {
     const value = e.target.value;
-    // Allow only numbers and common phone characters
     const cleanValue = value.replace(/[^\d\s\-\+\(\)]/g, '');
     setPhone(cleanValue);
     setError('');
@@ -134,4 +129,5 @@ const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
   );
 };
 
+// 🎯 FIX: Also export as default for backward compatibility
 export default RegistrationModal;

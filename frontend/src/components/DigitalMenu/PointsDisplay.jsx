@@ -1,104 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { customerService } from '../../services/customerService';
-// No CSS import needed - using existing styles.css
+import React from 'react';
 
+// 🎯 FIX: Use named export consistently
 export const PointsDisplay = ({ points, phone, onClear }) => {
-  const [currentPoints, setCurrentPoints] = useState(points);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Real-time points updates via WebSocket
-  useEffect(() => {
-    const refreshPoints = async () => {
-      if (!phone) return;
-      
-      try {
-        setIsRefreshing(true);
-        const freshCustomer = await customerService.refreshCustomerData(phone);
-        if (freshCustomer && freshCustomer.points !== undefined) {
-          setCurrentPoints(freshCustomer.points);
-          console.log('🔄 Points updated in real-time:', freshCustomer.points);
-        }
-      } catch (error) {
-        console.error('Failed to refresh points:', error);
-      } finally {
-        setIsRefreshing(false);
-      }
-    };
-
-    const handlePaymentProcessed = (payment) => {
-      console.log('💰 Payment processed, refreshing points...');
-      refreshPoints();
-    };
-
-    const handleOrderUpdated = (updatedOrder) => {
-      if (updatedOrder.customerPhone === phone) {
-        console.log('📦 Order updated for customer, refreshing points...');
-        refreshPoints();
-      }
-    };
-
-    if (window.socket) {
-      window.socket.on('paymentProcessed', handlePaymentProcessed);
-      window.socket.on('orderUpdated', handleOrderUpdated);
-    }
-
-    return () => {
-      if (window.socket) {
-        window.socket.off('paymentProcessed', handlePaymentProcessed);
-        window.socket.off('orderUpdated', handleOrderUpdated);
-      }
-    };
-  }, [phone]);
-
-  useEffect(() => {
-    setCurrentPoints(points);
-  }, [points]);
-
-  const handleRefresh = async () => {
-    try {
-      setIsRefreshing(true);
-      const freshCustomer = await customerService.refreshCustomerData(phone);
-      if (freshCustomer) {
-        setCurrentPoints(freshCustomer.points);
-      }
-    } catch (error) {
-      console.error('Manual refresh failed:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
+  const getTier = (points) => {
+    if (points >= 1000) return { name: 'Platinum', color: '#10b981', icon: '💎' };
+    if (points >= 500) return { name: 'Gold', color: '#f59e0b', icon: '🥇' };
+    if (points >= 100) return { name: 'Silver', color: '#9ca3af', icon: '🥈' };
+    return { name: 'Member', color: '#6b7280', icon: '👤' };
   };
+
+  const tier = getTier(points);
 
   return (
     <div className="points-display">
       <div className="points-header">
-        <h3>Loyalty Points</h3>
-        <button 
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="refresh-points-btn"
-          aria-label="Refresh points"
-        >
-          {isRefreshing ? '⟳' : '↻'}
-        </button>
+        <div className="tier-info">
+          <span className="tier-icon">{tier.icon}</span>
+          <div className="tier-details">
+            <h3>{tier.name} Member</h3>
+            <p>{points} points</p>
+          </div>
+        </div>
+        {phone && (
+          <div className="phone-info">
+            <span>📱 {phone}</span>
+          </div>
+        )}
       </div>
       
-      <div className="points-content">
-        <div className="points-value">
-          <span className="points-number">{currentPoints}</span>
-          <span className="points-label">points</span>
-        </div>
-        
-        <div className="customer-info">
-          <span className="customer-phone">{phone}</span>
-          <button 
-            onClick={onClear}
-            className="change-number-btn"
-            aria-label="Change phone number"
-          >
-            Change
-          </button>
-        </div>
+      <div className="points-progress">
+        <div 
+          className="progress-bar"
+          style={{ 
+            backgroundColor: tier.color,
+            width: `${Math.min((points / 1000) * 100, 100)}%`
+          }}
+        ></div>
+      </div>
+      
+      <div className="points-actions">
+        <button 
+          onClick={onClear}
+          className="logout-btn"
+          title="Logout"
+        >
+          🚪
+        </button>
       </div>
     </div>
   );
 };
+
+// 🎯 FIX: Also export as default for backward compatibility
+export default PointsDisplay;
