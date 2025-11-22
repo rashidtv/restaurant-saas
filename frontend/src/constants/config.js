@@ -1,71 +1,19 @@
-// 🛠️ FIXED: Remove circular dependencies and fix variable hoisting
+// 🛠️ FIX: Remove circular dependencies - KEEP EXISTING STRUCTURE
+// Just fix the export order
 
-// Base configuration
-const BASE_CONFIG = {
-  API_BASE_URL: import.meta.env.VITE_API_URL || 'https://restaurant-saas-backend-hbdz.onrender.com',
-  SOCKET_URL: import.meta.env.VITE_SOCKET_URL || 'https://restaurant-saas-backend-hbdz.onrender.com',
-};
+// Define all constants first
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://restaurant-saas-backend-hbdz.onrender.com';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'https://restaurant-saas-backend-hbdz.onrender.com';
 
-// Socket configuration
-const SOCKET_CONFIG = {
-  RECONNECTION_ATTEMPTS: 5,
-  RECONNECTION_DELAY: 1000,
-  TIMEOUT: 10000
-};
-
-// Storage keys
-const STORAGE_KEYS = {
-  CUSTOMER: 'flavorflow_customer',
-  SESSION: 'flavorflow_session',
-  POINTS: 'flavorflow_points'
-};
-
-// Points configuration
-const POINTS_CONFIG = {
-  POINTS_PER_RINGGIT: 1,
-  WEEKEND_MULTIPLIER: 2,
-  WEEKEND_DAYS: [0, 6] // Sunday, Saturday
-};
-
-// Order status configuration
-const ORDER_STATUS_VALUES = {
+const ORDER_STATUS = {
   PENDING: 'pending',
-  PREPARING: 'preparing',
-  READY: 'ready', 
+  PREPARING: 'preparing', 
+  READY: 'ready',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled'
 };
 
-// Tiers configuration
-const TIERS_CONFIG = {
-  MEMBER: {
-    name: 'Member',
-    threshold: 0,
-    color: '#6b7280',
-    icon: '👤'
-  },
-  SILVER: {
-    name: 'Silver',
-    threshold: 100,
-    color: '#9ca3af', 
-    icon: '🥈'
-  },
-  GOLD: {
-    name: 'Gold',
-    threshold: 500,
-    color: '#f59e0b',
-    icon: '🥇'
-  },
-  PLATINUM: {
-    name: 'Platinum', 
-    threshold: 1000,
-    color: '#10b981',
-    icon: '💎'
-  }
-};
-
-// Order status display configuration
-const ORDER_STATUS_DISPLAY = {
+const ORDER_STATUS_CONFIG = {
   pending: {
     label: 'Pending',
     color: '#f59e0b',
@@ -75,8 +23,8 @@ const ORDER_STATUS_DISPLAY = {
   },
   preparing: {
     label: 'Preparing',
-    color: '#3b82f6', 
-    bgColor: '#dbeafe',
+    color: '#3b82f6',
+    bgColor: '#dbeafe', 
     borderColor: '#3b82f6',
     icon: '👨‍🍳'
   },
@@ -103,14 +51,6 @@ const ORDER_STATUS_DISPLAY = {
   }
 };
 
-// Order flow configuration
-const ORDER_FLOW_CONFIG = {
-  DEFAULT_PREP_TIME: 15, // minutes
-  STATUS_FLOW: ['pending', 'preparing', 'ready', 'completed'],
-  URGENT_THRESHOLD: 30 // minutes
-};
-
-// Table status configuration
 const TABLE_STATUS_CONFIG = {
   available: {
     label: 'Available',
@@ -125,7 +65,7 @@ const TABLE_STATUS_CONFIG = {
     icon: '🟡'
   },
   reserved: {
-    label: 'Reserved',
+    label: 'Reserved', 
     color: '#8b5cf6',
     bgColor: '#ede9fe',
     icon: '📅'
@@ -138,28 +78,39 @@ const TABLE_STATUS_CONFIG = {
   }
 };
 
-// Export main config (avoid circular references)
+// 🛠️ FIX: Export CONFIG object AFTER all dependencies are defined
 export const CONFIG = {
-  ...BASE_CONFIG,
-  SOCKET: SOCKET_CONFIG,
-  STORAGE_KEYS: STORAGE_KEYS,
-  POINTS: POINTS_CONFIG,
-  ORDER_STATUS: ORDER_STATUS_VALUES,
-  TIERS: TIERS_CONFIG
+  API_BASE_URL,
+  SOCKET_URL,
+  SOCKET: {
+    RECONNECTION_ATTEMPTS: 5,
+    RECONNECTION_DELAY: 1000,
+    TIMEOUT: 10000
+  },
+  STORAGE_KEYS: {
+    CUSTOMER: 'flavorflow_customer',
+    SESSION: 'flavorflow_session',
+    POINTS: 'flavorflow_points'
+  },
+  POINTS: {
+    POINTS_PER_RINGGIT: 1,
+    WEEKEND_MULTIPLIER: 2,
+    WEEKEND_DAYS: [0, 6]
+  },
+  ORDER_STATUS: ORDER_STATUS,
+  ORDER_CONFIG: {
+    DEFAULT_PREP_TIME: 15,
+    STATUS_FLOW: ['pending', 'preparing', 'ready', 'completed'],
+    URGENT_THRESHOLD: 30
+  },
+  TIERS: {
+    MEMBER: { name: 'Member', threshold: 0, color: '#6b7280', icon: '👤' },
+    SILVER: { name: 'Silver', threshold: 100, color: '#9ca3af', icon: '🥈' },
+    GOLD: { name: 'Gold', threshold: 500, color: '#f59e0b', icon: '🥇' },
+    PLATINUM: { name: 'Platinum', threshold: 1000, color: '#10b981', icon: '💎' }
+  }
 };
 
-// Export individual configs for specific use cases
-export const ORDER_STATUS_CONFIG = ORDER_STATUS_DISPLAY;
-export const ORDER_CONFIG = ORDER_FLOW_CONFIG;
-
-// Cookie settings (dynamic based on environment)
-export const getCookieSettings = () => {
-  const isProduction = import.meta.env.PROD;
-  return {
-    httpOnly: false, // For client-side access if needed
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
-    path: '/',
-    ...(isProduction && { domain: '.onrender.com' })
-  };
-};
+// 🛠️ FIX: Export individual configs separately
+export { ORDER_STATUS_CONFIG, TABLE_STATUS_CONFIG, API_BASE_URL, SOCKET_URL };
+export const ORDER_CONFIG = CONFIG.ORDER_CONFIG;

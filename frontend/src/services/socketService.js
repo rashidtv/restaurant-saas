@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client';
-import { CONFIG } from '../constants/config';
+import { API_BASE_URL } from '../constants/config'; // 🛠️ Use simple import
 
 class SocketService {
   constructor() {
@@ -15,7 +15,7 @@ class SocketService {
       try {
         console.log('🔌 Connecting to WebSocket...');
         
-        this.socket = io(CONFIG.SOCKET_URL, {
+        this.socket = io(API_BASE_URL, { // 🛠️ Use API_BASE_URL directly
           transports: ['websocket', 'polling'],
           timeout: 10000,
           reconnectionAttempts: this.maxReconnectAttempts,
@@ -46,10 +46,6 @@ class SocketService {
           this.isConnected = false;
         });
 
-        this.socket.on('error', (error) => {
-          console.error('❌ WebSocket error:', error);
-        });
-
       } catch (error) {
         console.error('🚨 WebSocket initialization error:', error);
         reject(error);
@@ -59,7 +55,6 @@ class SocketService {
 
   disconnect() {
     if (this.socket) {
-      // Remove all listeners
       this.listeners.forEach((callback, event) => {
         this.socket.off(event, callback);
       });
@@ -75,7 +70,6 @@ class SocketService {
   on(event, callback) {
     if (this.socket) {
       this.socket.on(event, callback);
-      // Store listener for cleanup
       this.listeners.set(event, callback);
     }
   }
@@ -91,22 +85,10 @@ class SocketService {
     if (this.socket && this.isConnected) {
       this.socket.emit(event, data);
       return true;
-    } else {
-      console.warn('⚠️ WebSocket not connected, cannot emit:', event);
-      return false;
     }
-  }
-
-  // Helper method to check connection status
-  getConnectionStatus() {
-    return {
-      isConnected: this.isConnected,
-      reconnectAttempts: this.reconnectAttempts,
-      socketId: this.socket?.id
-    };
+    console.warn('⚠️ WebSocket not connected, cannot emit:', event);
+    return false;
   }
 }
 
-// Create and export singleton instance
 export const socketService = new SocketService();
-export default socketService;

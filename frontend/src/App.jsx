@@ -61,95 +61,111 @@ function App() {
     }
   };
 
-  // 🛠️ FIXED: WebSocket initialization with socketService
-  useEffect(() => {
-    console.log('🔌 Initializing WebSocket connection...');
-    
-    let isSubscribed = true;
+ // In your existing App.jsx, just fix the WebSocket part:
+useEffect(() => {
+  console.log('🔌 Initializing WebSocket connection...');
+  
+  let socketInstance;
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 3;
 
-    const initializeWebSocket = async () => {
-      try {
-        // Use the socketService singleton
-        await socketService.connect();
-        const socketInstance = socketService.socket;
-        setSocket(socketInstance);
+  const initializeWebSocket = async () => {
+    try {
+      const socketIO = await import('socket.io-client');
+      const io = socketIO.default || socketIO;
+      
+      socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
+        transports: ['websocket', 'polling'],
+        timeout: 10000,
+        reconnectionAttempts: maxReconnectAttempts
+      });
 
-        // Set up event listeners
-        socketService.on('newOrder', (order) => {
-          if (!isSubscribed) return;
-          
-          if (!order || !order.orderNumber) {
-            console.error('❌ Received invalid new order via WebSocket:', order);
-            return;
-          }
-          
-          console.log('📦 New order received via WebSocket:', order.orderNumber);
-          setOrders(prev => {
-            const exists = prev.some(o => o && o._id === order._id);
-            return exists ? prev : [...prev, order];
-          });
+      setSocket(socketInstance);
+
+      socketInstance.on('connect', () => {
+        console.log('🔌 Connected to backend via WebSocket');
+        setApiConnected(true);
+        reconnectAttempts = 0;
+        window.socket = socketInstance; // 🛠️ FIX: Set global socket
+      });
+
+      socketInstance.on('connect_error', (error) => {
+        console.log('❌ WebSocket connection error:', error.message);
+        reconnectAttempts++;
+        
+        if (reconnectAttempts >= maxReconnectAttempts) {
+          console.log('⚠️ Max WebSocket reconnection attempts reached, using HTTP fallback');
+        }
+      });
+
+      socketInstance.on('disconnect', (reason) => {
+        console.log('❌ WebSocket disconnected:', reason);
+      });
+
+      // Keep your existing event handlers...
+      socketInstance.on('newOrder', (order) => {
+        if (!order || !order.orderNumber) {
+          console.error('❌ Received invalid new order via WebSocket:', order);
+          return;
+        }
+        console.log('📦 New order received via WebSocket:', order.orderNumber);
+        setOrders(prev => {
+          const exists = prev.some(o => o && o._id === order._id);
+          return exists ? prev : [...prev, order];
         });
+      });
 
-        socketService.on('orderUpdated', (updatedOrder) => {
-          if (!isSubscribed) return;
-          
-          if (!updatedOrder || !updatedOrder.orderNumber) {
-            console.error('❌ Received invalid order update via WebSocket:', updatedOrder);
-            return;
-          }
-          
-          console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
-          setOrders(prev => prev.map(order => 
-            order && order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
-          ));
-        });
+      socketInstance.on('orderUpdated', (updatedOrder) => {
+        if (!updatedOrder || !updatedOrder.orderNumber) {
+          console.error('❌ Received invalid order update via WebSocket:', updatedOrder);
+          return;
+        }
+        console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
+        setOrders(prev => prev.map(order => 
+          order && order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
+        ));
+      });
 
-        socketService.on('tableUpdated', (updatedTable) => {
-          if (!isSubscribed) return;
-          
-          console.log('🔄 Table updated via WebSocket:', updatedTable?.number, updatedTable?.status);
-          setTables(prev => prev.map(table => {
-            if (table._id === updatedTable._id) {
-              if (table.status !== updatedTable.status) {
-                console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
-                return updatedTable;
-              } else {
-                console.log('⚠️ Table status unchanged, skipping:', table.number);
-                return table;
-              }
+      socketInstance.on('tableUpdated', (updatedTable) => {
+        console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
+        setTables(prev => prev.map(table => {
+          if (table._id === updatedTable._id) {
+            if (table.status !== updatedTable.status) {
+              console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
+              return updatedTable;
             }
-            return table;
-          }));
-        });
-
-        socketService.on('paymentProcessed', (payment) => {
-          if (!isSubscribed) return;
-          
-          if (!payment || !payment.orderId) {
-            console.error('❌ Received invalid payment via WebSocket:', payment);
-            return;
           }
-          
-          console.log('💰 Payment processed via WebSocket:', payment.orderId);
-          setPayments(prev => [...prev, payment]);
-        });
+          return table;
+        }));
+      });
 
-        console.log('✅ WebSocket event listeners registered');
+      socketInstance.on('paymentProcessed', (payment) => {
+        if (!payment || !payment.orderId) {
+          console.error('❌ Received invalid payment via WebSocket:', payment);
+          return;
+        }
+        console.log('💰 Payment processed via WebSocket:', payment.orderId);
+        setPayments(prev => [...prev, payment]);
+      });
 
-      } catch (error) {
-        console.error('WebSocket initialization error:', error);
-        // Continue without WebSocket - use HTTP polling instead
-      }
-    };
+    } catch (error) {
+      console.error('WebSocket initialization error:', error);
+    }
+  };
 
-    initializeWebSocket();
-    
-    return () => {
-      console.log('🧹 Cleaning up WebSocket connection');
-      isSubscribed = false;
-      socketService.disconnect();
-    };
-  }, []);
+  initializeWebSocket();
+  
+  return () => {
+    console.log('🧹 Cleaning up WebSocket connection');
+    if (socketInstance) {
+      socketInstance.disconnect();
+    }
+    // 🛠️ FIX: Clean up global socket
+    if (window.socket) {
+      window.socket = null;
+    }
+  };
+}, []);
 
   // API connection monitoring
   useEffect(() => {
