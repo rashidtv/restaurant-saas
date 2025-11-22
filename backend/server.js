@@ -60,15 +60,15 @@ app.use(express.json());
 // CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
 
+// In backend/server.js - Update CORS for production
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://restaurant-saas-demo.onrender.com",
-    FRONTEND_URL
-  ].filter(Boolean),
+    "https://restaurant-saas-demo.onrender.com"
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Handle preflight requests
@@ -509,14 +509,14 @@ app.post('/api/customers/register', async (req, res) => {
       })
     );
     
-    // Set HTTP-only cookie
-    res.cookie('customerSession', sessionId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
-      path: '/'
-    });
+  // Update cookie settings for cross-domain
+res.cookie('customerSession', sessionId, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production', // Will be true on Render
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  maxAge: 24 * 60 * 60 * 1000,
+  path: '/'
+});
     
     console.log('✅ Customer registered with Redis session:', cleanPhone);
     

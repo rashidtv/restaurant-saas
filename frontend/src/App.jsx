@@ -496,51 +496,55 @@ function App() {
     }
   };
 
-  const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
-    console.log('🛒 Creating order for table:', tableNumber);
-    
-    if (!tableNumber) throw new Error('Table number required');
-    if (!orderItems.length) throw new Error('No items in order');
+const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in', customerData = {}) => {
+  console.log('🛒 Creating order for table:', tableNumber, 'Customer:', customerData.customerPhone || 'No customer');
 
-    if (apiConnected) {
-      const orderData = {
-        tableId: tableNumber,
-        items: orderItems.map(item => ({
-          menuItemId: item.menuItemId || item.id,
-          name: item.name,
-          quantity: parseInt(item.quantity),
-          price: parseFloat(item.price)
-        })),
-        orderType: orderType,
-        status: 'pending'
-      };
-      
-      console.log('📤 Sending order:', orderData);
-      
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData)
-      });
-      
-      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-      
-      return await response.json();
-    } else {
-      // Offline fallback
-      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-      const newOrder = {
-        orderNumber,
-        table: tableNumber,
-        items: orderItems,
-        status: 'pending',
-        total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-      };
-      
-      setOrders(prev => [newOrder, ...prev]);
-      return newOrder;
-    }
-  };
+  if (!tableNumber) throw new Error('Table number required');
+  if (!orderItems.length) throw new Error('No items in order');
+
+  if (apiConnected) {
+    const orderData = {
+      tableId: tableNumber,
+      items: orderItems.map(item => ({
+        menuItemId: item.menuItemId || item.id,
+        name: item.name,
+        quantity: parseInt(item.quantity),
+        price: parseFloat(item.price)
+      })),
+      orderType: orderType,
+      // 🛠️ FIX: Include customer data if provided
+      customerPhone: customerData.customerPhone || '',
+      customerName: customerData.customerName || ''
+    };
+    
+    console.log('📤 Sending order with customer data:', orderData);
+    
+    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
+    
+    if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+    
+    return await response.json();
+  } else {
+    // Offline fallback
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+    const newOrder = {
+      orderNumber,
+      table: tableNumber,
+      items: orderItems,
+      status: 'pending',
+      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+      customerPhone: customerData.customerPhone || '',
+      customerName: customerData.customerName || ''
+    };
+    
+    setOrders(prev => [newOrder, ...prev]);
+    return newOrder;
+  }
+};
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {

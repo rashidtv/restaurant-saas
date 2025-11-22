@@ -10,6 +10,7 @@ import { CartPanel } from './CartPanel';
 import { orderService } from '../../services/orderService';
 import { customerService } from '../../services/customerService';
 import { pointsService } from '../../services/pointsService';
+import { CONFIG } from '../../constants/config'; // 🛠️ ADD THIS IMPORT
 import './styles.css';
 
 export const DigitalMenu = ({ 
@@ -197,6 +198,27 @@ useEffect(() => {
     }
   };
 
+// In DigitalMenu.jsx - Add error boundary
+const OrderErrorBoundary = ({ children }) => {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    const handleError = (error) => {
+      console.error('Order error captured:', error);
+      setHasError(true);
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  if (hasError) {
+    return <div>Order system temporarily unavailable. Please try again.</div>;
+  }
+
+  return children;
+};
+
   const handlePaymentProcessed = (payment) => {
     // VALIDATION: Check for null/undefined data
     if (!payment || !payment.orderId) {
@@ -302,30 +324,41 @@ const handlePlaceOrder = useCallback(async () => {
 
     console.log('🎯 Creating order with customer:', customer.phone);
 
-    // 🛠️ FIX: Pass customer data directly to API
-    const orderResult = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        tableId: selectedTable,
-        items: orderData,
-        orderType: 'dine-in',
-        customerPhone: customer.phone, // 🎯 CRITICAL
-        customerName: customer.name    // 🎯 CRITICAL
-      })
-    });
+    let orderResult;
+    
+    // 🛠️ FIX: Use existing onCreateOrder if available, otherwise use direct API
+    if (onCreateOrder) {
+      // Use the existing function but pass customer data
+      orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
+        customerPhone: customer.phone,
+        customerName: customer.name 
+      });
+    } else {
+      // Fallback to direct API call using CONFIG
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          tableId: selectedTable,
+          items: orderData,
+          orderType: 'dine-in',
+          customerPhone: customer.phone,
+          customerName: customer.name
+        })
+      });
 
-    if (!orderResult.ok) {
-      const errorData = await orderResult.json().catch(() => ({}));
-      throw new Error(errorData.error || errorData.message || 'Failed to place order');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to place order');
+      }
+
+      orderResult = await response.json();
     }
 
-    const result = await orderResult.json();
-    
-    if (result.success) {
+    if (orderResult && (orderResult.success || orderResult.orderNumber)) {
       // Add points after successful order
       await addPoints(pointsEarned, orderTotal);
       
@@ -339,9 +372,10 @@ const handlePlaceOrder = useCallback(async () => {
         setCustomerOrders(updatedCustomerOrders);
       }
       
-      alert(`Order #${result.orderNumber} placed successfully! You earned ${pointsEarned} points.`);
+      const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
+      alert(`Order #${orderNumber} placed successfully! You earned ${pointsEarned} points.`);
     } else {
-      throw new Error(result.message || 'Failed to place order');
+      throw new Error(orderResult?.message || 'Failed to place order');
     }
   } catch (error) {
     console.error('Order placement error:', error);
@@ -349,7 +383,7 @@ const handlePlaceOrder = useCallback(async () => {
   } finally {
     setIsPlacingOrder(false);
   }
-}, [cart, selectedTable, customer, getCartTotal, addPoints, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
+}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, addPoints, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
 
   // Fixed cart toggle function
   const toggleCart = useCallback(() => {
