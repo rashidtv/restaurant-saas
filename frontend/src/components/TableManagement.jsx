@@ -148,7 +148,7 @@ const updateTableStatus = async (tableId, newStatus) => {
     setShowOrderModal(true);
   };
 
-// ENHANCED: Auto-register customer before order creation
+// In frontend/src/components/TableManagement/TableManagement.jsx
 const handleCreateOrder = async () => {
   const selectedItems = orderItems 
     ? orderItems.filter(item => item && item.quantity > 0)
@@ -161,27 +161,20 @@ const handleCreateOrder = async () => {
 
   console.log('📦 Creating order for table:', selectedTable?.number);
 
-  // 🛠️ FIX: ENHANCED CUSTOMER REGISTRATION
+  // Customer registration
   let customerPhone = null;
   let customerName = null;
   
   try {
-    // Generate customer phone from table number
     customerPhone = `01${selectedTable?.number.replace(/\D/g, '').padStart(8, '0')}`;
     customerName = `Table-${selectedTable?.number}-Customer`;
     
-    console.log('📝 Auto-registering customer:', customerPhone);
-    
-    // 🛠️ FIX: Check if customer already exists first
     if (!customer || customer.phone !== customerPhone) {
       await registerCustomer(customerPhone, customerName);
       console.log('✅ Customer registered successfully');
-    } else {
-      console.log('✅ Customer already registered:', customerPhone);
     }
   } catch (regError) {
     console.log('⚠️ Customer registration skipped:', regError.message);
-    // Continue with order even if registration fails
   }
 
   const orderData = {
@@ -193,14 +186,17 @@ const handleCreateOrder = async () => {
       specialInstructions: ''
     })),
     orderType: 'dine-in',
-    customerPhone: customerPhone, // Include customer data
-    customerName: customerName
+    customerPhone: customerPhone, // 🎯 CRITICAL
+    customerName: customerName    // 🎯 CRITICAL
   };
 
-  console.log('TableManagement - Creating order with data:', orderData);
+  console.log('TableManagement - Creating order with customer:', customerPhone);
 
   try {
-    const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in');
+    const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in', {
+      customerPhone: customerPhone,
+      customerName: customerName
+    });
     
     if (newOrder) {
       setTables(prevTables => prevTables.map(table => 

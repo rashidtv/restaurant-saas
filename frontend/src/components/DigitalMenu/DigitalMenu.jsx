@@ -269,93 +269,78 @@ useEffect(() => {
     }
   }, [registerCustomer]);
 
-  // FIXED: Enhanced place order with proper order history refresh
-  const handlePlaceOrder = useCallback(async () => {
-    if (cart.length === 0) {
-      alert('Your cart is empty. Please add some items first.');
-      return;
+// In frontend/src/components/DigitalMenu/DigitalMenu.jsx
+const handlePlaceOrder = useCallback(async () => {
+  if (cart.length === 0) {
+    alert('Your cart is empty. Please add some items first.');
+    return;
+  }
+
+  if (!selectedTable) {
+    alert('Table number not detected. Please scan the QR code again.');
+    return;
+  }
+
+  if (!customer) {
+    alert('Please register with your phone number to place an order.');
+    setShowRegistration(true);
+    return;
+  }
+
+  setIsPlacingOrder(true);
+
+  try {
+    const orderData = cart.map(item => ({
+      menuItemId: item.id,
+      name: item.name,
+      price: parseFloat(item.price),
+      quantity: item.quantity,
+      category: item.category
+    }));
+
+    const orderTotal = getCartTotal();
+    const pointsEarned = pointsService.calculatePointsFromOrder(orderTotal);
+
+    // 🛠️ FIX: Pass customer data to order creation
+    const orderResult = onCreateOrder 
+      ? await onCreateOrder(selectedTable, orderData, 'dine-in', { 
+          customerPhone: customer.phone,
+          customerName: customer.name 
+        })
+      : await createOrderAPI({
+          tableId: selectedTable,
+          items: orderData,
+          orderType: 'dine-in',
+          customerPhone: customer.phone, // 🎯 CRITICAL
+          customerName: customer.name,   // 🎯 CRITICAL
+          status: 'pending'
+        });
+
+    if (orderResult && orderResult.success !== false) {
+      // 🛠️ FIX: Update customer stats and add points
+      await updateCustomerAfterOrder(orderTotal);
+      await addPoints(pointsEarned, orderTotal); // Pass orderTotal for stats
+      
+      clearCart();
+      setIsCartOpen(false);
+      
+      // Refresh orders
+      await loadTableOrders(selectedTable);
+      const updatedCustomerOrders = await getCustomerOrders();
+      setCustomerOrders(updatedCustomerOrders);
+      
+      const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
+      alert(`Order #${orderNumber} placed successfully! You earned ${pointsEarned} points.`);
+    } else {
+      throw new Error(orderResult?.message || 'Failed to place order');
     }
-
-    if (!selectedTable) {
-      alert('Table number not detected. Please scan the QR code again.');
-      return;
-    }
-
-    if (!customer) {
-      alert('Please register with your phone number to place an order.');
-      setShowRegistration(true);
-      return;
-    }
-
-    setIsPlacingOrder(true);
-
-    try {
-      // FIXED: Use cart items directly with their quantities
-      const orderData = cart.map(item => ({
-        menuItemId: item.id,
-        name: item.name,
-        price: parseFloat(item.price),
-        quantity: item.quantity, // Use the actual quantity from cart
-        category: item.category
-      }));
-
-      const orderTotal = getCartTotal();
-      const pointsEarned = pointsService.calculatePointsFromOrder(orderTotal);
-
-      const orderResult = onCreateOrder 
-        ? await onCreateOrder(selectedTable, orderData, 'dine-in', { customerPhone: customer.phone })
-        : await createOrderAPI({
-            tableId: selectedTable,
-            items: orderData,
-            orderType: 'dine-in',
-            customerPhone: customer.phone,
-            status: 'pending'
-          });
-
-      if (orderResult && orderResult.success !== false) {
-        updateCustomerAfterOrder(orderTotal);
-        addPoints(pointsEarned);
-        
-        clearCart();
-        setIsCartOpen(false);
-        
-        // FIXED: Refresh orders immediately after successful order
-        try {
-          // Refresh both table orders and customer orders
-          await loadTableOrders(selectedTable);
-          if (customer && getCustomerOrders) {
-            const updatedCustomerOrders = await getCustomerOrders();
-            setCustomerOrders(updatedCustomerOrders);
-          }
-        } catch (refreshError) {
-          console.error('Error refreshing orders:', refreshError);
-        }
-        
-        const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
-        alert(`Order #${orderNumber} placed successfully! You earned ${pointsEarned} points.`);
-      } else {
-        throw new Error(orderResult?.message || 'Failed to place order');
-      }
-    } catch (error) {
-      console.error('Order placement error:', error);
-      alert(`Failed to place order: ${error.message}`);
-    } finally {
-      setIsPlacingOrder(false);
-    }
-  }, [
-    cart, 
-    selectedTable, 
-    customer, 
-    getCartTotal, 
-    onCreateOrder, 
-    createOrderAPI, 
-    updateCustomerAfterOrder, 
-    addPoints, 
-    clearCart, 
-    setIsCartOpen, 
-    loadTableOrders, 
-    getCustomerOrders
-  ]);
+  } catch (error) {
+    console.error('Order placement error:', error);
+    alert(`Failed to place order: ${error.message}`);
+  } finally {
+    setIsPlacingOrder(false);
+  }
+}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, createOrderAPI, updateCustomerAfterOrder, addPoints, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
 
   // Fixed cart toggle function
   const toggleCart = useCallback(() => {
