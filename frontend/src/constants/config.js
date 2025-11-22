@@ -1,5 +1,5 @@
-// 🎯 PRODUCTION READY: Simple, non-circular config
-const config = {
+// 🎯 PRODUCTION READY: Simple, non-circular config with ALL exports
+const CONFIG = {
   // URLs
   API_BASE_URL: import.meta.env.VITE_API_URL || 'https://restaurant-saas-backend-hbdz.onrender.com',
   SOCKET_URL: import.meta.env.VITE_SOCKET_URL || 'https://restaurant-saas-backend-hbdz.onrender.com',
@@ -50,10 +50,13 @@ const config = {
   }
 };
 
-// Export as default (prevents circular imports)
-export default config;
+// 🎯 PERMANENT FIX: Export EVERYTHING that might be needed
+export { CONFIG };
 
-// Named exports for individual values (backward compatibility)
-export const API_BASE_URL = config.API_BASE_URL;
-export const SOCKET_URL = config.SOCKET_URL;
-export const ORDER_STATUS = config.ORDER_STATUS;
+// Individual exports for backward compatibility
+export const API_BASE_URL = CONFIG.API_BASE_URL;
+export const SOCKET_URL = CONFIG.SOCKET_URL;
+export const ORDER_STATUS = CONFIG.ORDER_STATUS;
+
+// Default export for flexibility
+export default CONFIG;

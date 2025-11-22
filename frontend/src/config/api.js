@@ -1,8 +1,7 @@
-// 🎯 PRODUCTION READY: Simple API configuration
-import config from '../constants/config';
+// 🎯 PRODUCTION READY: API configuration
+import { CONFIG } from '../constants/config';
 
-// Direct URL constants (no imports that could cause circular deps)
-const API_BASE_URL = config.API_BASE_URL;
+const API_BASE_URL = CONFIG.API_BASE_URL;
 
 // API endpoints
 export const API_ENDPOINTS = {
@@ -11,10 +10,11 @@ export const API_ENDPOINTS = {
   PAYMENTS: `${API_BASE_URL}/api/payments`,
   MENU: `${API_BASE_URL}/api/menu`,
   HEALTH: `${API_BASE_URL}/api/health`,
-  CUSTOMERS: `${API_BASE_URL}/api/customers`
+  CUSTOMERS: `${API_BASE_URL}/api/customers`,
+  PING: `${API_BASE_URL}/api/ping`
 };
 
-// Enhanced fetch function
+// Enhanced fetch function with error handling
 const apiFetch = async (url, options = {}) => {
   try {
     const response = await fetch(url, {
@@ -27,12 +27,13 @@ const apiFetch = async (url, options = {}) => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
     return await response.json();
   } catch (error) {
-    console.error('API fetch error:', error);
+    console.error('API fetch error:', error.message);
     throw error;
   }
 };
@@ -61,6 +62,10 @@ export const createPayment = (paymentData) =>
     body: JSON.stringify(paymentData)
   });
 
+export const healthCheck = () => apiFetch(API_ENDPOINTS.HEALTH);
+export const ping = () => apiFetch(API_ENDPOINTS.PING);
+
+// Export for backward compatibility
 export default {
   fetchOrders,
   fetchTables,
@@ -69,5 +74,7 @@ export default {
   createOrder,
   updateOrderStatus,
   createPayment,
+  healthCheck,
+  ping,
   API_ENDPOINTS
 };
