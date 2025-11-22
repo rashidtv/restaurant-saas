@@ -215,12 +215,22 @@ async function initializeDatabase() {
 
 async function createDatabaseIndexes() {
   try {
+    console.log('📊 Creating database indexes...');
+    
+    // Drop existing indexes first to avoid conflicts
+    try {
+      await db.collection('customers').dropIndex('phone_1');
+    } catch (error) {
+      // Index might not exist, that's fine
+    }
+    
     await db.collection('customers').createIndex({ phone: 1 }, { unique: true });
     await db.collection('orders').createIndex({ orderNumber: 1 }, { unique: true });
     await db.collection('orders').createIndex({ customerPhone: 1 });
     await db.collection('orders').createIndex({ tableId: 1 });
     await db.collection('orders').createIndex({ createdAt: -1 });
     await db.collection('tables').createIndex({ number: 1 }, { unique: true });
+    
     console.log('✅ Database indexes created');
   } catch (error) {
     console.error('❌ Error creating indexes:', error.message);
