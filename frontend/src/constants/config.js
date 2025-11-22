@@ -1,72 +1,71 @@
-export const CONFIG = {
+// 🛠️ FIXED: Remove circular dependencies and fix variable hoisting
+
+// Base configuration
+const BASE_CONFIG = {
   API_BASE_URL: import.meta.env.VITE_API_URL || 'https://restaurant-saas-backend-hbdz.onrender.com',
   SOCKET_URL: import.meta.env.VITE_SOCKET_URL || 'https://restaurant-saas-backend-hbdz.onrender.com',
-  
-  // Add production cookie settings
-  COOKIE_SETTINGS: {
-    domain: '.onrender.com',
-    secure: true,
-    sameSite: 'none'
-  },
-  
-  // Socket.IO configuration
-  SOCKET: {
-    RECONNECTION_ATTEMPTS: 5,
-    RECONNECTION_DELAY: 1000,
-    TIMEOUT: 10000
-  },
+};
 
-  STORAGE_KEYS: {
-    CUSTOMER: 'flavorflow_customer',
-    SESSION: 'flavorflow_session',
-    POINTS: 'flavorflow_points'
+// Socket configuration
+const SOCKET_CONFIG = {
+  RECONNECTION_ATTEMPTS: 5,
+  RECONNECTION_DELAY: 1000,
+  TIMEOUT: 10000
+};
+
+// Storage keys
+const STORAGE_KEYS = {
+  CUSTOMER: 'flavorflow_customer',
+  SESSION: 'flavorflow_session',
+  POINTS: 'flavorflow_points'
+};
+
+// Points configuration
+const POINTS_CONFIG = {
+  POINTS_PER_RINGGIT: 1,
+  WEEKEND_MULTIPLIER: 2,
+  WEEKEND_DAYS: [0, 6] // Sunday, Saturday
+};
+
+// Order status configuration
+const ORDER_STATUS_VALUES = {
+  PENDING: 'pending',
+  PREPARING: 'preparing',
+  READY: 'ready', 
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled'
+};
+
+// Tiers configuration
+const TIERS_CONFIG = {
+  MEMBER: {
+    name: 'Member',
+    threshold: 0,
+    color: '#6b7280',
+    icon: '👤'
   },
-  
-  POINTS: {
-    POINTS_PER_RINGGIT: 1,
-    WEEKEND_MULTIPLIER: 2,
-    WEEKEND_DAYS: [0, 6] // Sunday, Saturday
+  SILVER: {
+    name: 'Silver',
+    threshold: 100,
+    color: '#9ca3af', 
+    icon: '🥈'
   },
-  
-  // ADD THIS: Unified order status configuration
-  ORDER_STATUS: {
-    PENDING: 'pending',
-    PREPARING: 'preparing',
-    READY: 'ready', 
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled'
+  GOLD: {
+    name: 'Gold',
+    threshold: 500,
+    color: '#f59e0b',
+    icon: '🥇'
   },
-  
-  TIERS: {
-    MEMBER: {
-      name: 'Member',
-      threshold: 0,
-      color: '#6b7280',
-      icon: '👤'
-    },
-    SILVER: {
-      name: 'Silver',
-      threshold: 100,
-      color: '#9ca3af', 
-      icon: '🥈'
-    },
-    GOLD: {
-      name: 'Gold',
-      threshold: 500,
-      color: '#f59e0b',
-      icon: '🥇'
-    },
-    PLATINUM: {
-      name: 'Platinum', 
-      threshold: 1000,
-      color: '#10b981',
-      icon: '💎'
-    }
+  PLATINUM: {
+    name: 'Platinum', 
+    threshold: 1000,
+    color: '#10b981',
+    icon: '💎'
   }
 };
 
-// Keep existing exports for backward compatibility
-export const ORDER_STATUS_CONFIG = {
+// Order status display configuration
+const ORDER_STATUS_DISPLAY = {
   pending: {
     label: 'Pending',
     color: '#f59e0b',
@@ -104,13 +103,15 @@ export const ORDER_STATUS_CONFIG = {
   }
 };
 
-export const ORDER_CONFIG = {
+// Order flow configuration
+const ORDER_FLOW_CONFIG = {
   DEFAULT_PREP_TIME: 15, // minutes
   STATUS_FLOW: ['pending', 'preparing', 'ready', 'completed'],
   URGENT_THRESHOLD: 30 // minutes
 };
 
-export const TABLE_STATUS_CONFIG = {
+// Table status configuration
+const TABLE_STATUS_CONFIG = {
   available: {
     label: 'Available',
     color: '#10b981',
@@ -135,4 +136,30 @@ export const TABLE_STATUS_CONFIG = {
     bgColor: '#fef2f2',
     icon: '🧹'
   }
+};
+
+// Export main config (avoid circular references)
+export const CONFIG = {
+  ...BASE_CONFIG,
+  SOCKET: SOCKET_CONFIG,
+  STORAGE_KEYS: STORAGE_KEYS,
+  POINTS: POINTS_CONFIG,
+  ORDER_STATUS: ORDER_STATUS_VALUES,
+  TIERS: TIERS_CONFIG
+};
+
+// Export individual configs for specific use cases
+export const ORDER_STATUS_CONFIG = ORDER_STATUS_DISPLAY;
+export const ORDER_CONFIG = ORDER_FLOW_CONFIG;
+
+// Cookie settings (dynamic based on environment)
+export const getCookieSettings = () => {
+  const isProduction = import.meta.env.PROD;
+  return {
+    httpOnly: false, // For client-side access if needed
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
+    ...(isProduction && { domain: '.onrender.com' })
+  };
 };

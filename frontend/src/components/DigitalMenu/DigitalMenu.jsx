@@ -190,11 +190,16 @@ const handleRegistration = useCallback(async (phone, name) => {
 
 // In frontend/src/components/DigitalMenu/DigitalMenu.jsx - Fix WebSocket handlers
 
-// Replace the current WebSocket useEffect with this enhanced version:
+// Replace the WebSocket useEffect in DigitalMenu with:
+
 useEffect(() => {
   if (!selectedTable || !customer) return;
 
+  let isSubscribed = true;
+
   const handleOrderUpdated = (updatedOrder) => {
+    if (!isSubscribed) return;
+    
     // VALIDATION: Check for null/undefined data
     if (!updatedOrder || !updatedOrder.orderNumber) {
       console.warn('⚠️ Received invalid order update via WebSocket');
@@ -238,28 +243,9 @@ useEffect(() => {
     }
   };
 
-// In DigitalMenu.jsx - Add error boundary
-const OrderErrorBoundary = ({ children }) => {
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    const handleError = (error) => {
-      console.error('Order error captured:', error);
-      setHasError(true);
-    };
-
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
-
-  if (hasError) {
-    return <div>Order system temporarily unavailable. Please try again.</div>;
-  }
-
-  return children;
-};
-
   const handlePaymentProcessed = (payment) => {
+    if (!isSubscribed) return;
+    
     // VALIDATION: Check for null/undefined data
     if (!payment || !payment.orderId) {
       console.warn('⚠️ Received invalid payment via WebSocket');
@@ -290,20 +276,22 @@ const OrderErrorBoundary = ({ children }) => {
     }
   };
 
-  // Use global WebSocket instance with error handling
-  if (window.socket) {
-    window.socket.on('orderUpdated', handleOrderUpdated);
-    window.socket.on('paymentProcessed', handlePaymentProcessed);
+  // Use socketService with proper error handling
+  if (socketService && socketService.socket) {
+    socketService.on('orderUpdated', handleOrderUpdated);
+    socketService.on('paymentProcessed', handlePaymentProcessed);
     
     console.log('🔌 DigitalMenu WebSocket listeners registered');
   } else {
-    console.log('⚠️ Global WebSocket not available, real-time updates disabled');
+    console.log('⚠️ Socket service not available, real-time updates disabled');
   }
 
   return () => {
-    if (window.socket) {
-      window.socket.off('orderUpdated', handleOrderUpdated);
-      window.socket.off('paymentProcessed', handlePaymentProcessed);
+    isSubscribed = false;
+    
+    if (socketService) {
+      socketService.off('orderUpdated', handleOrderUpdated);
+      socketService.off('paymentProcessed', handlePaymentProcessed);
       console.log('🧹 DigitalMenu WebSocket listeners cleaned up');
     }
   };

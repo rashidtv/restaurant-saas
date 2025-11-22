@@ -9,6 +9,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import Header from './components/common/Header';
 import Sidebar from './components/common/Sidebar';
 import { CustomerProvider } from './contexts/CustomerContext';
+import { socketService } from './services/socketService'; // 🛠️ ADD THIS IMPORT
 import { 
   API_ENDPOINTS, 
   fetchOrders, 
@@ -43,7 +44,7 @@ function App() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/menu', {
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/health', {
         signal: controller.signal,
         method: 'GET'
       });
@@ -60,41 +61,53 @@ function App() {
     }
   };
 
-useEffect(() => {
-  const initializeWebSocket = async () => {
-    try {
-      await socketService.connect();
-      const socket = socketService.socket;
-      setSocket(socket);
+  // 🛠️ FIXED: WebSocket initialization with socketService
+  useEffect(() => {
+    console.log('🔌 Initializing WebSocket connection...');
+    
+    let isSubscribed = true;
 
-      // Set up event listeners
-      socketService.on('newOrder', (order) => {
-        if (!order || !order.orderNumber) {
-          console.error('❌ Received invalid new order via WebSocket:', order);
-          return;
-        }
-        console.log('📦 New order received via WebSocket:', order.orderNumber);
-        setOrders(prev => {
-          const exists = prev.some(o => o && o._id === order._id);
-          return exists ? prev : [...prev, order];
+    const initializeWebSocket = async () => {
+      try {
+        // Use the socketService singleton
+        await socketService.connect();
+        const socketInstance = socketService.socket;
+        setSocket(socketInstance);
+
+        // Set up event listeners
+        socketService.on('newOrder', (order) => {
+          if (!isSubscribed) return;
+          
+          if (!order || !order.orderNumber) {
+            console.error('❌ Received invalid new order via WebSocket:', order);
+            return;
+          }
+          
+          console.log('📦 New order received via WebSocket:', order.orderNumber);
+          setOrders(prev => {
+            const exists = prev.some(o => o && o._id === order._id);
+            return exists ? prev : [...prev, order];
+          });
         });
-      });
 
-        socketInstance.on('orderUpdated', (updatedOrder) => {
-  // ADD NULL CHECK
-  if (!updatedOrder || !updatedOrder.orderNumber) {
-    console.error('❌ Received invalid order update via WebSocket:', updatedOrder);
-    return;
-  }
-  
-  console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
-  setOrders(prev => prev.map(order => 
-    order && order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
-  ));
-});
+        socketService.on('orderUpdated', (updatedOrder) => {
+          if (!isSubscribed) return;
+          
+          if (!updatedOrder || !updatedOrder.orderNumber) {
+            console.error('❌ Received invalid order update via WebSocket:', updatedOrder);
+            return;
+          }
+          
+          console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
+          setOrders(prev => prev.map(order => 
+            order && order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
+          ));
+        });
 
-        socketInstance.on('tableUpdated', (updatedTable) => {
-          console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
+        socketService.on('tableUpdated', (updatedTable) => {
+          if (!isSubscribed) return;
+          
+          console.log('🔄 Table updated via WebSocket:', updatedTable?.number, updatedTable?.status);
           setTables(prev => prev.map(table => {
             if (table._id === updatedTable._id) {
               if (table.status !== updatedTable.status) {
@@ -109,19 +122,23 @@ useEffect(() => {
           }));
         });
 
-        socketInstance.on('paymentProcessed', (payment) => {
-  // ADD NULL CHECK
-  if (!payment || !payment.orderId) {
-    console.error('❌ Received invalid payment via WebSocket:', payment);
-    return;
-  }
-  
-  console.log('💰 Payment processed via WebSocket:', payment.orderId);
-  setPayments(prev => [...prev, payment]);
-});
+        socketService.on('paymentProcessed', (payment) => {
+          if (!isSubscribed) return;
+          
+          if (!payment || !payment.orderId) {
+            console.error('❌ Received invalid payment via WebSocket:', payment);
+            return;
+          }
+          
+          console.log('💰 Payment processed via WebSocket:', payment.orderId);
+          setPayments(prev => [...prev, payment]);
+        });
+
+        console.log('✅ WebSocket event listeners registered');
 
       } catch (error) {
         console.error('WebSocket initialization error:', error);
+        // Continue without WebSocket - use HTTP polling instead
       }
     };
 
@@ -129,9 +146,8 @@ useEffect(() => {
     
     return () => {
       console.log('🧹 Cleaning up WebSocket connection');
-      if (socketInstance) {
-        socketInstance.disconnect();
-      }
+      isSubscribed = false;
+      socketService.disconnect();
     };
   }, []);
 
