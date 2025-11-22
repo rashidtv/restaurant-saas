@@ -1,90 +1,103 @@
-// API configuration with fallbacks
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://restaurant-saas-backend-hbdz.onrender.com';
+// 🎯 PRODUCTION-READY: API configuration without circular imports
+import CONFIG from '../constants/config';
 
-
-// Export for use in socket service
-export const SOCKET_CONFIG = {
-  URL: API_BASE_URL,
-  OPTIONS: {
-    transports: ['websocket', 'polling'],
-    timeout: 10000
+// Enhanced API client with retry logic
+class ApiClient {
+  constructor() {
+    this.baseURL = CONFIG.API_BASE_URL;
+    this.timeout = 10000;
   }
-};
 
-export const API_ENDPOINTS = {
-  ORDERS: `${API_BASE_URL}/api/orders`,
-  TABLES: `${API_BASE_URL}/api/tables`,
-  PAYMENTS: `${API_BASE_URL}/api/payments`,
-  MENU: `${API_BASE_URL}/api/menu`,
-  HEALTH: `${API_BASE_URL}/api/health`,
-  INIT: `${API_BASE_URL}/api/init`,
-  CUSTOMERS: `${API_BASE_URL}/api/customers`
-};
+  async request(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-// Enhanced fetch function with error handling
-export const apiFetch = async (url, options = {}) => {
-  try {
-    console.log(`🔗 API Call: ${options.method || 'GET'} ${url}`);
-    
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+    try {
+      const config = {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        credentials: 'include',
+        signal: controller.signal,
+        ...options,
+      };
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ API Error ${response.status}:`, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
+      console.log(`🔗 API Call: ${config.method} ${url}`);
+      
+      const response = await fetch(url, config);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data;
+
+    } catch (error) {
+      console.error(`🚨 API Error [${endpoint}]:`, error.message);
+      
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout. Please check your connection.');
+      }
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your connection.');
+      }
+      
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-    console.log(`✅ API Success:`, data);
-    return data;
-  } catch (error) {
-    console.error('🚨 API fetch error:', error);
-    throw error;
   }
+
+  get(endpoint) {
+    return this.request(endpoint);
+  }
+
+  post(endpoint, data) {
+    return this.request(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  put(endpoint, data) {
+    return this.request(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+}
+
+// Create singleton instance
+export const apiClient = new ApiClient();
+
+// API endpoints
+export const API_ENDPOINTS = {
+  ORDERS: `${CONFIG.API_BASE_URL}/api/orders`,
+  TABLES: `${CONFIG.API_BASE_URL}/api/tables`,
+  PAYMENTS: `${CONFIG.API_BASE_URL}/api/payments`,
+  MENU: `${CONFIG.API_BASE_URL}/api/menu`,
+  HEALTH: `${CONFIG.API_BASE_URL}/api/health`,
+  CUSTOMERS: `${CONFIG.API_BASE_URL}/api/customers`
 };
 
-// Order-specific API functions
-export const updateOrderStatus = async (orderId, status) => {
-  return apiFetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
-    method: 'PUT',
-    body: JSON.stringify({ status })
-  });
-};
+// Specific API functions
+export const fetchOrders = () => apiClient.get('/api/orders');
+export const fetchTables = () => apiClient.get('/api/tables');
+export const fetchMenu = () => apiClient.get('/api/menu');
+export const fetchPayments = () => apiClient.get('/api/payments');
 
-export const createOrder = async (orderData) => {
-  return apiFetch(`${API_BASE_URL}/api/orders`, {
-    method: 'POST',
-    body: JSON.stringify(orderData)
-  });
-};
+export const createOrder = (orderData) => 
+  apiClient.post('/api/orders', orderData);
 
-export const fetchOrders = async () => {
-  return apiFetch(`${API_BASE_URL}/api/orders`);
-};
+export const updateOrderStatus = (orderId, status) => 
+  apiClient.put(`/api/orders/${orderId}/status`, { status });
 
-export const fetchTables = async () => {
-  return apiFetch(`${API_BASE_URL}/api/tables`);
-};
+export const createPayment = (paymentData) => 
+  apiClient.post('/api/payments', paymentData);
 
-export const fetchMenu = async () => {
-  return apiFetch(`${API_BASE_URL}/api/menu`);
-};
-
-export const fetchPayments = async () => {
-  return apiFetch(`${API_BASE_URL}/api/payments`);
-};
-
-export const createPayment = async (paymentData) => {
-  return apiFetch(`${API_BASE_URL}/api/payments`, {
-    method: 'POST',
-    body: JSON.stringify(paymentData)
-  });
-};
-
-export default API_BASE_URL;
+export default apiClient;
