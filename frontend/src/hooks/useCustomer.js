@@ -1,4 +1,3 @@
-// frontend/src/hooks/useCustomer.js - FIXED VERSION
 import { useState, useEffect, useCallback } from 'react';
 import { validatePhoneNumber } from '../utils/validators';
 import { CONFIG } from '../constants/config';

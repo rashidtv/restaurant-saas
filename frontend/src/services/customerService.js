@@ -25,9 +25,7 @@ async registerCustomer(phone) {
     }
 
     const customer = await response.json();
-    
-    // Store session (phone only)
-    this.saveSession(customer.phone);
+
     
     console.log('✅ Customer registered successfully:', phone);
     return customer;
@@ -122,7 +120,6 @@ async refreshCustomerData(phone) {
     const customerData = await this.getCustomer(phone);
     if (customerData) {
       // Update session with fresh data
-      this.saveSession(phone);
       console.log('✅ Customer data refreshed, points:', customerData.points);
       return customerData;
     }

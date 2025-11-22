@@ -269,7 +269,6 @@ useEffect(() => {
     }
   }, [registerCustomer]);
 
-// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - FIX handlePlaceOrder
 const handlePlaceOrder = useCallback(async () => {
   if (cart.length === 0) {
     alert('Your cart is empty. Please add some items first.');
@@ -303,7 +302,7 @@ const handlePlaceOrder = useCallback(async () => {
 
     console.log('🎯 Creating order with customer:', customer.phone);
 
-    // 🛠️ FIX: Pass customer data properly
+    // 🛠️ FIX: Pass customer data directly to API
     const orderResult = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
       method: 'POST',
       headers: {
@@ -335,8 +334,10 @@ const handlePlaceOrder = useCallback(async () => {
       
       // Refresh orders
       await loadTableOrders(selectedTable);
-      const updatedCustomerOrders = await getCustomerOrders();
-      setCustomerOrders(updatedCustomerOrders);
+      if (getCustomerOrders) {
+        const updatedCustomerOrders = await getCustomerOrders();
+        setCustomerOrders(updatedCustomerOrders);
+      }
       
       alert(`Order #${result.orderNumber} placed successfully! You earned ${pointsEarned} points.`);
     } else {
