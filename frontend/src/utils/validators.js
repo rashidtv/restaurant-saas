@@ -54,8 +54,6 @@ export const validateOrderData = (orderData) => {
   return true; // Validation passed
 };
 
-// Make sure this export exists
-export { validateOrderData };
 
 export const validateTableNumber = (tableNumber) => {
   if (!tableNumber) return false;
