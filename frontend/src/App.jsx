@@ -11,7 +11,7 @@ import Sidebar from './components/common/Sidebar';
 import { CustomerProvider } from './contexts/CustomerContext';
 import { 
   API_ENDPOINTS, 
-  fetchOrders as apiFetchOrders, // 🛠️ RENAME imported function
+  fetchOrders as apiFetchOrders, // 🛠️ Renamed import
   fetchTables as apiFetchTables, 
   fetchMenu as apiFetchMenu, 
   updateOrderStatus as apiUpdateOrderStatus, 
@@ -60,111 +60,112 @@ function App() {
     }
   };
 
- // In your existing App.jsx, just fix the WebSocket part:
-useEffect(() => {
-  console.log('🔌 Initializing WebSocket connection...');
-  
-  let socketInstance;
-  let reconnectAttempts = 0;
-  const maxReconnectAttempts = 3;
+  // WebSocket initialization
+  useEffect(() => {
+    console.log('🔌 Initializing WebSocket connection...');
+    
+    let socketInstance;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 3;
 
-  const initializeWebSocket = async () => {
-    try {
-      const socketIO = await import('socket.io-client');
-      const io = socketIO.default || socketIO;
-      
-      socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
-        transports: ['websocket', 'polling'],
-        timeout: 10000,
-        reconnectionAttempts: maxReconnectAttempts
-      });
-
-      setSocket(socketInstance);
-
-      socketInstance.on('connect', () => {
-        console.log('🔌 Connected to backend via WebSocket');
-        setApiConnected(true);
-        reconnectAttempts = 0;
-        window.socket = socketInstance; // 🛠️ FIX: Set global socket
-      });
-
-      socketInstance.on('connect_error', (error) => {
-        console.log('❌ WebSocket connection error:', error.message);
-        reconnectAttempts++;
+    const initializeWebSocket = async () => {
+      try {
+        const socketIO = await import('socket.io-client');
+        const io = socketIO.default || socketIO;
         
-        if (reconnectAttempts >= maxReconnectAttempts) {
-          console.log('⚠️ Max WebSocket reconnection attempts reached, using HTTP fallback');
-        }
-      });
-
-      socketInstance.on('disconnect', (reason) => {
-        console.log('❌ WebSocket disconnected:', reason);
-      });
-
-      // Keep your existing event handlers...
-      socketInstance.on('newOrder', (order) => {
-        if (!order || !order.orderNumber) {
-          console.error('❌ Received invalid new order via WebSocket:', order);
-          return;
-        }
-        console.log('📦 New order received via WebSocket:', order.orderNumber);
-        setOrders(prev => {
-          const exists = prev.some(o => o && o._id === order._id);
-          return exists ? prev : [...prev, order];
+        socketInstance = io('https://restaurant-saas-backend-hbdz.onrender.com', {
+          transports: ['websocket', 'polling'],
+          timeout: 10000,
+          reconnectionAttempts: maxReconnectAttempts
         });
-      });
 
-      socketInstance.on('orderUpdated', (updatedOrder) => {
-        if (!updatedOrder || !updatedOrder.orderNumber) {
-          console.error('❌ Received invalid order update via WebSocket:', updatedOrder);
-          return;
-        }
-        console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
-        setOrders(prev => prev.map(order => 
-          order && order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
-        ));
-      });
+        setSocket(socketInstance);
 
-      socketInstance.on('tableUpdated', (updatedTable) => {
-        console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
-        setTables(prev => prev.map(table => {
-          if (table._id === updatedTable._id) {
-            if (table.status !== updatedTable.status) {
-              console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
-              return updatedTable;
-            }
+        socketInstance.on('connect', () => {
+          console.log('🔌 Connected to backend via WebSocket');
+          setApiConnected(true);
+          reconnectAttempts = 0;
+          window.socket = socketInstance;
+        });
+
+        socketInstance.on('connect_error', (error) => {
+          console.log('❌ WebSocket connection error:', error.message);
+          reconnectAttempts++;
+          
+          if (reconnectAttempts >= maxReconnectAttempts) {
+            console.log('⚠️ Max WebSocket reconnection attempts reached, using HTTP fallback');
           }
-          return table;
-        }));
-      });
+        });
 
-      socketInstance.on('paymentProcessed', (payment) => {
-        if (!payment || !payment.orderId) {
-          console.error('❌ Received invalid payment via WebSocket:', payment);
-          return;
-        }
-        console.log('💰 Payment processed via WebSocket:', payment.orderId);
-        setPayments(prev => [...prev, payment]);
-      });
+        socketInstance.on('disconnect', (reason) => {
+          console.log('❌ WebSocket disconnected:', reason);
+        });
 
-    } catch (error) {
-      console.error('WebSocket initialization error:', error);
-    }
-  };
+        socketInstance.on('newOrder', (order) => {
+          if (!order || !order.orderNumber) {
+            console.error('❌ Received invalid new order via WebSocket:', order);
+            return;
+          }
+          
+          console.log('📦 New order received via WebSocket:', order.orderNumber);
+          setOrders(prev => {
+            const exists = prev.some(o => o && o._id === order._id);
+            return exists ? prev : [...prev, order];
+          });
+        });
 
-  initializeWebSocket();
-  
-  return () => {
-    console.log('🧹 Cleaning up WebSocket connection');
-    if (socketInstance) {
-      socketInstance.disconnect();
-    }
-    // 🛠️ FIX: Clean up global socket
-    if (window.socket) {
-      window.socket = null;
-    }
-  };
-}, []);
+        socketInstance.on('orderUpdated', (updatedOrder) => {
+          if (!updatedOrder || !updatedOrder.orderNumber) {
+            console.error('❌ Received invalid order update via WebSocket:', updatedOrder);
+            return;
+          }
+          
+          console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
+          setOrders(prev => prev.map(order => 
+            order && order._id === updatedOrder._id ? { ...order, ...updatedOrder } : order
+          ));
+        });
+
+        socketInstance.on('tableUpdated', (updatedTable) => {
+          console.log('🔄 Table updated via WebSocket:', updatedTable.number, updatedTable.status);
+          setTables(prev => prev.map(table => {
+            if (table._id === updatedTable._id) {
+              if (table.status !== updatedTable.status) {
+                console.log('✅ Updating table:', table.number, 'from', table.status, 'to', updatedTable.status);
+                return updatedTable;
+              } else {
+                console.log('⚠️ Table status unchanged, skipping:', table.number);
+                return table;
+              }
+            }
+            return table;
+          }));
+        });
+
+        socketInstance.on('paymentProcessed', (payment) => {
+          if (!payment || !payment.orderId) {
+            console.error('❌ Received invalid payment via WebSocket:', payment);
+            return;
+          }
+          
+          console.log('💰 Payment processed via WebSocket:', payment.orderId);
+          setPayments(prev => [...prev, payment]);
+        });
+
+      } catch (error) {
+        console.error('WebSocket initialization error:', error);
+      }
+    };
+
+    initializeWebSocket();
+    
+    return () => {
+      console.log('🧹 Cleaning up WebSocket connection');
+      if (socketInstance) {
+        socketInstance.disconnect();
+      }
+    };
+  }, []);
 
   // API connection monitoring
   useEffect(() => {
@@ -198,15 +199,15 @@ useEffect(() => {
     return () => clearInterval(interval);
   }, [apiConnected]);
 
-  // Polling fallback for data refresh
+  // 🛠️ FIXED: Polling fallback for data refresh - use renamed functions
   useEffect(() => {
     const loadData = async () => {
       if (!apiConnected) return;
       
       try {
         const [ordersData, tablesData] = await Promise.all([
-          fetchOrders().catch(() => null),
-          fetchTables().catch(() => null)
+          apiFetchOrders().catch(() => null), // 🛠️ Use renamed function
+          apiFetchTables().catch(() => null)  // 🛠️ Use renamed function
         ]);
         
         if (ordersData) setOrders(ordersData);
@@ -294,7 +295,7 @@ useEffect(() => {
     };
   }, [sidebarOpen, isMobile]);
 
-  // Load initial data
+  // 🛠️ FIXED: Load initial data - use renamed functions
   useEffect(() => {
     const initializeData = async () => {
       try {
@@ -304,15 +305,15 @@ useEffect(() => {
         
         try {
           const [menuData, tablesData, ordersData] = await Promise.all([
-            fetchMenu().catch(error => {
+            apiFetchMenu().catch(error => { // 🛠️ Use renamed function
               console.log('❌ Menu fetch failed:', error.message);
               return [];
             }),
-            fetchTables().catch(error => {
+            apiFetchTables().catch(error => { // 🛠️ Use renamed function
               console.log('❌ Tables fetch failed:', error.message);
               return [];
             }),
-            fetchOrders().catch(error => {
+            apiFetchOrders().catch(error => { // 🛠️ Use renamed function
               console.log('❌ Orders fetch failed:', error.message);
               return [];
             })
@@ -411,6 +412,7 @@ useEffect(() => {
     ));
   };
 
+  // 🛠️ FIXED: Use renamed function in createNewOrder
   const createNewOrder = async (tableNumber, orderItems, orderType = 'dine-in') => {
     try {
       console.log('🔄 createNewOrder called for table:', tableNumber);
@@ -445,7 +447,7 @@ useEffect(() => {
           orderType: orderType
         };
         
-        newOrder = await apiCreateOrder(orderData);
+        newOrder = await apiCreateOrder(orderData); // 🛠️ Use renamed function
       } else {
         const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
         newOrder = {
@@ -492,62 +494,62 @@ useEffect(() => {
     }
   };
 
-const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in', customerData = {}) => {
-  console.log('🛒 Creating order for table:', tableNumber, 'Customer:', customerData.customerPhone || 'No customer');
+  const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in', customerData = {}) => {
+    console.log('🛒 Creating order for table:', tableNumber, 'Customer:', customerData.customerPhone || 'No customer');
 
-  if (!tableNumber) throw new Error('Table number required');
-  if (!orderItems.length) throw new Error('No items in order');
+    if (!tableNumber) throw new Error('Table number required');
+    if (!orderItems.length) throw new Error('No items in order');
 
-  if (apiConnected) {
-    const orderData = {
-      tableId: tableNumber,
-      items: orderItems.map(item => ({
-        menuItemId: item.menuItemId || item.id,
-        name: item.name,
-        quantity: parseInt(item.quantity),
-        price: parseFloat(item.price)
-      })),
-      orderType: orderType,
-      // 🛠️ FIX: Include customer data if provided
-      customerPhone: customerData.customerPhone || '',
-      customerName: customerData.customerName || ''
-    };
-    
-    console.log('📤 Sending order with customer data:', orderData);
-    
-    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderData)
-    });
-    
-    if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-    
-    return await response.json();
-  } else {
-    // Offline fallback
-    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-    const newOrder = {
-      orderNumber,
-      table: tableNumber,
-      items: orderItems,
-      status: 'pending',
-      total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      customerPhone: customerData.customerPhone || '',
-      customerName: customerData.customerName || ''
-    };
-    
-    setOrders(prev => [newOrder, ...prev]);
-    return newOrder;
-  }
-};
+    if (apiConnected) {
+      const orderData = {
+        tableId: tableNumber,
+        items: orderItems.map(item => ({
+          menuItemId: item.menuItemId || item.id,
+          name: item.name,
+          quantity: parseInt(item.quantity),
+          price: parseFloat(item.price)
+        })),
+        orderType: orderType,
+        customerPhone: customerData.customerPhone || '',
+        customerName: customerData.customerName || ''
+      };
+      
+      console.log('📤 Sending order with customer data:', orderData);
+      
+      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
+      });
+      
+      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      
+      return await response.json();
+    } else {
+      // Offline fallback
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+      const newOrder = {
+        orderNumber,
+        table: tableNumber,
+        items: orderItems,
+        status: 'pending',
+        total: orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        customerPhone: customerData.customerPhone || '',
+        customerName: customerData.customerName || ''
+      };
+      
+      setOrders(prev => [newOrder, ...prev]);
+      return newOrder;
+    }
+  };
 
+  // 🛠️ FIXED: Use renamed function in updateOrderStatus
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       let updatedOrder;
       
       if (apiConnected) {
-        updatedOrder = await apiUpdateOrderStatus(orderId, newStatus);
+        updatedOrder = await apiUpdateOrderStatus(orderId, newStatus); // 🛠️ Use renamed function
       } else {
         setOrders(prev => prev.map(order => 
           order._id === orderId ? { ...order, status: newStatus } : order
@@ -568,7 +570,7 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
       await updateOrderStatus(orderId, 'completed');
       
       if (apiConnected) {
-        const tablesData = await fetchTables();
+        const tablesData = await apiFetchTables(); // 🛠️ Use renamed function
         setTables(tablesData);
       } else {
         setTables(prev => prev.map(table => 
@@ -618,7 +620,7 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
     return `${remainingMins} min${remainingMins === 1 ? '' : 's'}`;
   };
 
-  // Enhanced payment processing function (Step 4)
+  // Enhanced payment processing function
   const processPayment = async (orderId, amount, method = 'cash') => {
     try {
       console.log('💰 Processing payment for order:', orderId);
@@ -794,7 +796,7 @@ const handleCustomerOrder = async (tableNumber, orderItems, orderType = 'dine-in
                 setPayments={setPayments}
                 isMobile={isMobile}
                 apiConnected={apiConnected}
-                onProcessPayment={processPayment} // Pass the enhanced payment function
+                onProcessPayment={processPayment}
               />
             )}
             {currentPage === 'analytics' && (
