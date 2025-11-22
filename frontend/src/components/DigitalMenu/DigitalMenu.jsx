@@ -269,39 +269,37 @@ const OrderErrorBoundary = ({ children }) => {
   };
 }, [selectedTable, customer, loadTableOrders, getCustomerOrders, customerHook]);
 
-  // FIXED: Enhanced add to cart with proper quantity handling
-  const handleAddToCart = useCallback((item, quantity = 1) => {
-    if (!customer) {
-      setShowRegistration(true);
-      return;
-    }
-    
-    // Use the original item structure without normalization to avoid breaking changes
-    addToCart(item, quantity);
-  }, [customer, addToCart]);
-
-  const handleRegistration = useCallback(async (formData) => {
-    try {
-      await registerCustomer(formData.phone);
-      setShowRegistration(false);
-      setShowWelcome(false);
-    } catch (error) {
-      console.error('Registration error:', error);
-      throw error;
-    }
-  }, [registerCustomer]);
-
 const handlePlaceOrder = useCallback(async () => {
-
-      // 🛠️ ADD SESSION VALIDATION FIRST
+  // Enhanced session validation with better error handling
   try {
-    console.log('🔐 Validating customer session before order...');
+    console.log('🔐 Validating customer session...');
+    
     const sessionCheck = await fetch(`${CONFIG.API_BASE_URL}/api/customers/me`, {
-      credentials: 'include'
+      method: 'GET',
+      credentials: 'include', // This is crucial
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
     
+    console.log('🔐 Session check status:', sessionCheck.status);
+    
     if (sessionCheck.status === 401) {
-      throw new Error('No active session. Please register again.');
+      // Check if we have customer data but session expired
+      if (customer) {
+        console.log('🔄 Session expired for existing customer, attempting re-registration...');
+        try {
+          // Try to re-register with same phone
+          await registerCustomer(customer.phone, customer.name);
+          console.log('✅ Customer re-registered successfully');
+          // Continue with order placement
+        } catch (regError) {
+          console.error('❌ Re-registration failed:', regError);
+          throw new Error('Session expired. Please scan QR code again.');
+        }
+      } else {
+        throw new Error('No active session. Please register first.');
+      }
     }
     
     if (!sessionCheck.ok) {
@@ -309,9 +307,10 @@ const handlePlaceOrder = useCallback(async () => {
     }
     
     console.log('✅ Session validated successfully');
+    
   } catch (error) {
     console.error('❌ Session validation failed:', error);
-    alert('Your session has expired. Please scan the QR code again to register.');
+    alert(error.message);
     setShowRegistration(true);
     return;
   }

@@ -60,7 +60,6 @@ app.use(express.json());
 // CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
 
-// In backend/server.js - Update CORS for production
 app.use(cors({
   origin: [
     "https://restaurant-saas-demo.onrender.com",
@@ -68,7 +67,8 @@ app.use(cors({
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['set-cookie'] // Important for cookies
 }));
 
 // Handle preflight requests
@@ -480,7 +480,25 @@ app.post('/api/customers/register', async (req, res) => {
         message: 'Phone number is required' 
       });
     }
-
+    console.log('🍪 Setting cookie for domain:', '.onrender.com');
+    console.log('🍪 Cookie settings:', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 24 * 60 * 60 * 1000,
+      path: '/',
+      domain: '.onrender.com'
+    });
+    
+   // Enhanced cookie settings in registration endpoint
+res.cookie('customerSession', sessionId, {
+  httpOnly: true,
+  secure: true, // Must be true for HTTPS
+  sameSite: 'none', // Required for cross-site
+  maxAge: 24 * 60 * 60 * 1000,
+  path: '/',
+  domain: '.onrender.com' // Use your Render domain
+});
     const cleanPhone = phone.replace(/\D/g, '');
     
     if (cleanPhone.length < 10) {
