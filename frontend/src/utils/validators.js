@@ -34,6 +34,29 @@ export const validateOrderItems = (items) => {
   );
 };
 
+// src/utils/validators.js - Example function
+export const validateOrderData = (orderData) => {
+  if (!orderData) {
+    throw new Error('Order data is required');
+  }
+  
+  if (!orderData.items || !Array.isArray(orderData.items) || orderData.items.length === 0) {
+    throw new Error('Order must contain at least one item');
+  }
+  
+  // Validate each item
+  orderData.items.forEach(item => {
+    if (!item.name || !item.price || item.quantity <= 0) {
+      throw new Error('Each item must have a name, price, and positive quantity');
+    }
+  });
+  
+  return true; // Validation passed
+};
+
+// Make sure this export exists
+export { validateOrderData };
+
 export const validateTableNumber = (tableNumber) => {
   if (!tableNumber) return false;
   const tableString = String(tableNumber).toUpperCase();
