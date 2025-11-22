@@ -292,6 +292,29 @@ const OrderErrorBoundary = ({ children }) => {
   }, [registerCustomer]);
 
 const handlePlaceOrder = useCallback(async () => {
+
+      // 🛠️ ADD SESSION VALIDATION FIRST
+  try {
+    console.log('🔐 Validating customer session before order...');
+    const sessionCheck = await fetch(`${CONFIG.API_BASE_URL}/api/customers/me`, {
+      credentials: 'include'
+    });
+    
+    if (sessionCheck.status === 401) {
+      throw new Error('No active session. Please register again.');
+    }
+    
+    if (!sessionCheck.ok) {
+      throw new Error('Session validation failed');
+    }
+    
+    console.log('✅ Session validated successfully');
+  } catch (error) {
+    console.error('❌ Session validation failed:', error);
+    alert('Your session has expired. Please scan the QR code again to register.');
+    setShowRegistration(true);
+    return;
+  }
   if (cart.length === 0) {
     alert('Your cart is empty. Please add some items first.');
     return;
