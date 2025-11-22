@@ -153,67 +153,8 @@ async getCustomerOrdersAlternative(phone) {
   }
 }
 
-  // Session management (stores only phone in localStorage)
-  saveSession(phone) {
-    const session = {
-      phone,
-      lastActive: new Date().toISOString(),
-      sessionId: this.generateSessionId()
-    };
-    localStorage.setItem(this.sessionKey, JSON.stringify(session));
-  }
-
-  getSession() {
-    try {
-      const sessionData = localStorage.getItem(this.sessionKey);
-      return sessionData ? JSON.parse(sessionData) : null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  clearSession() {
-    localStorage.removeItem(this.sessionKey);
-  }
-
   generateSessionId() {
     return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  // Check if customer has active session
-  hasActiveSession() {
-    const session = this.getSession();
-    return !!(session && session.phone);
-  }
-
-  getSessionPhone() {
-    const session = this.getSession();
-    return session ? session.phone : null;
-  }
-
-  // Fallback methods for offline/local development
-  getCustomerFromStorage(phone) {
-    try {
-      const customers = JSON.parse(localStorage.getItem('customers') || '{}');
-      return customers[phone] || null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  saveCustomerToStorage(phone, customerData) {
-    try {
-      const customers = JSON.parse(localStorage.getItem('customers') || '{}');
-      customers[phone] = {
-        ...customerData,
-        updatedAt: new Date().toISOString()
-      };
-      localStorage.setItem('customers', JSON.stringify(customers));
-      return customers[phone];
-    } catch (error) {
-      console.error('Error saving customer to storage:', error);
-      return null;
-    }
   }
 }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useCustomer } from '../contexts/CustomerContext'; // ADD THIS IMPORT
 import './TableManagement.css';
+import { useCustomer } from '../contexts/CustomerContext'; // ADD THIS LINE
 
 const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, onCompleteOrder, getTimeAgo, isMobile, menu, apiConnected }) => {
   const [selectedTable, setSelectedTable] = useState(null);
@@ -9,8 +9,58 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   
-  // ADD CUSTOMER HOOK
-  const { registerCustomer, validateCustomer } = useCustomer();
+  // 🛠️ FIX: ADD CUSTOMER HOOK
+  // 🛠️ FIX: Enhanced registerCustomer with immediate persistence
+const registerCustomer = async (phone, name = '') => {
+  try {
+    console.log('📝 CustomerContext: Registering customer', phone);
+    
+    // Validation
+    if (!phone || phone === 'undefined') {
+      throw new Error('Please enter a valid phone number');
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone: cleanPhone, name }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Registration failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    // 🛠️ CRITICAL FIX: Create customer object with guaranteed _id
+    const customerPayload = {
+      _id: result.customer?._id || result._id || `cust_${Date.now()}`,
+      phone: cleanPhone,
+      name: name || result.customer?.name || `Customer-${cleanPhone.slice(-4)}`,
+      points: result.customer?.points || 0,
+      isRegistered: true
+    };
+    
+    // 🛠️ FIX: Save to localStorage BEFORE dispatching to state
+    localStorage.setItem('restaurant_customer', JSON.stringify(customerPayload));
+    
+    dispatch({ 
+      type: 'SET_CUSTOMER', 
+      payload: customerPayload
+    });
+    
+    console.log('✅ Customer registered and persisted:', customerPayload);
+    return customerPayload;
+    
+  } catch (error) {
+    console.error('❌ CustomerContext: Registration error', error);
+    throw error;
+  }
+};
 
   console.log('✅ TableManagement loaded - no socket errors');
   const menuItems = menu || [];
@@ -98,70 +148,76 @@ const updateTableStatus = async (tableId, newStatus) => {
     setShowOrderModal(true);
   };
 
-  // ENHANCED: Auto-register customer before order creation
-  const handleCreateOrder = async () => {
-    const selectedItems = orderItems 
-      ? orderItems.filter(item => item && item.quantity > 0)
-      : [];
+// ENHANCED: Auto-register customer before order creation
+const handleCreateOrder = async () => {
+  const selectedItems = orderItems 
+    ? orderItems.filter(item => item && item.quantity > 0)
+    : [];
 
-    if (selectedItems.length === 0) {
-      alert('Please select at least one item');
-      return;
-    }
+  if (selectedItems.length === 0) {
+    alert('Please select at least one item');
+    return;
+  }
 
-    console.log('📦 Creating order for table:', selectedTable?.number);
+  console.log('📦 Creating order for table:', selectedTable?.number);
 
-    // AUTO-REGISTER CUSTOMER
-    let customerPhone = null;
-    let customerName = null;
+  // 🛠️ FIX: ENHANCED CUSTOMER REGISTRATION
+  let customerPhone = null;
+  let customerName = null;
+  
+  try {
+    // Generate customer phone from table number
+    customerPhone = `01${selectedTable?.number.replace(/\D/g, '').padStart(8, '0')}`;
+    customerName = `Table-${selectedTable?.number}-Customer`;
     
-    try {
-      // Generate customer phone from table number
-      customerPhone = `01${selectedTable?.number.replace(/\D/g, '').padStart(8, '0')}`;
-      customerName = `Table-${selectedTable?.number}-Customer`;
-      
-      console.log('📝 Auto-registering customer:', customerPhone);
+    console.log('📝 Auto-registering customer:', customerPhone);
+    
+    // 🛠️ FIX: Check if customer already exists first
+    if (!customer || customer.phone !== customerPhone) {
       await registerCustomer(customerPhone, customerName);
       console.log('✅ Customer registered successfully');
-    } catch (regError) {
-      console.log('⚠️ Customer registration skipped:', regError.message);
-      // Continue with order even if registration fails
+    } else {
+      console.log('✅ Customer already registered:', customerPhone);
     }
+  } catch (regError) {
+    console.log('⚠️ Customer registration skipped:', regError.message);
+    // Continue with order even if registration fails
+  }
 
-    const orderData = {
-      tableId: selectedTable?.number,
-      items: selectedItems.map(item => ({
-        menuItemId: item._id || item.id,
-        quantity: item.quantity,
-        price: item.price,
-        specialInstructions: ''
-      })),
-      orderType: 'dine-in',
-      customerPhone: customerPhone, // Include customer data
-      customerName: customerName
-    };
-
-    console.log('TableManagement - Creating order with data:', orderData);
-
-    try {
-      const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in');
-      
-      if (newOrder) {
-        setTables(prevTables => prevTables.map(table => 
-          table.number === selectedTable?.number
-            ? { ...table, status: 'occupied', orderId: newOrder._id || newOrder.id }
-            : table
-        ));
-      }
-      
-      setShowOrderModal(false);
-      setSelectedTable(null);
-      setOrderItems([]);
-    } catch (error) {
-      console.error('Failed to create order:', error);
-      alert('Failed to create order: ' + error.message);
-    }
+  const orderData = {
+    tableId: selectedTable?.number,
+    items: selectedItems.map(item => ({
+      menuItemId: item._id || item.id,
+      quantity: item.quantity,
+      price: item.price,
+      specialInstructions: ''
+    })),
+    orderType: 'dine-in',
+    customerPhone: customerPhone, // Include customer data
+    customerName: customerName
   };
+
+  console.log('TableManagement - Creating order with data:', orderData);
+
+  try {
+    const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in');
+    
+    if (newOrder) {
+      setTables(prevTables => prevTables.map(table => 
+        table.number === selectedTable?.number
+          ? { ...table, status: 'occupied', orderId: newOrder._id || newOrder.id }
+          : table
+      ));
+    }
+    
+    setShowOrderModal(false);
+    setSelectedTable(null);
+    setOrderItems([]);
+  } catch (error) {
+    console.error('Failed to create order:', error);
+    alert('Failed to create order: ' + error.message);
+  }
+};
 
   // REST OF YOUR EXISTING FUNCTIONS REMAIN EXACTLY THE SAME
   const debugOrderIssue = (order) => {

@@ -10,7 +10,6 @@ const customerReducer = (state, action) => {
       console.log('✅ CustomerContext: Setting customer', action.payload);
       // Persist to localStorage
       if (action.payload) {
-        localStorage.setItem('customer_data', JSON.stringify(action.payload));
       }
       return { 
         ...action.payload,
@@ -20,11 +19,10 @@ const customerReducer = (state, action) => {
       console.log('🔄 CustomerContext: Updating customer', action.payload);
       const updatedCustomer = { ...state, ...action.payload };
       // Persist updates
-      localStorage.setItem('customer_data', JSON.stringify(updatedCustomer));
       return updatedCustomer;
     case 'CLEAR_CUSTOMER':
       console.log('🧹 CustomerContext: Clearing customer');
-      localStorage.removeItem('customer_data');
+      
       return null;
     case 'SET_LOADING':
       return { 
@@ -46,20 +44,7 @@ const customerReducer = (state, action) => {
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
 
-  // 🛠️ FIX: Load customer from localStorage on component mount
-  useEffect(() => {
-    const savedCustomer = localStorage.getItem('restaurant_customer');
-    if (savedCustomer) {
-      try {
-        const customerData = JSON.parse(savedCustomer);
-        dispatch({ type: 'SET_CUSTOMER', payload: customerData });
-        console.log('✅ Loaded customer from localStorage:', customerData);
-      } catch (error) {
-        console.error('❌ Error loading customer from storage:', error);
-        localStorage.removeItem('restaurant_customer');
-      }
-    }
-  }, []);
+
 
   // 🛠️ FIX: Enhanced registerCustomer with immediate persistence
   const registerCustomer = async (phone, name = '') => {
@@ -95,9 +80,6 @@ export const CustomerProvider = ({ children }) => {
         points: result.customer?.points || 0,
         isRegistered: true
       };
-      
-      // 🛠️ FIX: Save to localStorage BEFORE dispatching to state
-      localStorage.setItem('restaurant_customer', JSON.stringify(customerPayload));
       
       dispatch({ 
         type: 'SET_CUSTOMER', 

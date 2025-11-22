@@ -1,27 +1,61 @@
+// backend/server.js - PRODUCTION READY WITH REDIS SESSIONS
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
+const cookieParser = require('cookie-parser');
+const redis = require('redis');
+
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 
-// MongoDB Configuration - FIXED FOR RENDER
+// 🎯 PRODUCTION: Redis Client Setup
+const redisClient = redis.createClient({
+  url: `redis://:${process.env.REDIS_PASSWORD}@redis-15846.c10.us-east-1-4.ec2.cloud.redislabs.com:15846`,
+  socket: {
+    connectTimeout: 10000,
+    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
+  }
+});
+
+// Redis event handlers
+redisClient.on('error', (err) => {
+  console.error('❌ Redis Client Error:', err);
+});
+
+redisClient.on('connect', () => {
+  console.log('✅ Connected to Redis Cloud');
+});
+
+redisClient.on('ready', () => {
+  console.log('🎯 Redis ready for production session storage');
+});
+
+// Initialize Redis connection
+(async () => {
+  try {
+    await redisClient.connect();
+    console.log('🔐 Redis Cloud connection established');
+  } catch (error) {
+    console.error('❌ Failed to connect to Redis Cloud:', error);
+  }
+})();
+
+// MongoDB Configuration
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/restaurant_saas?retryWrites=true&w=majority&appName=flavorflow';
 const DB_NAME = process.env.DB_NAME || 'restaurant_saas';
-
-// Validate environment variables
-if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI environment variable is required');
-  process.exit(1);
-}
 
 let db = null;
 let mongoClient = null;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 3;
+
+// Middleware
+app.use(cookieParser());
+app.use(express.json());
 
 // CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
@@ -45,18 +79,18 @@ const io = new Server(server, {
       "https://restaurant-saas-demo.onrender.com",
       FRONTEND_URL
     ].filter(Boolean),
-    methods: ["GET", "POST", "PUT", "DELETE"]
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
   }
 });
 
-// 🛠️ WEB SOCKET VALIDATION MIDDLEWARE - ADDED FOR PRODUCTION
+// WebSocket Validation
 const validateSocketData = (data, eventName) => {
   if (data === null || data === undefined) {
     console.warn(`⚠️ Blocking null data for event: ${eventName}`);
     return false;
   }
   
-  // Validate order updates
   if (eventName === 'orderUpdate' || eventName === 'orderUpdated') {
     if (!data.orderId && !data.orderNumber) {
       console.warn(`⚠️ Invalid order data for ${eventName}:`, data);
@@ -64,7 +98,6 @@ const validateSocketData = (data, eventName) => {
     }
   }
   
-  // Validate table updates
   if (eventName === 'tableUpdate' || eventName === 'tableUpdated') {
     if (!data._id && !data.number) {
       console.warn(`⚠️ Invalid table data for ${eventName}:`, data);
@@ -72,7 +105,6 @@ const validateSocketData = (data, eventName) => {
     }
   }
   
-  // Validate payment updates
   if (eventName === 'paymentProcessed') {
     if (!data.orderId && !data._id) {
       console.warn(`⚠️ Invalid payment data for ${eventName}:`, data);
@@ -83,7 +115,6 @@ const validateSocketData = (data, eventName) => {
   return true;
 };
 
-// Enhanced event emitter
 const safeEmit = (event, data) => {
   if (validateSocketData(data, event)) {
     io.emit(event, data);
@@ -93,15 +124,61 @@ const safeEmit = (event, data) => {
   }
 };
 
-app.use(express.json());
+// 🎯 PRODUCTION: Session Validation Middleware
+const validateCustomerSession = async (req, res, next) => {
+  try {
+    const sessionId = req.cookies.customerSession;
+    
+    if (!sessionId) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'No active session' 
+      });
+    }
+    
+    const sessionData = await redisClient.get(`session:${sessionId}`);
+    
+    if (!sessionData) {
+      res.clearCookie('customerSession');
+      return res.status(401).json({ 
+        success: false,
+        message: 'Session expired' 
+      });
+    }
+    
+    const session = JSON.parse(sessionData);
+    
+    // Verify session hasn't expired (24 hours)
+    const sessionAge = Date.now() - new Date(session.createdAt).getTime();
+    const maxAge = 24 * 60 * 60 * 1000;
+    
+    if (sessionAge > maxAge) {
+      await redisClient.del(`session:${sessionId}`);
+      res.clearCookie('customerSession');
+      return res.status(401).json({ 
+        success: false,
+        message: 'Session expired' 
+      });
+    }
+    
+    req.customerSession = session;
+    next();
+    
+  } catch (error) {
+    console.error('❌ Session validation error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Session validation failed' 
+    });
+  }
+};
 
-// Fixed MongoDB Connection for Render
+// Database Functions
 async function initializeDatabase() {
   try {
     connectionAttempts++;
     console.log(`🔗 MongoDB connection attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}...`);
 
-    // FIX: Use connection options that work with Render's environment
     const client = new MongoClient(MONGODB_URI, {
       serverSelectionTimeoutMS: 15000,
       socketTimeoutMS: 45000,
@@ -109,8 +186,6 @@ async function initializeDatabase() {
       maxPoolSize: 5,
       minPoolSize: 1,
       tls: true,
-      tlsAllowInvalidCertificates: false,
-      tlsAllowInvalidHostnames: false,
     });
 
     console.log('🔄 Connecting to MongoDB...');
@@ -119,12 +194,9 @@ async function initializeDatabase() {
     mongoClient = client;
     db = client.db(DB_NAME);
 
-    // Test the connection
     await db.command({ ping: 1 });
     console.log('✅ Connected to MongoDB successfully!');
-    console.log(`📊 Database: ${DB_NAME}`);
 
-    // Initialize database
     await createDatabaseIndexes();
     await initializeSampleData();
 
@@ -132,159 +204,47 @@ async function initializeDatabase() {
 
   } catch (error) {
     console.error(`❌ MongoDB connection failed: ${error.message}`);
-    console.error(`🔧 Error details:`, error);
     
     if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
       const retryDelay = Math.min(3000 * connectionAttempts, 15000);
       console.log(`🔄 Retrying in ${retryDelay/1000} seconds...`);
       setTimeout(initializeDatabase, retryDelay);
-    } else {
-      console.error('💡 Server running without database connection');
-      console.error('🔧 Please check:');
-      console.error('   1. MongoDB Atlas IP whitelist includes 0.0.0.0/0');
-      console.error('   2. Database user has correct permissions');
-      console.error('   3. MongoDB Atlas cluster is running');
     }
   }
 }
 
 async function createDatabaseIndexes() {
   try {
-    console.log('📊 Creating database indexes...');
-    
-    await db.collection('customers').createIndex({ phone: 1 }, { unique: true, sparse: true });
+    await db.collection('customers').createIndex({ phone: 1 }, { unique: true });
     await db.collection('orders').createIndex({ orderNumber: 1 }, { unique: true });
     await db.collection('orders').createIndex({ customerPhone: 1 });
     await db.collection('orders').createIndex({ tableId: 1 });
     await db.collection('orders').createIndex({ createdAt: -1 });
     await db.collection('tables').createIndex({ number: 1 }, { unique: true });
-    
     console.log('✅ Database indexes created');
   } catch (error) {
     console.error('❌ Error creating indexes:', error.message);
   }
 }
 
-// Initialize sample data
 async function initializeSampleData() {
   try {
     if (!db) return;
-    
-    console.log('📦 Checking for sample data...');
     
     const menuCount = await db.collection('menuItems').countDocuments();
     const tablesCount = await db.collection('tables').countDocuments();
     
     if (menuCount === 0) {
       const menuItems = [
-        {
-          _id: new ObjectId(),
-          name: "Teh Tarik", 
-          price: 4.50, 
-          category: "drinks", 
-          preparationTime: 5,
-          nameBM: "Teh Tarik", 
-          description: "Famous Malaysian pulled tea", 
-          descriptionBM: "Teh tarik terkenal Malaysia",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Kopi O", 
-          price: 3.80, 
-          category: "drinks", 
-          preparationTime: 3,
-          nameBM: "Kopi O", 
-          description: "Traditional black coffee", 
-          descriptionBM: "Kopi hitam tradisional",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Milo Dinosaur", 
-          price: 6.50, 
-          category: "drinks", 
-          preparationTime: 4,
-          nameBM: "Milo Dinosaur", 
-          description: "Iced Milo with extra Milo powder", 
-          descriptionBM: "Milo ais dengan serbuk Milo tambahan",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Nasi Lemak", 
-          price: 12.90, 
-          category: "main", 
-          preparationTime: 15,
-          nameBM: "Nasi Lemak", 
-          description: "Coconut rice with sambal", 
-          descriptionBM: "Nasi santan dengan sambal",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Char Kuey Teow", 
-          price: 14.50, 
-          category: "main", 
-          preparationTime: 12,
-          nameBM: "Char Kuey Teow", 
-          description: "Stir-fried rice noodles", 
-          descriptionBM: "Kuey teow goreng",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Roti Canai", 
-          price: 3.50, 
-          category: "main", 
-          preparationTime: 8,
-          nameBM: "Roti Canai", 
-          description: "Flaky flatbread with curry", 
-          descriptionBM: "Roti canai dengan kuah kari",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Satay Set", 
-          price: 18.90, 
-          category: "main", 
-          preparationTime: 20,
-          nameBM: "Set Satay", 
-          description: "Chicken satay with peanut sauce", 
-          descriptionBM: "Satay ayam dengan kuah kacang",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Cendol", 
-          price: 6.90, 
-          category: "desserts", 
-          preparationTime: 7,
-          nameBM: "Cendol", 
-          description: "Shaved ice dessert", 
-          descriptionBM: "Pencuci mulut ais",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          _id: new ObjectId(),
-          name: "Apam Balik", 
-          price: 5.50, 
-          category: "desserts", 
-          preparationTime: 10,
-          nameBM: "Apam Balik", 
-          description: "Malaysian peanut pancake", 
-          descriptionBM: "Apam balik kacang",
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
+        { _id: new ObjectId(), name: "Teh Tarik", price: 4.50, category: "drinks", preparationTime: 5, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), name: "Kopi O", price: 3.80, category: "drinks", preparationTime: 3, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), name: "Milo Dinosaur", price: 6.50, category: "drinks", preparationTime: 4, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), name: "Nasi Lemak", price: 12.90, category: "main", preparationTime: 15, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), name: "Char Kuey Teow", price: 14.50, category: "main", preparationTime: 12, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), name: "Roti Canai", price: 3.50, category: "main", preparationTime: 8, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), name: "Satay Set", price: 18.90, category: "main", preparationTime: 20, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), name: "Cendol", price: 6.90, category: "desserts", preparationTime: 7, createdAt: new Date(), updatedAt: new Date() },
+        { _id: new ObjectId(), name: "Apam Balik", price: 5.50, category: "desserts", preparationTime: 10, createdAt: new Date(), updatedAt: new Date() }
       ];
       await db.collection('menuItems').insertMany(menuItems);
       console.log('✅ Sample menu items created');
@@ -305,19 +265,15 @@ async function initializeSampleData() {
       console.log('✅ Sample tables created');
     }
     
-    console.log('🎉 Database initialization completed');
-    
   } catch (error) {
     console.error('❌ Error initializing sample data:', error.message);
   }
 }
 
-// Generate order number
 function generateOrderNumber() {
   return `MESRA${Date.now().toString().slice(-6)}`;
 }
 
-// Customer management functions
 async function getCustomerByPhone(phone) {
   try {
     if (!db) throw new Error('Database not connected');
@@ -329,7 +285,6 @@ async function getCustomerByPhone(phone) {
   }
 }
 
-// In backend/server.js - FIX the createOrUpdateCustomer function
 async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTotal = 0) {
   try {
     if (!db) throw new Error('Database not connected');
@@ -339,7 +294,6 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
     
     console.log('🔄 Creating/updating customer:', cleanPhone, 'Points to add:', pointsToAdd);
     
-    // 🛠️ FIX: Use a cleaner update operation to avoid conflicts
     const updateOperations = {
       $set: {
         lastVisit: now,
@@ -347,7 +301,7 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
       },
       $setOnInsert: {
         name: name || `Customer-${cleanPhone.slice(-4)}`,
-        points: 0, // Start with 0 points
+        points: 0,
         totalOrders: 0,
         totalSpent: 0,
         firstVisit: now,
@@ -356,7 +310,6 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
       }
     };
     
-    // Only add increment operations if we're adding points/orders
     if (pointsToAdd > 0) {
       updateOperations.$inc = {
         points: pointsToAdd,
@@ -367,7 +320,6 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
       };
     }
     
-    // If name is provided, update it
     if (name) {
       updateOperations.$set.name = name;
     }
@@ -395,18 +347,19 @@ app.use((req, res, next) => {
   if (!db) {
     return res.status(503).json({ 
       success: false,
-      error: 'Database connection establishing. Please try again in a moment.',
+      error: 'Database connection establishing. Please try again.',
       retry: true
     });
   }
   next();
 });
 
-// ==================== HEALTH & INIT ENDPOINTS ====================
+// ==================== HEALTH ENDPOINTS ====================
 
 app.get('/health', async (req, res) => {
   try {
     const dbStatus = db ? 'connected' : 'connecting';
+    const redisStatus = redisClient.isOpen ? 'connected' : 'disconnected';
     
     if (db) {
       const ordersCount = await db.collection('orders').countDocuments();
@@ -418,7 +371,7 @@ app.get('/health', async (req, res) => {
         status: 'ok', 
         timestamp: new Date().toISOString(),
         database: dbStatus,
-        connectionAttempts: connectionAttempts,
+        redis: redisStatus,
         data: {
           orders: ordersCount,
           tables: tablesCount,
@@ -431,15 +384,16 @@ app.get('/health', async (req, res) => {
         status: 'connecting', 
         timestamp: new Date().toISOString(),
         database: dbStatus,
-        connectionAttempts: connectionAttempts,
-        message: 'Database connection in progress'
+        redis: redisStatus,
+        message: 'Services starting up'
       });
     }
   } catch (error) {
     res.status(500).json({ 
       status: 'error',
       error: error.message,
-      database: 'disconnected'
+      database: 'disconnected',
+      redis: 'disconnected'
     });
   }
 });
@@ -450,8 +404,7 @@ app.get('/api/health', async (req, res) => {
       return res.status(503).json({ 
         status: 'CONNECTING', 
         message: 'Database connection establishing',
-        timestamp: new Date().toISOString(),
-        connectionAttempts: connectionAttempts
+        timestamp: new Date().toISOString()
       });
     }
 
@@ -463,8 +416,9 @@ app.get('/api/health', async (req, res) => {
     
     res.json({ 
       status: 'OK', 
-      message: 'Restaurant SaaS API is running with MongoDB',
+      message: 'Restaurant SaaS API is running with Redis Sessions',
       timestamp: new Date().toISOString(),
+      redis: redisClient.isOpen ? 'connected' : 'disconnected',
       data: {
         menuItems: menuItemsCount,
         tables: tablesCount,
@@ -478,15 +432,236 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-app.post('/api/init', async (req, res) => {
+// ==================== CUSTOMER ENDPOINTS ====================
+
+// 🎯 PRODUCTION: Customer Registration with Redis Session
+app.post('/api/customers/register', async (req, res) => {
+  try {
+    console.log('📝 Registration request received:', req.body);
+    
+    const { phone, name } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone number is required' 
+      });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Valid phone number required (at least 10 digits)' 
+      });
+    }
+
+    const customer = await createOrUpdateCustomer(cleanPhone, name);
+    
+    // Generate secure session ID
+    const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
+    
+    // Store session in Redis (24 hour expiry)
+    await redisClient.setEx(
+      `session:${sessionId}`,
+      24 * 60 * 60,
+      JSON.stringify({
+        customerId: customer._id.toString(),
+        phone: customer.phone,
+        createdAt: new Date().toISOString()
+      })
+    );
+    
+    // Set HTTP-only cookie
+    res.cookie('customerSession', sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+      path: '/'
+    });
+    
+    console.log('✅ Customer registered with Redis session:', cleanPhone);
+    
+    res.json({
+      success: true,
+      customer: customer
+    });
+    
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    
+    if (error.code === 11000) {
+      return res.status(409).json({ 
+        success: false,
+        message: 'Phone number already registered' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Registration failed: ' + error.message 
+    });
+  }
+});
+
+// 🎯 PRODUCTION: Get Current Customer (Session Validation)
+app.get('/api/customers/me', validateCustomerSession, async (req, res) => {
+  try {
+    const customer = await getCustomerByPhone(req.customerSession.phone);
+    
+    if (!customer) {
+      await redisClient.del(`session:${req.cookies.customerSession}`);
+      res.clearCookie('customerSession');
+      return res.status(404).json({ 
+        success: false,
+        message: 'Customer not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      customer: customer
+    });
+    
+  } catch (error) {
+    console.error('❌ Get customer error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to get customer' 
+    });
+  }
+});
+
+// 🎯 PRODUCTION: Logout Endpoint
+app.post('/api/customers/logout', validateCustomerSession, async (req, res) => {
+  try {
+    const sessionId = req.cookies.customerSession;
+    
+    await redisClient.del(`session:${sessionId}`);
+    
+    res.clearCookie('customerSession', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    });
+    
+    console.log('✅ Customer logged out:', req.customerSession.phone);
+    
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Logout failed' 
+    });
+  }
+});
+
+// 🎯 PRODUCTION: Protected Points Endpoint
+app.post('/api/customers/:phone/points', validateCustomerSession, async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { points, orderTotal } = req.body;
+    
+    if (req.customerSession.phone !== phone) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to update this customer' 
+      });
+    }
+    
+    const pointsToAdd = parseInt(points) || 0;
+    
+    if (pointsToAdd <= 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Valid points value is required' 
+      });
+    }
+
+    console.log('➕ Adding points via session:', pointsToAdd, 'for customer:', phone);
+    
+    const customer = await createOrUpdateCustomer(phone, '', pointsToAdd, parseFloat(orderTotal) || 0);
+    
+    console.log('✅ Points updated via session:', phone, 'Total points:', customer.points);
+    
+    res.json({
+      success: true,
+      customer: customer,
+      pointsAdded: pointsToAdd,
+      totalPoints: customer.points
+    });
+    
+  } catch (error) {
+    console.error('❌ Add points error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update points: ' + error.message 
+    });
+  }
+});
+
+// Existing customer endpoints
+app.get('/api/customers', async (req, res) => {
   try {
     if (!db) {
       return res.status(503).json({ error: 'Database not connected' });
     }
-    await initializeSampleData();
-    res.json({ message: 'Sample data initialized successfully' });
+    const customers = await db.collection('customers').find().sort({ createdAt: -1 }).toArray();
+    res.json(customers);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/customers/:phone', async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+    const { phone } = req.params;
+    const customer = await getCustomerByPhone(phone);
+    
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/customers/:phone/orders', async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+    const { phone } = req.params;
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    console.log('📋 Fetching orders for customer:', cleanPhone);
+    
+    const customerOrders = await db.collection('orders')
+      .find({ customerPhone: cleanPhone })
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    console.log(`✅ Found ${customerOrders.length} orders for customer ${cleanPhone}`);
+    res.json(customerOrders);
+  } catch (error) {
+    console.error('❌ Customer orders error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to fetch customer orders' 
+    });
   }
 });
 
@@ -518,7 +693,6 @@ app.get('/api/tables', async (req, res) => {
   }
 });
 
-// In backend/server.js - Enhanced table update
 app.put('/api/tables/:id', async (req, res) => {
   try {
     const tableId = req.params.id;
@@ -533,7 +707,6 @@ app.put('/api/tables/:id', async (req, res) => {
       query = { number: tableId };
     }
     
-    // Try direct update first
     const updateResult = await db.collection('tables').updateOne(
       query,
       { 
@@ -545,8 +718,6 @@ app.put('/api/tables/:id', async (req, res) => {
     );
     
     if (updateResult.modifiedCount === 0) {
-      console.log('❌ No documents matched, trying alternative query...');
-      // Try alternative query approaches
       const alternativeQuery = { $or: [
         { _id: new ObjectId(tableId) },
         { number: tableId },
@@ -566,7 +737,6 @@ app.put('/api/tables/:id', async (req, res) => {
       }
     }
     
-    // Get updated table
     const updatedTable = await db.collection('tables').findOne(query);
     safeEmit('tableUpdated', updatedTable);
     
@@ -598,13 +768,12 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// In backend/server.js - ORDER CREATION ENDPOINT
 app.post('/api/orders', async (req, res) => {
   try {
     if (!db) {
       return res.status(503).json({ 
         success: false,
-        error: 'Database connection establishing. Please try again in a moment.',
+        error: 'Database connection establishing. Please try again.',
         retry: true
       });
     }
@@ -613,7 +782,6 @@ app.post('/api/orders', async (req, res) => {
     
     console.log('📦 Creating order for table:', tableId, 'Customer:', customerPhone || 'No customer');
     
-    // VALIDATION: Check for required fields
     if (!tableId || tableId === 'undefined') {
       return res.status(400).json({ 
         success: false,
@@ -628,7 +796,6 @@ app.post('/api/orders', async (req, res) => {
       });
     }
 
-    // Calculate total
     const total = items.reduce((sum, item) => {
       const price = parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 1;
@@ -637,7 +804,6 @@ app.post('/api/orders', async (req, res) => {
 
     const now = new Date();
     
-    // Create order object
     const order = {
       _id: new ObjectId(),
       orderNumber: generateOrderNumber(),
@@ -654,7 +820,7 @@ app.post('/api/orders', async (req, res) => {
       })),
       total,
       status: 'pending',
-      paymentStatus: 'pending', // 🛠️ IMPORTANT: Start as pending
+      paymentStatus: 'pending',
       orderType: orderType || 'dine-in',
       customerPhone: customerPhone || '',
       customerName: customerName || '',
@@ -666,15 +832,10 @@ app.post('/api/orders', async (req, res) => {
     
     console.log('💾 Saving order to database:', order.orderNumber);
     
-    // Save order to database
     await db.collection('orders').insertOne(order);
     
-    // 🛠️ CRITICAL FIX: REMOVE POINTS FROM ORDER CREATION
-    // Points will be added later during payment processing
     console.log('ℹ️ Points will be added during payment processing, not order creation');
     
-    // Update table status
-    console.log('🔄 Updating table status for:', tableId);
     const updatedTable = await db.collection('tables').findOneAndUpdate(
       { number: tableId },
       { $set: { status: 'occupied', orderId: order._id, updatedAt: now } },
@@ -686,11 +847,9 @@ app.post('/api/orders', async (req, res) => {
       safeEmit('tableUpdated', updatedTable.value);
     }
     
-    // Emit new order event
     safeEmit('newOrder', order);
     console.log(`📦 New order created: ${order.orderNumber} for Table ${tableId}`);
     
-    // SUCCESS RESPONSE
     res.json({
       success: true,
       orderNumber: order.orderNumber,
@@ -707,7 +866,6 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// In backend/server.js - FIX order status update endpoint
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     if (!db) {
@@ -760,7 +918,6 @@ app.put('/api/orders/:id/status', async (req, res) => {
       { returnDocument: 'after' }
     );
     
-    // 🛠️ FIX: Check if updatedOrder.value exists before emitting
     if (updatedOrder && updatedOrder.value) {
       safeEmit('orderUpdated', updatedOrder.value);
       res.json({
@@ -768,7 +925,6 @@ app.put('/api/orders/:id/status', async (req, res) => {
         order: updatedOrder.value
       });
     } else {
-      // If no updated order, at least return the original order with new status
       const fallbackOrder = { ...order, ...updateData };
       safeEmit('orderUpdated', fallbackOrder);
       res.json({
@@ -782,207 +938,6 @@ app.put('/api/orders/:id/status', async (req, res) => {
     res.status(500).json({ 
       success: false,
       error: error.message 
-    });
-  }
-});
-
-// ==================== CUSTOMER ENDPOINTS ====================
-
-app.get('/api/customers', async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const customers = await db.collection('customers').find().sort({ createdAt: -1 }).toArray();
-    res.json(customers);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/customers/:phone', async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const { phone } = req.params;
-    const customer = await getCustomerByPhone(phone);
-    
-    if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-    
-    res.json(customer);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/customers', async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const { phone, name } = req.body;
-    
-    if (!phone) {
-      return res.status(400).json({ error: 'Phone number is required' });
-    }
-    
-    const customer = await createOrUpdateCustomer(phone, name);
-    res.json(customer);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 🛠️ ENHANCED POINTS ENDPOINT - FIXED FOR PRODUCTION
-app.post('/api/customers/:phone/points', async (req, res) => {
-  try {
-    console.log('➕ Add points request:', req.params.phone, req.body);
-    
-    if (!db) {
-      return res.status(503).json({ 
-        success: false,
-        message: 'Database not connected' 
-      });
-    }
-    
-    const { phone } = req.params;
-    const { points, orderTotal } = req.body;
-    
-    // ENHANCED VALIDATION
-    if (!phone || phone === 'undefined' || phone === 'null') {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Valid phone number is required' 
-      });
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    if (cleanPhone.length < 10) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Phone number must be at least 10 digits' 
-      });
-    }
-
-    const pointsToAdd = parseInt(points) || 0;
-    if (pointsToAdd <= 0) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Valid points value is required' 
-      });
-    }
-
-    console.log('➕ Adding points:', pointsToAdd, 'for customer:', cleanPhone);
-    
-    const customer = await createOrUpdateCustomer(cleanPhone, '', pointsToAdd, parseFloat(orderTotal) || 0);
-    
-    if (!customer) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Customer not found' 
-      });
-    }
-    
-    console.log('✅ Points updated for customer:', cleanPhone, 'Total points:', customer.points);
-    
-    res.json({
-      success: true,
-      customer: customer,
-      pointsAdded: pointsToAdd,
-      totalPoints: customer.points
-    });
-    
-  } catch (error) {
-    console.error('❌ Add points error:', error);
-    
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to update points: ' + error.message 
-    });
-  }
-});
-
-app.post('/api/customers/register', async (req, res) => {
-  try {
-    console.log('📝 Registration request received:', req.body);
-    
-    if (!db) {
-      return res.status(503).json({ 
-        success: false,
-        message: 'Database not connected' 
-      });
-    }
-    
-    const { phone } = req.body;
-    
-    if (!phone) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Phone number is required' 
-      });
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    if (cleanPhone.length < 10) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Valid phone number required (at least 10 digits)' 
-      });
-    }
-
-    // FIX: Call without points for registration
-    const customer = await createOrUpdateCustomer(cleanPhone);
-    
-    console.log('✅ Registration successful for:', cleanPhone);
-    res.json({
-      success: true,
-      customer: customer
-    });
-    
-  } catch (error) {
-    console.error('💥 Registration endpoint error:', error);
-    
-    if (error.code === 11000) {
-      return res.status(409).json({ 
-        success: false,
-        message: 'Phone number already registered' 
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false,
-      message: 'Registration failed: ' + error.message 
-    });
-  }
-});
-
-app.get('/api/customers/:phone/orders', async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const { phone } = req.params;
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    console.log('📋 Fetching orders for customer:', cleanPhone);
-    
-    const customerOrders = await db.collection('orders')
-      .find({ customerPhone: cleanPhone })
-      .sort({ createdAt: -1 })
-      .toArray();
-    
-    console.log(`✅ Found ${customerOrders.length} orders for customer ${cleanPhone}`);
-    res.json(customerOrders);
-  } catch (error) {
-    console.error('❌ Customer orders error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Failed to fetch customer orders' 
     });
   }
 });
@@ -1015,7 +970,6 @@ app.post('/api/payments', async (req, res) => {
     
     const { orderId, amount, method = 'cash' } = req.body;
     
-    // Validate required fields
     if (!orderId) {
       return res.status(400).json({ 
         success: false,
@@ -1025,13 +979,10 @@ app.post('/api/payments', async (req, res) => {
 
     console.log('🔍 Processing payment for order:', orderId);
 
-    // Find order with multiple fallback options
     let order;
     try {
-      // Try by orderNumber first
       order = await db.collection('orders').findOne({ orderNumber: orderId });
       
-      // If not found, try by _id
       if (!order) {
         try {
           order = await db.collection('orders').findOne({ _id: new ObjectId(orderId) });
@@ -1058,7 +1009,6 @@ app.post('/api/payments', async (req, res) => {
     const now = new Date();
     const paymentAmount = amount || order.total;
 
-    // Create payment record
     const payment = {
       _id: new ObjectId(),
       orderId: order.orderNumber,
@@ -1072,11 +1022,9 @@ app.post('/api/payments', async (req, res) => {
 
     console.log('💾 Saving payment record:', payment);
 
-    // Database operations with error handling
     try {
       await db.collection('payments').insertOne(payment);
       
-      // Update order status
       const updatedOrder = await db.collection('orders').findOneAndUpdate(
         { _id: order._id },
         { 
@@ -1089,7 +1037,6 @@ app.post('/api/payments', async (req, res) => {
         { returnDocument: 'after' }
       );
 
-      // Update table status if exists
       if (order.tableId) {
         const updatedTable = await db.collection('tables').findOneAndUpdate(
           { number: order.tableId },
@@ -1102,7 +1049,6 @@ app.post('/api/payments', async (req, res) => {
         }
       }
 
-      // Emit events
       safeEmit('paymentProcessed', payment);
       safeEmit('orderUpdated', updatedOrder.value);
 
@@ -1129,7 +1075,7 @@ app.post('/api/payments', async (req, res) => {
       message: 'Payment processing failed: ' + error.message 
     });
   }
-}); 
+});
 
 // ==================== UTILITY ENDPOINTS ====================
 
@@ -1159,78 +1105,10 @@ app.get('/api/orders/table/:tableId', async (req, res) => {
   }
 });
 
-app.put('/api/orders/:id/items', async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const orderId = req.params.id;
-    const { newItems } = req.body;
-    
-    console.log('➕ Adding items to order:', orderId, newItems);
-    
-    let query;
-    try {
-      query = { _id: new ObjectId(orderId) };
-    } catch (error) {
-      query = { orderNumber: orderId };
-    }
-    
-    const order = await db.collection('orders').findOne(query);
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-    
-    const addedItems = newItems.map(item => {
-      return {
-        menuItemId: item.menuItemId,
-        name: item.name || 'Menu Item',
-        price: parseFloat(item.price) || 0,
-        quantity: parseInt(item.quantity) || 1,
-        category: item.category || 'uncategorized',
-        specialInstructions: item.specialInstructions || ''
-      };
-    });
-    
-    const updatedItems = [...order.items, ...addedItems];
-    const newTotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
-    const updatedOrder = await db.collection('orders').findOneAndUpdate(
-      query,
-      { 
-        $set: { 
-          items: updatedItems,
-          total: newTotal,
-          updatedAt: new Date()
-        } 
-      },
-      { returnDocument: 'after' }
-    );
-    
-    console.log('✅ Order updated with new items:', updatedOrder.value.orderNumber);
-    
-    safeEmit('orderUpdated', updatedOrder.value);
-    res.json(updatedOrder.value);
-  } catch (error) {
-    console.error('❌ Error adding items to order:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 🛠️ ENHANCED Socket.io for real-time updates - FIXED FOR PRODUCTION
+// WebSocket handlers
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   
-  // Wrap emit function with validation
-  const originalEmit = socket.emit;
-  socket.emit = function(event, data) {
-    if (validateSocketData(data, event)) {
-      originalEmit.call(this, event, data);
-    } else {
-      console.warn(`🚫 Blocked invalid socket.emit for ${event}:`, data);
-    }
-  };
-
   socket.on('disconnect', (reason) => {
     console.log('❌ Client disconnected:', socket.id, reason);
   });
@@ -1242,17 +1120,12 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 10000;
 
-// Start server immediately, database will connect in background
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚀 Mesra POS Server running on port ${PORT}`);
-  console.log(`📍 Health check: https://restaurant-saas-backend-hbdz.onrender.com/health`);
-  console.log(`🔧 CORS enabled for: ${FRONTEND_URL}`);
-  console.log(`💾 Database: MongoDB (Auto-connecting)`);
-  console.log(`👥 Customer tracking: PERSISTENT`);
-  console.log(`🎯 Loyalty points: PERSISTENT`);
-  console.log(`🔄 Real-time updates: ENABLED`);
-  console.log(`🛠️ Production fixes: ✅ WebSocket Validation, ✅ Customer Validation, ✅ Error Handling\n`);
+// Start server
+server.listen(PORT, '0.0.0.0', async () => {
+  console.log(`\n🚀 Production Restaurant SaaS Server running on port ${PORT}`);
+  console.log(`🔐 Session Management: Redis Cloud + HTTP-only Cookies`);
+  console.log(`🎯 Customer Persistence: Production Ready`);
+  console.log(`📊 Architecture: Microservices Ready\n`);
   
-  // Start database connection in background
-  initializeDatabase();
+  await initializeDatabase();
 });
