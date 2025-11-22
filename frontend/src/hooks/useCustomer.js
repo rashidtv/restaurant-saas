@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { validatePhoneNumber } from '../utils/validators';
-import { CONFIG } from '../constants/config'; // ✅ Now this will work
+import config from '../constants/config';
 
 export const useCustomer = () => {
   const [customer, setCustomer] = useState(null);
@@ -17,7 +17,7 @@ export const useCustomer = () => {
         
         console.log('🔍 Checking for active customer session...');
         
-        const response = await fetch(`${CONFIG.API_BASE_URL}/api/customers/me`, {
+        const response = await fetch(`${config.API_BASE_URL}/api/customers/me`, {
           method: 'GET',
           credentials: 'include',
           headers: {
@@ -63,7 +63,7 @@ export const useCustomer = () => {
       const cleanPhone = phone.replace(/\D/g, '');
       console.log('📝 Registering customer with session:', cleanPhone);
       
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/customers/register`, {
+      const response = await fetch(`${config.API_BASE_URL}/api/customers/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +110,7 @@ export const useCustomer = () => {
     try {
       console.log('➕ Adding points via session:', pointsToAdd, 'for customer:', customer.phone);
       
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/customers/${customer.phone}/points`, {
+      const response = await fetch(`${config.API_BASE_URL}/api/customers/${customer.phone}/points`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -151,7 +151,7 @@ export const useCustomer = () => {
     try {
       console.log('🚪 Logging out customer...');
       
-      await fetch(`${CONFIG.API_BASE_URL}/api/customers/logout`, {
+      await fetch(`${config.API_BASE_URL}/api/customers/logout`, {
         method: 'POST',
         credentials: 'include',
       }).catch(error => {
@@ -178,7 +178,7 @@ export const useCustomer = () => {
     try {
       console.log('🔄 Refreshing customer data...');
       
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/customers/me`, {
+      const response = await fetch(`${config.API_BASE_URL}/api/customers/me`, {
         credentials: 'include',
       });
 
@@ -210,7 +210,7 @@ export const useCustomer = () => {
     try {
       console.log('📋 Fetching orders for customer:', customer.phone);
       
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/customers/${customer.phone}/orders`, {
+      const response = await fetch(`${config.API_BASE_URL}/api/customers/${customer.phone}/orders`, {
         credentials: 'include',
       });
 
