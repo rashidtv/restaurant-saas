@@ -1704,3 +1704,23 @@ input:focus-visible {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transform: translateY(-1px);
 }
+
+/* TEMPORARY FIX - Add this immediately */
+.registration-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.8) !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.registration-modal {
+  background: white !important;
+  z-index: 10000 !important;
+  position: relative !important;
+}
