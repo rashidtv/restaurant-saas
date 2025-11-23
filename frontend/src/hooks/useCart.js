@@ -1,30 +1,33 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 
 export const useCart = () => {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
+  // 🎯 PRODUCTION: Fixed addToCart that accepts backend items with _id
   const addToCart = useCallback((item, quantity = 1) => {
     if (!item || typeof item !== 'object') {
       console.error('Invalid item for cart:', item);
       return;
     }
 
-    const itemId = item.id || item._id || item.menuItemId;
+    // ✅ ACCEPT BOTH _id (from backend) AND id (from frontend)
+    const itemId = item.id || item._id;
     const itemName = item.name || 'Unknown Item';
     const itemPrice = parseFloat(item.price) || 0;
 
     if (!itemId) {
-      console.error('Item missing ID:', item);
+      console.error('❌ Item missing ID:', item);
       return;
     }
 
     setCart(prevCart => {
+      // Create unique ID to prevent merging
       const uniqueItemId = `${itemId}-${Date.now()}`;
       
       const newItem = { 
         id: uniqueItemId,
-        originalId: itemId,
+        originalId: itemId, // Keep original ID for backend reference
         name: itemName,
         price: itemPrice,
         quantity: Math.max(1, parseInt(quantity) || 1)
@@ -65,7 +68,7 @@ export const useCart = () => {
 
   const getCartItemsForOrder = useCallback(() => {
     return cart.map(item => ({
-      menuItemId: item.originalId || item.id,
+      menuItemId: item.originalId, // Use original ID for backend
       name: item.name,
       price: item.price,
       quantity: item.quantity
@@ -73,13 +76,18 @@ export const useCart = () => {
   }, [cart]);
 
   return {
+    // State
     cart,
     isCartOpen,
+    
+    // Actions
     setIsCartOpen,
     addToCart,
     removeFromCart,
     updateQuantity,
     clearCart,
+    
+    // Getters
     getCartTotal,
     getItemCount,
     getCartItemsForOrder

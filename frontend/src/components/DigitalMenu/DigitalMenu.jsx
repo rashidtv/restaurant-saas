@@ -23,16 +23,15 @@ export const DigitalMenu = ({
   
   // Custom hooks
   const customerHook = useCustomer();
-  const { 
-    customer, 
-    points, 
-    registerCustomer, 
-    updateCustomerAfterOrder, 
-    addPoints, 
-    clearCustomer,
-    getCustomerOrders,
-    validateSession  // 🎯 ADD THIS LINE
-  } = customerHook;
+// Custom hooks
+const { 
+  customer, 
+  registerCustomer, 
+  addPoints, 
+  clearCustomer,
+  validateSession,
+  getCustomerOrders
+} = useCustomer();
 
   const { orders, isLoading: ordersLoading, loadTableOrders } = useOrders();
   const { 
@@ -482,13 +481,13 @@ const handlePlaceOrder = useCallback(async () => {
             )}
 
             {/* Points Display */}
-            {customer && (
-              <PointsDisplay 
-                points={points} 
-                phone={customer.phone}
-                onClear={clearCustomer}
-              />
-            )}
+{customer && (
+  <PointsDisplay 
+    points={customer.points || 0}  // ✅ Get points from customer object
+    phone={customer.phone}
+    onClear={clearCustomer}
+  />
+)}
 
             {/* Orders Section */}
             {customer && (
