@@ -1878,3 +1878,31 @@ body.modal-open .customer-content {
   border-radius: 8px;
   font-size: 0.875rem;
 }
+
+/* Registration Modal - Auto Center & Top */
+.registration-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* Change from center to flex-start */
+  z-index: 10000;
+  padding-top: 50px; /* Add some top padding */
+  overflow-y: auto; /* Allow scrolling if needed */
+}
+
+.registration-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: calc(100vh - 100px); /* Limit height */
+  margin-top: 0; /* Ensure it stays at top */
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  z-index: 10001;
+}

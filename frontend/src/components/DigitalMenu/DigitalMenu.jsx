@@ -57,18 +57,22 @@ const {
   const [headerSticky, setHeaderSticky] = useState(false);
 
 
-// Add this inside your DigitalMenu component, after the state declarations
+// Auto-scroll to top when modal opens
 useEffect(() => {
   if (showRegistration) {
-    document.body.classList.add('modal-open');
-  } else {
-    document.body.classList.remove('modal-open');
+    // Scroll to top immediately when modal opens
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    
+    // Also scroll the modal into view
+    setTimeout(() => {
+      const modal = document.querySelector('.registration-modal');
+      if (modal) {
+        modal.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   }
-  
-  return () => {
-    document.body.classList.remove('modal-open');
-  };
 }, [showRegistration]);
+
 // 🎯 ENHANCED: Table detection with session awareness
 useEffect(() => {
   if (isCustomerView) {
