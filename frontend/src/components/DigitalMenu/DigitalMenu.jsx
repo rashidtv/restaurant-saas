@@ -56,6 +56,19 @@ const {
   const [showWelcome, setShowWelcome] = useState(true);
   const [headerSticky, setHeaderSticky] = useState(false);
 
+
+// Add this inside your DigitalMenu component, after the state declarations
+useEffect(() => {
+  if (showRegistration) {
+    document.body.classList.add('modal-open');
+  } else {
+    document.body.classList.remove('modal-open');
+  }
+  
+  return () => {
+    document.body.classList.remove('modal-open');
+  };
+}, [showRegistration]);
 // 🎯 ENHANCED: Table detection with session awareness
 useEffect(() => {
   if (isCustomerView) {
