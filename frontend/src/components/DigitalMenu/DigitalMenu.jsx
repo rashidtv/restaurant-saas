@@ -156,30 +156,13 @@ useEffect(() => {
     loadOrders();
   }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
-// 🎯 ENHANCED: Session-aware registration logic
+// SIMPLE: Show registration when table detected and no customer
 useEffect(() => {
-  const checkSessionAndRegistration = async () => {
-    // Wait for customer context to initialize
-    
-    // If we have a table but no customer session, show registration
-    if (selectedTable && !customer) {
-      console.log('🎯 Table detected but no customer session - showing registration');
-      setShowRegistration(true);
-      setShowWelcome(false);
-    }
-    
-    // If we have a customer, validate the session
-    if (customer) {
-      const isValid = await validateSession();
-      if (!isValid) {
-        console.warn('❌ Customer session invalid - requiring re-registration');
-        setShowRegistration(true);
-      }
-    }
-  };
-
-  checkSessionAndRegistration();
-}, [selectedTable, customer, validateSession]);
+  if (selectedTable && !customer) {
+    setShowRegistration(true);
+    setShowWelcome(false);
+  }
+}, [selectedTable, customer]);
 
   // WebSocket handlers
   useEffect(() => {
