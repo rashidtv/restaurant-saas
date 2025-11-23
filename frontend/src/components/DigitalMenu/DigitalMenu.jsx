@@ -30,10 +30,11 @@ export const DigitalMenu = ({
     updateCustomerAfterOrder, 
     addPoints, 
     clearCustomer,
-    getCustomerOrders
+    getCustomerOrders,
+    validateSession  // 🎯 ADD THIS LINE
   } = customerHook;
 
-  const { orders, isLoading: ordersLoading, loadTableOrders, createOrder: createOrderAPI } = useOrders();
+  const { orders, isLoading: ordersLoading, loadTableOrders } = useOrders();
   const { 
     cart, 
     isCartOpen, 
@@ -143,7 +144,6 @@ useEffect(() => {
 useEffect(() => {
   const checkSessionAndRegistration = async () => {
     // Wait for customer context to initialize
-    if (!isInitialized) return;
     
     // If we have a table but no customer session, show registration
     if (selectedTable && !customer) {
@@ -163,7 +163,7 @@ useEffect(() => {
   };
 
   checkSessionAndRegistration();
-}, [selectedTable, customer, isInitialized, validateSession]);
+}, [selectedTable, customer, validateSession]);
 
   // WebSocket handlers
   useEffect(() => {
@@ -294,9 +294,8 @@ const handleRegistration = useCallback(async (phone, name) => {
   }
 }, [registerCustomer, validateSession]);
 
-  const handlePlaceOrder = useCallback(async () => {
-
-    // 🎯 ADD THIS CHECK AT THE VERY BEGINNING
+const handlePlaceOrder = useCallback(async () => {
+  // 🎯 Session validation check
   if (customer) {
     try {
       const sessionValid = await validateSession();
@@ -309,140 +308,90 @@ const handleRegistration = useCallback(async (phone, name) => {
       console.log('Session check failed:', error);
     }
   }
-    try {
-      console.log('🔐 Validating customer session...');
-      
-        const sessionValid = await validateSession();
-  if (!sessionValid) {
-    alert('Your session has expired. Please register again.');
+
+  if (cart.length === 0) {
+    alert('Your cart is empty. Please add some items first.');
+    return;
+  }
+
+  if (!selectedTable) {
+    alert('Table number not detected. Please scan the QR code again.');
+    return;
+  }
+
+  if (!customer) {
+    alert('Please register with your phone number to place an order.');
     setShowRegistration(true);
     return;
   }
 
-      const sessionCheck = await fetch(`${CONFIG.API_BASE_URL}/api/customers/me`, {
-        method: 'GET',
-        credentials: 'include',
+  setIsPlacingOrder(true);
+  
+  try {
+    const orderData = cart.map(item => ({
+      menuItemId: item.menuItemId || item.id,
+      name: item.name,
+      price: parseFloat(item.price),
+      quantity: item.quantity,
+      category: item.category
+    }));
+
+    const orderTotal = getCartTotal();
+    console.log('🎯 Creating order with customer:', customer.phone);
+
+    let orderResult;
+    
+    if (onCreateOrder) {
+      orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
+        customerPhone: customer.phone,
+        customerName: customer.name 
+      });
+    } else {
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-      });
-      
-      console.log('🔐 Session check status:', sessionCheck.status);
-      
-      if (sessionCheck.status === 401) {
-        if (customer) {
-          console.log('🔄 Session expired for existing customer, attempting re-registration...');
-          try {
-            await registerCustomer(customer.phone, customer.name);
-            console.log('✅ Customer re-registered successfully');
-          } catch (regError) {
-            console.error('❌ Re-registration failed:', regError);
-            throw new Error('Session expired. Please scan QR code again.');
-          }
-        } else {
-          throw new Error('No active session. Please register first.');
-        }
-      }
-      
-      if (!sessionCheck.ok) {
-        throw new Error('Session validation failed');
-      }
-      
-      console.log('✅ Session validated successfully');
-      
-    } catch (error) {
-      console.error('❌ Session validation failed:', error);
-      alert(error.message);
-      setShowRegistration(true);
-      return;
-    }
-
-    if (cart.length === 0) {
-      alert('Your cart is empty. Please add some items first.');
-      return;
-    }
-
-    if (!selectedTable) {
-      alert('Table number not detected. Please scan the QR code again.');
-      return;
-    }
-
-    if (!customer) {
-      alert('Please register with your phone number to place an order.');
-      setShowRegistration(true);
-      return;
-    }
-
-    setIsPlacingOrder(true);
-
-
-    
-    try {
-      const orderData = cart.map(item => ({
-        menuItemId: item.menuItemId || item.id,
-        name: item.name,
-        price: parseFloat(item.price),
-        quantity: item.quantity,
-        category: item.category
-      }));
-
-      const orderTotal = getCartTotal();
-
-      console.log('🎯 Creating order with customer:', customer.phone);
-
-      let orderResult;
-      
-      if (onCreateOrder) {
-        orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
+        credentials: 'include',
+        body: JSON.stringify({
+          tableId: selectedTable,
+          items: orderData,
+          orderType: 'dine-in',
           customerPhone: customer.phone,
-          customerName: customer.name 
-        });
-      } else {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            tableId: selectedTable,
-            items: orderData,
-            orderType: 'dine-in',
-            customerPhone: customer.phone,
-            customerName: customer.name
-          })
-        });
+          customerName: customer.name
+        })
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || errorData.message || 'Failed to place order');
-        }
-
-        orderResult = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to place order');
       }
 
-      if (orderResult && (orderResult.success || orderResult.orderNumber)) {
-        clearCart();
-        setIsCartOpen(false);
-        
-        await loadTableOrders(selectedTable);
-        if (getCustomerOrders) {
-          const updatedCustomerOrders = await getCustomerOrders();
-          setCustomerOrders(updatedCustomerOrders);
-        }
-        
-        const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
-        alert(`Order #${orderNumber} placed successfully!`);
-      } else {
-        throw new Error(orderResult?.message || 'Failed to place order');
-      }
-    } catch (error) {
-      console.error('Order placement error:', error);
-      alert(`Failed to place order: ${error.message}`);
-    } finally {
-      setIsPlacingOrder(false);
+      orderResult = await response.json();
     }
-  }, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders, registerCustomer]);
+
+    if (orderResult && (orderResult.success || orderResult.orderNumber)) {
+      clearCart();
+      setIsCartOpen(false);
+      
+      await loadTableOrders(selectedTable);
+      if (getCustomerOrders) {
+        const updatedCustomerOrders = await getCustomerOrders();
+        setCustomerOrders(updatedCustomerOrders);
+      }
+      
+      const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
+      alert(`Order #${orderNumber} placed successfully!`);
+    } else {
+      throw new Error(orderResult?.message || 'Failed to place order');
+    }
+  } catch (error) {
+    console.error('Order placement error:', error);
+    alert(`Failed to place order: ${error.message}`);
+  } finally {
+    setIsPlacingOrder(false);
+  }
+}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders, validateSession]);
 
   const toggleCart = useCallback(() => {
     setIsCartOpen(prev => !prev);
