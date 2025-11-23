@@ -186,6 +186,7 @@ export const CustomerProvider = ({ children }) => {
       const response = await apiClient.get('/api/customers/me');
       return response.success;
     } catch (error) {
+      console.log('Session validation failed:', error.message);
       return false;
     }
   };

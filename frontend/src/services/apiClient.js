@@ -18,53 +18,31 @@ class ApiClient {
           'Content-Type': 'application/json',
           ...options.headers,
         },
-        credentials: 'include', // 🎯 CRITICAL: Include cookies for sessions
+        credentials: 'include',
         signal: controller.signal,
         ...options,
       };
 
-      console.log(`🔗 API Call: ${config.method} ${url}`);
-      
       const response = await fetch(url, config);
 
-      // 🎯 ENHANCED: Handle specific HTTP status codes
+      // Handle session expiration gracefully
       if (response.status === 401) {
-        // Session expired
-        console.warn('🔐 Session expired - requiring re-authentication');
+        console.log('🔐 Session expired');
         throw new Error('SESSION_EXPIRED');
-      }
-
-      if (response.status === 503) {
-        throw new Error('Service temporarily unavailable. Please try again.');
       }
 
       if (!response.ok) {
         const errorText = await response.text();
-        let errorMessage = `HTTP ${response.status}`;
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch {
-          errorMessage = errorText || errorMessage;
-        }
-        
-        throw new Error(errorMessage);
+        throw new Error(errorText || `HTTP ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log(`✅ API Success: ${endpoint}`);
-      return data;
+      return await response.json();
 
     } catch (error) {
-      console.error(`🚨 API Error [${endpoint}]:`, error.message);
+      console.error(`API Error [${endpoint}]:`, error.message);
       
-      // Handle specific error types
       if (error.name === 'AbortError') {
-        throw new Error('Request timeout. Please check your connection.');
-      }
-      if (error.message.includes('Failed to fetch')) {
-        throw new Error('Network error. Please check your connection.');
+        throw new Error('Request timeout');
       }
       
       throw error;

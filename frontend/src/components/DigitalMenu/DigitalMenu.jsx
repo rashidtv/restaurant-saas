@@ -295,6 +295,20 @@ const handleRegistration = useCallback(async (phone, name) => {
 }, [registerCustomer, validateSession]);
 
   const handlePlaceOrder = useCallback(async () => {
+
+    // 🎯 ADD THIS CHECK AT THE VERY BEGINNING
+  if (customer) {
+    try {
+      const sessionValid = await validateSession();
+      if (!sessionValid) {
+        alert('Your session has expired. Please register again.');
+        setShowRegistration(true);
+        return;
+      }
+    } catch (error) {
+      console.log('Session check failed:', error);
+    }
+  }
     try {
       console.log('🔐 Validating customer session...');
       

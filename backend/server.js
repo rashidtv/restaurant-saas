@@ -627,7 +627,7 @@ app.post('/api/customers/logout', validateCustomerSession, async (req, res) => {
   }
 });
 
-// 🎯 ADD THIS ENDPOINT (around line 400, after logout endpoint)
+// 🎯 ADD THIS AFTER THE LOGOUT ENDPOINT (around line 400)
 app.post('/api/customers/session/refresh', validateCustomerSession, async (req, res) => {
   try {
     const sessionId = req.cookies.customerSession;

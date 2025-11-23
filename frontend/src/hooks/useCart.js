@@ -4,41 +4,37 @@ export const useCart = () => {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-// 🎯 FIXED: Enhanced addToCart with proper validation
+// 🎯 FIX ONLY THIS FUNCTION - LEAVE EVERYTHING ELSE UNCHANGED
 const addToCart = useCallback((item, quantity = 1) => {
   if (!item || typeof item !== 'object') {
-    console.error('❌ Invalid item provided to addToCart:', item);
+    console.error('Invalid item for cart:', item);
     return;
   }
 
-  // 🎯 CRITICAL FIX: Validate required fields
-  const itemId = item.id || item._id || item.menuItemId;
+  // Ensure item has required properties
+  const itemId = item.id || item._id;
   const itemName = item.name || 'Unknown Item';
   const itemPrice = parseFloat(item.price) || 0;
-  const itemCategory = item.category || 'uncategorized';
 
   if (!itemId) {
-    console.error('❌ Item missing ID:', item);
+    console.error('Item missing ID:', item);
     return;
   }
 
   setCart(prevCart => {
-    // 🎯 PERMANENT FIX: Create unique ID with timestamp to prevent grouping
-    const uniqueItemId = `${itemId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Create unique ID to prevent merging items
+    const uniqueItemId = `${itemId}-${Date.now()}`;
     
-    // Add new item as separate entry (NO GROUPING)
     const newItem = { 
       id: uniqueItemId,
-      originalId: itemId, // Keep original ID for backend reference
+      originalId: itemId,
       name: itemName,
       price: itemPrice,
-      category: itemCategory,
-      description: item.description || '',
-      quantity: Math.max(1, parseInt(quantity) || 1),
-      addedAt: new Date().toISOString()
+      category: item.category || 'general',
+      quantity: Math.max(1, parseInt(quantity) || 1)
     };
 
-    console.log('🛒 Adding cart item:', newItem.name, 'Qty:', newItem.quantity, 'Unique ID:', uniqueItemId);
+    console.log('🛒 Added to cart:', newItem.name);
     return [...prevCart, newItem];
   });
 }, []);
