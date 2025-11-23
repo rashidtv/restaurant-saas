@@ -4,21 +4,21 @@ export const useCart = () => {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // FIXED: Enhanced addToCart with unique item identification
+// 🎯 FIXED: Enhanced addToCart with proper validation
 const addToCart = useCallback((item, quantity = 1) => {
   if (!item || typeof item !== 'object') {
-    console.error('Invalid item provided to addToCart:', item);
+    console.error('❌ Invalid item provided to addToCart:', item);
     return;
   }
 
-  // Validate required fields with fallbacks
+  // 🎯 CRITICAL FIX: Validate required fields
   const itemId = item.id || item._id || item.menuItemId;
   const itemName = item.name || 'Unknown Item';
   const itemPrice = parseFloat(item.price) || 0;
   const itemCategory = item.category || 'uncategorized';
 
   if (!itemId) {
-    console.error('Item missing ID:', item);
+    console.error('❌ Item missing ID:', item);
     return;
   }
 
@@ -33,12 +33,12 @@ const addToCart = useCallback((item, quantity = 1) => {
       name: itemName,
       price: itemPrice,
       category: itemCategory,
-      description: item.description,
-      quantity: quantity,
+      description: item.description || '',
+      quantity: Math.max(1, parseInt(quantity) || 1),
       addedAt: new Date().toISOString()
     };
 
-    console.log('🛒 Adding cart item:', newItem.name, 'Qty:', quantity, 'Unique ID:', uniqueItemId);
+    console.log('🛒 Adding cart item:', newItem.name, 'Qty:', newItem.quantity, 'Unique ID:', uniqueItemId);
     return [...prevCart, newItem];
   });
 }, []);

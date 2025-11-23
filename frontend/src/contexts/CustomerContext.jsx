@@ -1,28 +1,24 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import { apiClient } from '../services/apiClient';
 
-// Customer context
 const CustomerContext = createContext();
 
-// Customer reducer for state management
+// Customer state reducer
 const customerReducer = (state, action) => {
   switch (action.type) {
     case 'SET_CUSTOMER':
-      console.log('✅ CustomerContext: Setting customer', action.payload);
-      // Persist to localStorage
-      if (action.payload) {
-      }
-      return { 
+      return {
         ...action.payload,
-        isRegistered: true 
+        isRegistered: true,
+        lastUpdated: Date.now()
       };
     case 'UPDATE_CUSTOMER':
-      console.log('🔄 CustomerContext: Updating customer', action.payload);
-      const updatedCustomer = { ...state, ...action.payload };
-      // Persist updates
-      return updatedCustomer;
+      return { 
+        ...state, 
+        ...action.payload,
+        lastUpdated: Date.now()
+      };
     case 'CLEAR_CUSTOMER':
-      console.log('🧹 CustomerContext: Clearing customer');
-      
       return null;
     case 'SET_LOADING':
       return { 
@@ -40,127 +36,196 @@ const customerReducer = (state, action) => {
   }
 };
 
-// In CustomerContext.jsx - Add localStorage persistence
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
+  // 🎯 PRODUCTION: Initialize customer from session
+  useEffect(() => {
+    const initializeCustomer = async () => {
+      try {
+        console.log('🔐 Initializing customer session...');
+        
+        const response = await apiClient.get('/api/customers/me');
+        
+        if (response.success && response.customer) {
+          dispatch({ 
+            type: 'SET_CUSTOMER', 
+            payload: response.customer 
+          });
+          console.log('✅ Customer session initialized:', response.customer.phone);
+        }
+      } catch (error) {
+        console.log('ℹ️ No active customer session or error:', error.message);
+        // Don't throw error - just means no session exists
+      } finally {
+        setIsInitialized(true);
+      }
+    };
 
+    initializeCustomer();
+  }, []);
 
-  // 🛠️ FIX: Enhanced registerCustomer with immediate persistence
+  // 🎯 PRODUCTION: Session refresh on activity
+  useEffect(() => {
+    if (!customer) return;
+
+    const refreshSession = async () => {
+      try {
+        await apiClient.post('/api/customers/session/refresh');
+        console.log('🔄 Customer session refreshed');
+      } catch (error) {
+        console.error('Session refresh failed:', error);
+        // Don't clear session immediately - wait for actual 401
+      }
+    };
+
+    // Refresh every 30 minutes
+    const interval = setInterval(refreshSession, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [customer]);
+
+  // 🎯 PRODUCTION: Enhanced registerCustomer
   const registerCustomer = async (phone, name = '') => {
     try {
-      console.log('📝 CustomerContext: Registering customer', phone);
+      dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Validation
       if (!phone || phone === 'undefined') {
         throw new Error('Please enter a valid phone number');
       }
 
       const cleanPhone = phone.replace(/\D/g, '');
       
-      const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/customers/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone: cleanPhone, name }),
+      const response = await apiClient.post('/api/customers/register', {
+        phone: cleanPhone, 
+        name: name || `Customer-${cleanPhone.slice(-4)}`
       });
-
-      if (!response.ok) {
-        throw new Error(`Registration failed: ${response.status}`);
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Registration failed');
       }
 
-      const result = await response.json();
-      
-      // 🛠️ CRITICAL: Create customer object and persist immediately
       const customerPayload = {
-        _id: result.customer?._id || result._id,
+        _id: response.customer?._id,
         phone: cleanPhone,
-        name: name || result.customer?.name || `Customer-${cleanPhone.slice(-4)}`,
-        points: result.customer?.points || 0,
+        name: name || response.customer?.name,
+        points: response.customer?.points || 0,
         isRegistered: true
       };
       
       dispatch({ 
         type: 'SET_CUSTOMER', 
-        payload: customerPayload
+        payload: customerPayload 
       });
       
-      console.log('✅ Customer registered and persisted:', customerPayload);
+      console.log('✅ Customer registered successfully:', cleanPhone);
       return customerPayload;
       
     } catch (error) {
-      console.error('❌ CustomerContext: Registration error', error);
+      console.error('❌ Registration error:', error);
+      dispatch({ 
+        type: 'SET_ERROR', 
+        payload: error.message 
+      });
       throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  // 🛠️ FIX: Enhanced addPoints with customer validation
+  // 🎯 PRODUCTION: Enhanced addPoints
   const addPoints = async (points, orderTotal = 0) => {
+    if (!customer?.phone) {
+      throw new Error('No customer available for points addition');
+    }
+
     try {
-      // Get customer from localStorage as fallback
-      let currentCustomer = customer;
-      if (!currentCustomer) {
-        const savedCustomer = localStorage.getItem('restaurant_customer');
-        if (savedCustomer) {
-          currentCustomer = JSON.parse(savedCustomer);
-          console.log('🔄 Recovered customer from localStorage for points');
-        }
-      }
-
-      if (!currentCustomer?.phone) {
-        console.error('❌ No customer available for points addition');
-        return { success: false, message: 'Customer not registered' };
-      }
-
-      console.log('➕ Adding points to customer:', currentCustomer.phone);
-      
-      const response = await fetch(`https://restaurant-saas-backend-hbdz.onrender.com/api/customers/${currentCustomer.phone}/points`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          points: points,
-          orderTotal: orderTotal
-        }),
+      const response = await apiClient.post(`/api/customers/${customer.phone}/points`, {
+        points: points,
+        orderTotal: orderTotal
       });
 
-      if (!response.ok) {
-        throw new Error(`Points update failed: ${response.status}`);
+      if (!response.success) {
+        throw new Error(response.message || 'Points update failed');
       }
 
-      const result = await response.json();
-      console.log('✅ Points added successfully');
+      dispatch({ 
+        type: 'UPDATE_CUSTOMER', 
+        payload: response.customer 
+      });
       
-      return { success: true, ...result };
+      console.log('✅ Points added successfully');
+      return { success: true, ...response };
       
     } catch (error) {
       console.error('❌ Add points error:', error);
+      
+      // Handle session expiration
+      if (error.message.includes('SESSION_EXPIRED') || error.message.includes('401')) {
+        dispatch({ type: 'CLEAR_CUSTOMER' });
+      }
+      
       return { success: false, message: error.message };
     }
   };
 
-  // Add clearCustomer function to clean up
-  const clearCustomer = () => {
-    localStorage.removeItem('restaurant_customer');
-    dispatch({ type: 'CLEAR_CUSTOMER' });
+  // 🎯 PRODUCTION: Enhanced clearCustomer
+  const clearCustomer = async () => {
+    try {
+      await apiClient.post('/api/customers/logout');
+    } catch (error) {
+      console.warn('Logout API call failed:', error);
+    } finally {
+      dispatch({ type: 'CLEAR_CUSTOMER' });
+    }
+  };
+
+  // 🎯 NEW: Silent session validation
+  const validateSession = async () => {
+    try {
+      const response = await apiClient.get('/api/customers/me');
+      return response.success;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // 🎯 NEW: Get customer orders
+  const getCustomerOrders = async () => {
+    if (!customer?.phone) return [];
+    
+    try {
+      const response = await apiClient.get(`/api/customers/${customer.phone}/orders`);
+      return Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.error('Failed to get customer orders:', error);
+      return [];
+    }
   };
 
   return (
     <CustomerContext.Provider value={{ 
-      customer, 
-      registerCustomer, 
-      addPoints, 
+      // State
+      customer,
+      isInitialized,
+      
+      // Actions
+      registerCustomer,
+      addPoints,
       clearCustomer,
-      validateCustomer: () => !!(customer?.phone || localStorage.getItem('restaurant_customer'))
+      validateSession,
+      getCustomerOrders,
+      
+      // Computed
+      isRegistered: !!customer,
+      isLoading: customer?.isLoading || false,
+      error: customer?.error
     }}>
       {children}
     </CustomerContext.Provider>
   );
 };
 
-// Custom hook to use customer context
 export const useCustomer = () => {
   const context = useContext(CustomerContext);
   if (!context) {

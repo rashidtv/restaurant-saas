@@ -18,7 +18,7 @@ class ApiClient {
           'Content-Type': 'application/json',
           ...options.headers,
         },
-        credentials: 'include', // Important for cookies
+        credentials: 'include', // 🎯 CRITICAL: Include cookies for sessions
         signal: controller.signal,
         ...options,
       };
@@ -27,19 +27,29 @@ class ApiClient {
       
       const response = await fetch(url, config);
 
+      // 🎯 ENHANCED: Handle specific HTTP status codes
+      if (response.status === 401) {
+        // Session expired
+        console.warn('🔐 Session expired - requiring re-authentication');
+        throw new Error('SESSION_EXPIRED');
+      }
+
+      if (response.status === 503) {
+        throw new Error('Service temporarily unavailable. Please try again.');
+      }
+
       if (!response.ok) {
-        // Handle specific HTTP status codes
-        if (response.status === 401) {
-          // Session expired
-          throw new Error('Session expired. Please register again.');
-        }
-        if (response.status === 503) {
-          // Service unavailable
-          throw new Error('Service temporarily unavailable. Please try again.');
+        const errorText = await response.text();
+        let errorMessage = `HTTP ${response.status}`;
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
         }
         
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

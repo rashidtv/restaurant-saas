@@ -56,39 +56,42 @@ export const DigitalMenu = ({
   const [showWelcome, setShowWelcome] = useState(true);
   const [headerSticky, setHeaderSticky] = useState(false);
 
-  // Table detection from URL
-  useEffect(() => {
-    if (isCustomerView) {
-      const detectTableFromURL = () => {
-        let detectedTable = null;
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        detectedTable = urlParams.get('table');
-        
-        if (!detectedTable && window.location.hash) {
-          const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
-          detectedTable = hashParams.get('table');
-        }
+// 🎯 ENHANCED: Table detection with session awareness
+useEffect(() => {
+  if (isCustomerView) {
+    const detectTableFromURL = () => {
+      let detectedTable = null;
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      detectedTable = urlParams.get('table');
+      
+      if (!detectedTable && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
+        detectedTable = hashParams.get('table');
+      }
 
-        if (detectedTable) {
-          detectedTable = detectedTable.toString().toUpperCase();
-          if (!detectedTable.startsWith('T')) {
-            detectedTable = 'T' + detectedTable;
-          }
-          setSelectedTable(detectedTable);
+      if (detectedTable) {
+        detectedTable = detectedTable.toString().toUpperCase().trim();
+        if (!detectedTable.startsWith('T')) {
+          detectedTable = 'T' + detectedTable;
         }
-      };
+        console.log('🎯 Table detected from URL:', detectedTable);
+        setSelectedTable(detectedTable);
+      } else {
+        console.log('ℹ️ No table parameter found in URL');
+      }
+    };
 
+    detectTableFromURL();
+    
+    const handleHashChange = () => {
       detectTableFromURL();
-      
-      const handleHashChange = () => {
-        detectTableFromURL();
-      };
-      
-      window.addEventListener('hashchange', handleHashChange);
-      return () => window.removeEventListener('hashchange', handleHashChange);
-    }
-  }, [isCustomerView]);
+    };
+    
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }
+}, [isCustomerView]);
 
   // Sticky header implementation
   useEffect(() => {
@@ -136,13 +139,31 @@ export const DigitalMenu = ({
     loadOrders();
   }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
-  // Show registration when table detected and no customer
-  useEffect(() => {
+// 🎯 ENHANCED: Session-aware registration logic
+useEffect(() => {
+  const checkSessionAndRegistration = async () => {
+    // Wait for customer context to initialize
+    if (!isInitialized) return;
+    
+    // If we have a table but no customer session, show registration
     if (selectedTable && !customer) {
+      console.log('🎯 Table detected but no customer session - showing registration');
       setShowRegistration(true);
       setShowWelcome(false);
     }
-  }, [selectedTable, customer]);
+    
+    // If we have a customer, validate the session
+    if (customer) {
+      const isValid = await validateSession();
+      if (!isValid) {
+        console.warn('❌ Customer session invalid - requiring re-registration');
+        setShowRegistration(true);
+      }
+    }
+  };
+
+  checkSessionAndRegistration();
+}, [selectedTable, customer, isInitialized, validateSession]);
 
   // WebSocket handlers
   useEffect(() => {
@@ -245,28 +266,45 @@ export const DigitalMenu = ({
     addToCart(item, quantity);
   }, [addToCart]);
 
-  // 🎯 FIX: Add missing handleRegistration function
-  const handleRegistration = useCallback(async (phone, name) => {
-    try {
-      console.log('📝 Processing registration for:', phone);
+// 🎯 ENHANCED: Registration handler with session validation
+const handleRegistration = useCallback(async (phone, name) => {
+  try {
+    console.log('📝 Processing registration for:', phone);
+    
+    const registeredCustomer = await registerCustomer(phone, name);
+    
+    if (registeredCustomer) {
+      console.log('✅ Registration successful:', registeredCustomer.phone);
+      setShowRegistration(false);
+      setShowWelcome(false);
       
-      const registeredCustomer = await registerCustomer(phone, name);
-      
-      if (registeredCustomer) {
-        console.log('✅ Registration successful:', registeredCustomer.phone);
-        setShowRegistration(false);
-        setShowWelcome(false);
-      }
-    } catch (error) {
-      console.error('❌ Registration failed:', error);
+      // Validate session after registration
+      await validateSession();
+    }
+  } catch (error) {
+    console.error('❌ Registration failed:', error);
+    
+    // Handle session-specific errors
+    if (error.message.includes('SESSION_EXPIRED') || error.message.includes('401')) {
+      alert('Your session has expired. Please try registering again.');
+    } else {
       alert(`Registration failed: ${error.message}`);
     }
-  }, [registerCustomer]);
+    throw error;
+  }
+}, [registerCustomer, validateSession]);
 
   const handlePlaceOrder = useCallback(async () => {
     try {
       console.log('🔐 Validating customer session...');
       
+        const sessionValid = await validateSession();
+  if (!sessionValid) {
+    alert('Your session has expired. Please register again.');
+    setShowRegistration(true);
+    return;
+  }
+
       const sessionCheck = await fetch(`${CONFIG.API_BASE_URL}/api/customers/me`, {
         method: 'GET',
         credentials: 'include',
@@ -323,6 +361,8 @@ export const DigitalMenu = ({
 
     setIsPlacingOrder(true);
 
+
+    
     try {
       const orderData = cart.map(item => ({
         menuItemId: item.menuItemId || item.id,

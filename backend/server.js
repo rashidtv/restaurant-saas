@@ -126,7 +126,7 @@ const safeEmit = (event, data) => {
   }
 };
 
-// 🎯 PRODUCTION: Session Validation Middleware
+// 🎯 UPDATE existing validateCustomerSession middleware (around line 120)
 const validateCustomerSession = async (req, res, next) => {
   try {
     const sessionId = req.cookies.customerSession;
@@ -134,23 +134,31 @@ const validateCustomerSession = async (req, res, next) => {
     if (!sessionId) {
       return res.status(401).json({ 
         success: false,
-        message: 'No active session' 
+        message: 'No active session',
+        code: 'SESSION_REQUIRED'  // 🎯 ADD error code
       });
     }
     
     const sessionData = await redisClient.get(`session:${sessionId}`);
     
     if (!sessionData) {
-      res.clearCookie('customerSession');
+      res.clearCookie('customerSession', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/'
+      });
+      
       return res.status(401).json({ 
         success: false,
-        message: 'Session expired' 
+        message: 'Session expired',
+        code: 'SESSION_EXPIRED'  // 🎯 ADD error code
       });
     }
     
     const session = JSON.parse(sessionData);
     
-    // Verify session hasn't expired (24 hours)
+    // Verify session age (24 hours max)
     const sessionAge = Date.now() - new Date(session.createdAt).getTime();
     const maxAge = 24 * 60 * 60 * 1000;
     
@@ -159,9 +167,13 @@ const validateCustomerSession = async (req, res, next) => {
       res.clearCookie('customerSession');
       return res.status(401).json({ 
         success: false,
-        message: 'Session expired' 
+        message: 'Session expired',
+        code: 'SESSION_EXPIRED'  // 🎯 ADD error code
       });
     }
+    
+    // 🎯 NEW: Refresh session expiry on activity
+    await redisClient.expire(`session:${sessionId}`, 24 * 60 * 60);
     
     req.customerSession = session;
     next();
@@ -170,7 +182,8 @@ const validateCustomerSession = async (req, res, next) => {
     console.error('❌ Session validation error:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Session validation failed' 
+      message: 'Session validation failed',
+      code: 'SESSION_ERROR'  // 🎯 ADD error code
     });
   }
 };
@@ -610,6 +623,28 @@ app.post('/api/customers/logout', validateCustomerSession, async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: 'Logout failed' 
+    });
+  }
+});
+
+// 🎯 ADD THIS ENDPOINT (around line 400, after logout endpoint)
+app.post('/api/customers/session/refresh', validateCustomerSession, async (req, res) => {
+  try {
+    const sessionId = req.cookies.customerSession;
+    
+    // Refresh session expiry in Redis (24 hours)
+    await redisClient.expire(`session:${sessionId}`, 24 * 60 * 60);
+    
+    res.json({
+      success: true,
+      message: 'Session refreshed'
+    });
+    
+  } catch (error) {
+    console.error('Session refresh error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to refresh session'
     });
   }
 });
