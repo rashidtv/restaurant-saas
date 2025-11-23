@@ -55,7 +55,6 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
       <div className="registration-modal">
         <div className="modal-header">
           <h2>Join FlavorFlow Rewards</h2>
-          <p>Register to earn points and track your orders</p>
           {selectedTable && (
             <div className="table-badge">Table {selectedTable}</div>
           )}
