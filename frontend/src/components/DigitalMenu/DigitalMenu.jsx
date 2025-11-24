@@ -21,16 +21,12 @@ export const DigitalMenu = ({
   // Refs for scrolling
   const cartPanelRef = useRef(null);
   
-  // Custom hooks
-  const customerHook = useCustomer();
 // Custom hooks
 const { 
   customer, 
   registerCustomer, 
-  addPoints, 
   clearCustomer,
-  validateSession,
-  getCustomerOrders
+  getCustomerOrders 
 } = useCustomer();
 
   const { orders, isLoading: ordersLoading, loadTableOrders } = useOrders();
@@ -156,19 +152,13 @@ useEffect(() => {
     loadOrders();
   }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
-// Use this in your DigitalMenu component
+// ✅ SIMPLE: Show registration when table detected
 useEffect(() => {
-  const initializeApp = async () => {
-    if (selectedTable) {
-      const hasValidSession = await validateSession();
-      if (!hasValidSession && !customer) {
-        // Show registration modal if no valid session
-        setShowRegistration(true);
-      }
-    }
-  };
-  initializeApp();
-}, [selectedTable]);
+  if (selectedTable && !customer) {
+    setShowRegistration(true);
+    setShowWelcome(false);
+  }
+}, [selectedTable, customer]);
 
   // WebSocket handlers
   useEffect(() => {
@@ -271,7 +261,7 @@ useEffect(() => {
     addToCart(item, quantity);
   }, [addToCart]);
 
-// 🎯 ENHANCED: Registration handler with session validation
+// ✅ SIMPLIFIED: Registration without complex session validation
 const handleRegistration = useCallback(async (phone, name) => {
   try {
     console.log('📝 Processing registration for:', phone);
@@ -279,41 +269,18 @@ const handleRegistration = useCallback(async (phone, name) => {
     const registeredCustomer = await registerCustomer(phone, name);
     
     if (registeredCustomer) {
-      console.log('✅ Registration successful:', registeredCustomer.phone);
+      console.log('✅ Registration successful');
       setShowRegistration(false);
       setShowWelcome(false);
-      
-      // Validate session after registration
-      await validateSession();
     }
   } catch (error) {
     console.error('❌ Registration failed:', error);
-    
-    // Handle session-specific errors
-    if (error.message.includes('SESSION_EXPIRED') || error.message.includes('401')) {
-      alert('Your session has expired. Please try registering again.');
-    } else {
-      alert(`Registration failed: ${error.message}`);
-    }
-    throw error;
+    alert(`Registration failed: ${error.message}`);
+    throw error; // Let RegistrationModal handle the error display
   }
-}, [registerCustomer, validateSession]);
+}, [registerCustomer]); // ✅ Only depends on registerCustomer
 
 const handlePlaceOrder = useCallback(async () => {
-  // 🎯 Session validation check
-  if (customer) {
-    try {
-      const sessionValid = await validateSession();
-      if (!sessionValid) {
-        alert('Your session has expired. Please register again.');
-        setShowRegistration(true);
-        return;
-      }
-    } catch (error) {
-      console.log('Session check failed:', error);
-    }
-  }
-
   if (cart.length === 0) {
     alert('Your cart is empty. Please add some items first.');
     return;
@@ -396,7 +363,7 @@ const handlePlaceOrder = useCallback(async () => {
   } finally {
     setIsPlacingOrder(false);
   }
-}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders, validateSession]);
+}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]); // ✅ REMOVED validateSession
 
   const toggleCart = useCallback(() => {
     setIsCartOpen(prev => !prev);
@@ -486,7 +453,7 @@ const handlePlaceOrder = useCallback(async () => {
               </div>
             )}
 
-            {/* Points Display */}
+{/* Points Display */}
 {customer && (
   <PointsDisplay 
     points={customer.points || 0}  // ✅ Get points from customer object

@@ -4,39 +4,43 @@ export const useCart = () => {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // 🎯 PRODUCTION: Fixed addToCart that accepts backend items with _id
-  const addToCart = useCallback((item, quantity = 1) => {
-    if (!item || typeof item !== 'object') {
-      console.error('Invalid item for cart:', item);
-      return;
-    }
+const addToCart = useCallback((item, quantity = 1) => {
+  // PRODUCTION: Robust validation with fallbacks
+  if (!item || typeof item !== 'object') {
+    console.error('❌ Invalid item for cart:', item);
+    return;
+  }
 
-    // ✅ ACCEPT BOTH _id (from backend) AND id (from frontend)
-    const itemId = item.id || item._id;
-    const itemName = item.name || 'Unknown Item';
-    const itemPrice = parseFloat(item.price) || 0;
+  // PRODUCTION: Accept multiple ID formats from backend
+  const itemId = item.id || item._id || item.menuItemId;
+  const itemName = item.name || 'Unknown Item';
+  const itemPrice = parseFloat(item.price) || 0;
+  const itemCategory = item.category || 'general';
 
-    if (!itemId) {
-      console.error('❌ Item missing ID:', item);
-      return;
-    }
+  if (!itemId) {
+    console.error('❌ Item missing ID:', item);
+    return;
+  }
 
-    setCart(prevCart => {
-      // Create unique ID to prevent merging
-      const uniqueItemId = `${itemId}-${Date.now()}`;
-      
-      const newItem = { 
-        id: uniqueItemId,
-        originalId: itemId, // Keep original ID for backend reference
-        name: itemName,
-        price: itemPrice,
-        quantity: Math.max(1, parseInt(quantity) || 1)
-      };
+  setCart(prevCart => {
+    // PRODUCTION: Create unique ID to prevent merging
+    const uniqueItemId = `${itemId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const newItem = { 
+      id: uniqueItemId,
+      originalId: itemId, // Keep original for backend reference
+      name: itemName,
+      price: itemPrice,
+      category: itemCategory,
+      description: item.description || '',
+      quantity: Math.max(1, parseInt(quantity) || 1),
+      addedAt: new Date().toISOString()
+    };
 
-      console.log('🛒 Added to cart:', newItem.name);
-      return [...prevCart, newItem];
-    });
-  }, []);
+    console.log('🛒 Added to cart:', newItem.name, 'Qty:', newItem.quantity);
+    return [...prevCart, newItem];
+  });
+}, []);
 
   const removeFromCart = useCallback((itemId) => {
     setCart(prevCart => prevCart.filter(item => item.id !== itemId));
