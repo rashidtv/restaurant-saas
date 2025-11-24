@@ -1,12 +1,13 @@
+// frontend/src/components/DigitalMenu/DigitalMenu.jsx - FIXED VERSION
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useCustomer } from '../../hooks/useCustomer';
+import { useCustomer } from '../../contexts/CustomerContext'; // 🎯 Consistent import
 import { useOrders } from '../../hooks/useOrders';
 import { useCart } from '../../hooks/useCart';
-import { RegistrationModal } from './RegistrationModal'; // ✅ Named import
-import { PointsDisplay } from './PointsDisplay'; // ✅ Named import  
-import OrderCard from './OrderCard'; // ✅ Default import
-import { MenuGrid } from './MenuGrid'; // ✅ Named import
-import { CartPanel } from './CartPanel'; // ✅ Named import
+import { RegistrationModal } from './RegistrationModal';
+import { PointsDisplay } from './PointsDisplay';
+import OrderCard from './OrderCard';
+import { MenuGrid } from './MenuGrid';
+import { CartPanel } from './CartPanel';
 import { customerService } from '../../services/customerService';
 import { CONFIG } from '../../constants/config';
 import './styles.css';
@@ -21,13 +22,14 @@ export const DigitalMenu = ({
   // Refs for scrolling
   const cartPanelRef = useRef(null);
   
-// Custom hooks
-const { 
-  customer, 
-  registerCustomer, 
-  clearCustomer,
-  getCustomerOrders 
-} = useCustomer();
+  // Custom hooks - 🎯 FIX: Use the context hook
+  const { 
+    customer, 
+    registerCustomer, 
+    clearCustomer,
+    getCustomerOrders,
+    addPoints // 🎯 ADD: Missing function
+  } = useCustomer();
 
   const { orders, isLoading: ordersLoading, loadTableOrders } = useOrders();
   const { 
@@ -52,59 +54,57 @@ const {
   const [showWelcome, setShowWelcome] = useState(true);
   const [headerSticky, setHeaderSticky] = useState(false);
 
-
-// Auto-scroll to top when modal opens
-useEffect(() => {
-  if (showRegistration) {
-    // Scroll to top immediately when modal opens
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    
-    // Also scroll the modal into view
-    setTimeout(() => {
-      const modal = document.querySelector('.registration-modal');
-      if (modal) {
-        modal.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 100);
-  }
-}, [showRegistration]);
-
-// 🎯 ENHANCED: Table detection with session awareness
-useEffect(() => {
-  if (isCustomerView) {
-    const detectTableFromURL = () => {
-      let detectedTable = null;
+  // 🎯 FIX: Remove all references to customerHook
+  // Auto-scroll to top when modal opens
+  useEffect(() => {
+    if (showRegistration) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
       
-      const urlParams = new URLSearchParams(window.location.search);
-      detectedTable = urlParams.get('table');
-      
-      if (!detectedTable && window.location.hash) {
-        const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
-        detectedTable = hashParams.get('table');
-      }
-
-      if (detectedTable) {
-        detectedTable = detectedTable.toString().toUpperCase().trim();
-        if (!detectedTable.startsWith('T')) {
-          detectedTable = 'T' + detectedTable;
+      setTimeout(() => {
+        const modal = document.querySelector('.registration-modal');
+        if (modal) {
+          modal.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-        console.log('🎯 Table detected from URL:', detectedTable);
-        setSelectedTable(detectedTable);
-      } else {
-        console.log('ℹ️ No table parameter found in URL');
-      }
-    };
+      }, 100);
+    }
+  }, [showRegistration]);
 
-    detectTableFromURL();
-    
-    const handleHashChange = () => {
+  // Table detection with session awareness
+  useEffect(() => {
+    if (isCustomerView) {
+      const detectTableFromURL = () => {
+        let detectedTable = null;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        detectedTable = urlParams.get('table');
+        
+        if (!detectedTable && window.location.hash) {
+          const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
+          detectedTable = hashParams.get('table');
+        }
+
+        if (detectedTable) {
+          detectedTable = detectedTable.toString().toUpperCase().trim();
+          if (!detectedTable.startsWith('T')) {
+            detectedTable = 'T' + detectedTable;
+          }
+          console.log('🎯 Table detected from URL:', detectedTable);
+          setSelectedTable(detectedTable);
+        } else {
+          console.log('ℹ️ No table parameter found in URL');
+        }
+      };
+
       detectTableFromURL();
-    };
-    
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }
-}, [isCustomerView]);
+      
+      const handleHashChange = () => {
+        detectTableFromURL();
+      };
+      
+      window.addEventListener('hashchange', handleHashChange);
+      return () => window.removeEventListener('hashchange', handleHashChange);
+    }
+  }, [isCustomerView]);
 
   // Sticky header implementation
   useEffect(() => {
@@ -152,15 +152,15 @@ useEffect(() => {
     loadOrders();
   }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
-// ✅ SIMPLE: Show registration when table detected
-useEffect(() => {
-  if (selectedTable && !customer) {
-    setShowRegistration(true);
-    setShowWelcome(false);
-  }
-}, [selectedTable, customer]);
+  // Show registration when table detected
+  useEffect(() => {
+    if (selectedTable && !customer) {
+      setShowRegistration(true);
+      setShowWelcome(false);
+    }
+  }, [selectedTable, customer]);
 
-  // WebSocket handlers
+  // WebSocket handlers - 🎯 FIX: Remove customerHook references
   useEffect(() => {
     if (!selectedTable || !customer) return;
 
@@ -191,9 +191,8 @@ useEffect(() => {
           customerService.refreshCustomerData(customer.phone)
             .then(freshCustomer => {
               if (freshCustomer && freshCustomer.phone) {
-                customerHook.setCustomer(freshCustomer);
-                customerHook.setPoints(freshCustomer.points || 0);
                 console.log('✅ Customer points refreshed:', freshCustomer.points);
+                // 🎯 FIX: Points are automatically updated via context
               }
             })
             .catch(error => {
@@ -220,9 +219,8 @@ useEffect(() => {
         customerService.refreshCustomerData(customer.phone)
           .then(freshCustomer => {
             if (freshCustomer && freshCustomer.phone) {
-              customerHook.setCustomer(freshCustomer);
-              customerHook.setPoints(freshCustomer.points || 0);
               console.log('✅ Points updated after payment:', freshCustomer.points);
+              // 🎯 FIX: Points are automatically updated via context
             }
           })
           .catch(error => {
@@ -247,9 +245,9 @@ useEffect(() => {
         console.log('🧹 DigitalMenu WebSocket listeners cleaned up');
       }
     };
-  }, [selectedTable, customer, loadTableOrders, getCustomerOrders, customerHook]);
+  }, [selectedTable, customer, loadTableOrders, getCustomerOrders]); // 🎯 FIX: Removed customerHook
 
-  // 🎯 FIX: Add missing handleAddToCart function
+  // Add to cart function
   const handleAddToCart = useCallback((item, quantity = 1) => {
     console.log('🛒 Adding to cart:', item.name, 'Quantity:', quantity);
     
@@ -261,109 +259,110 @@ useEffect(() => {
     addToCart(item, quantity);
   }, [addToCart]);
 
-// ✅ SIMPLIFIED: Registration without complex session validation
-const handleRegistration = useCallback(async (phone, name) => {
-  try {
-    console.log('📝 Processing registration for:', phone);
-    
-    const registeredCustomer = await registerCustomer(phone, name);
-    
-    if (registeredCustomer) {
-      console.log('✅ Registration successful');
-      setShowRegistration(false);
-      setShowWelcome(false);
+  // Registration handler
+  const handleRegistration = useCallback(async (phone, name) => {
+    try {
+      console.log('📝 Processing registration for:', phone);
+      
+      const registeredCustomer = await registerCustomer(phone, name);
+      
+      if (registeredCustomer) {
+        console.log('✅ Registration successful');
+        setShowRegistration(false);
+        setShowWelcome(false);
+      }
+    } catch (error) {
+      console.error('❌ Registration failed:', error);
+      alert(`Registration failed: ${error.message}`);
+      throw error;
     }
-  } catch (error) {
-    console.error('❌ Registration failed:', error);
-    alert(`Registration failed: ${error.message}`);
-    throw error; // Let RegistrationModal handle the error display
-  }
-}, [registerCustomer]); // ✅ Only depends on registerCustomer
+  }, [registerCustomer]);
 
-const handlePlaceOrder = useCallback(async () => {
-  if (cart.length === 0) {
-    alert('Your cart is empty. Please add some items first.');
-    return;
-  }
+  // Place order handler
+  const handlePlaceOrder = useCallback(async () => {
+    if (cart.length === 0) {
+      alert('Your cart is empty. Please add some items first.');
+      return;
+    }
 
-  if (!selectedTable) {
-    alert('Table number not detected. Please scan the QR code again.');
-    return;
-  }
+    if (!selectedTable) {
+      alert('Table number not detected. Please scan the QR code again.');
+      return;
+    }
 
-  if (!customer) {
-    alert('Please register with your phone number to place an order.');
-    setShowRegistration(true);
-    return;
-  }
+    if (!customer) {
+      alert('Please register with your phone number to place an order.');
+      setShowRegistration(true);
+      return;
+    }
 
-  setIsPlacingOrder(true);
-  
-  try {
-    const orderData = cart.map(item => ({
-      menuItemId: item.menuItemId || item.id,
-      name: item.name,
-      price: parseFloat(item.price),
-      quantity: item.quantity,
-      category: item.category
-    }));
-
-    const orderTotal = getCartTotal();
-    console.log('🎯 Creating order with customer:', customer.phone);
-
-    let orderResult;
+    setIsPlacingOrder(true);
     
-    if (onCreateOrder) {
-      orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
-        customerPhone: customer.phone,
-        customerName: customer.name 
-      });
-    } else {
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          tableId: selectedTable,
-          items: orderData,
-          orderType: 'dine-in',
+    try {
+      const orderData = cart.map(item => ({
+        menuItemId: item.menuItemId || item.id,
+        name: item.name,
+        price: parseFloat(item.price),
+        quantity: item.quantity,
+        category: item.category
+      }));
+
+      const orderTotal = getCartTotal();
+      console.log('🎯 Creating order with customer:', customer.phone);
+
+      let orderResult;
+      
+      if (onCreateOrder) {
+        orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
           customerPhone: customer.phone,
-          customerName: customer.name
-        })
-      });
+          customerName: customer.name 
+        });
+      } else {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            tableId: selectedTable,
+            items: orderData,
+            orderType: 'dine-in',
+            customerPhone: customer.phone,
+            customerName: customer.name
+          })
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to place order');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || errorData.message || 'Failed to place order');
+        }
+
+        orderResult = await response.json();
       }
 
-      orderResult = await response.json();
-    }
-
-    if (orderResult && (orderResult.success || orderResult.orderNumber)) {
-      clearCart();
-      setIsCartOpen(false);
-      
-      await loadTableOrders(selectedTable);
-      if (getCustomerOrders) {
-        const updatedCustomerOrders = await getCustomerOrders();
-        setCustomerOrders(updatedCustomerOrders);
+      if (orderResult && (orderResult.success || orderResult.orderNumber)) {
+        clearCart();
+        setIsCartOpen(false);
+        
+        await loadTableOrders(selectedTable);
+        if (getCustomerOrders) {
+          const updatedCustomerOrders = await getCustomerOrders();
+          setCustomerOrders(updatedCustomerOrders);
+        }
+        
+        const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
+        alert(`Order #${orderNumber} placed successfully!`);
+      } else {
+        throw new Error(orderResult?.message || 'Failed to place order');
       }
-      
-      const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
-      alert(`Order #${orderNumber} placed successfully!`);
-    } else {
-      throw new Error(orderResult?.message || 'Failed to place order');
+    } catch (error) {
+      console.error('Order placement error:', error);
+      alert(`Failed to place order: ${error.message}`);
+    } finally {
+      setIsPlacingOrder(false);
     }
-  } catch (error) {
-    console.error('Order placement error:', error);
-    alert(`Failed to place order: ${error.message}`);
-  } finally {
-    setIsPlacingOrder(false);
-  }
-}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]); // ✅ REMOVED validateSession
+  }, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
 
   const toggleCart = useCallback(() => {
     setIsCartOpen(prev => !prev);
@@ -453,14 +452,14 @@ const handlePlaceOrder = useCallback(async () => {
               </div>
             )}
 
-{/* Points Display */}
-{customer && (
-  <PointsDisplay 
-    points={customer.points || 0}  // ✅ Get points from customer object
-    phone={customer.phone}
-    onClear={clearCustomer}
-  />
-)}
+            {/* Points Display */}
+            {customer && (
+              <PointsDisplay 
+                points={customer.points || 0}
+                phone={customer.phone}
+                onClear={clearCustomer}
+              />
+            )}
 
             {/* Orders Section */}
             {customer && (
@@ -595,5 +594,4 @@ const handlePlaceOrder = useCallback(async () => {
   );
 };
 
-// 🎯 FIX: Export as default
 export default DigitalMenu;

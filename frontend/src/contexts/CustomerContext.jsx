@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+// frontend/src/contexts/CustomerContext.jsx - CLEANED UP VERSION
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { apiClient } from '../services/apiClient';
 
 const CustomerContext = createContext();
@@ -38,9 +39,9 @@ const customerReducer = (state, action) => {
 
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
-  const [isInitialized, setIsInitialized] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // 🎯 PRODUCTION: Initialize customer from session
+  // Initialize customer from session
   useEffect(() => {
     const initializeCustomer = async () => {
       try {
@@ -57,33 +58,15 @@ export const CustomerProvider = ({ children }) => {
         }
       } catch (error) {
         console.log('ℹ️ No active customer session or error:', error.message);
-        // Don't throw error - just means no session exists
-      } 
+      } finally {
+        setIsInitialized(true);
+      }
     };
 
     initializeCustomer();
   }, []);
 
-  // 🎯 PRODUCTION: Session refresh on activity
-  useEffect(() => {
-    if (!customer) return;
-
-    const refreshSession = async () => {
-      try {
-        await apiClient.post('/api/customers/session/refresh');
-        console.log('🔄 Customer session refreshed');
-      } catch (error) {
-        console.error('Session refresh failed:', error);
-        // Don't clear session immediately - wait for actual 401
-      }
-    };
-
-    // Refresh every 30 minutes
-    const interval = setInterval(refreshSession, 30 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [customer]);
-
-  // 🎯 PRODUCTION: Enhanced registerCustomer
+  // Register customer
   const registerCustomer = async (phone, name = '') => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -131,7 +114,7 @@ export const CustomerProvider = ({ children }) => {
     }
   };
 
-  // 🎯 PRODUCTION: Enhanced addPoints
+  // Add points
   const addPoints = async (points, orderTotal = 0) => {
     if (!customer?.phone) {
       throw new Error('No customer available for points addition');
@@ -158,7 +141,6 @@ export const CustomerProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ Add points error:', error);
       
-      // Handle session expiration
       if (error.message.includes('SESSION_EXPIRED') || error.message.includes('401')) {
         dispatch({ type: 'CLEAR_CUSTOMER' });
       }
@@ -167,7 +149,7 @@ export const CustomerProvider = ({ children }) => {
     }
   };
 
-  // 🎯 PRODUCTION: Enhanced clearCustomer
+  // Clear customer
   const clearCustomer = async () => {
     try {
       await apiClient.post('/api/customers/logout');
@@ -178,18 +160,7 @@ export const CustomerProvider = ({ children }) => {
     }
   };
 
-// 🎯 SIMPLIFIED: Session validation that won't break
-const validateSession = async () => {
-  try {
-    const response = await apiClient.get('/api/customers/me');
-    return response.success === true;
-  } catch (error) {
-    console.log('Session validation failed - not critical');
-    return false;
-  }
-};
-
-  // 🎯 NEW: Get customer orders
+  // Get customer orders
   const getCustomerOrders = async () => {
     if (!customer?.phone) return [];
     
@@ -202,29 +173,31 @@ const validateSession = async () => {
     }
   };
 
+  const value = {
+    // State
+    customer,
+    isInitialized,
+    
+    // Actions
+    registerCustomer,
+    addPoints,
+    clearCustomer,
+    getCustomerOrders,
+    
+    // Computed
+    isRegistered: !!customer,
+    isLoading: customer?.isLoading || false,
+    error: customer?.error
+  };
+
   return (
-    <CustomerContext.Provider value={{ 
-      // State
-      customer,
-      isInitialized,
-      
-      // Actions
-      registerCustomer,
-      addPoints,
-      clearCustomer,
-      validateSession,
-      getCustomerOrders,
-      
-      // Computed
-      isRegistered: !!customer,
-      isLoading: customer?.isLoading || false,
-      error: customer?.error
-    }}>
+    <CustomerContext.Provider value={value}>
       {children}
     </CustomerContext.Provider>
   );
 };
 
+// 🎯 SINGLE hook definition
 export const useCustomer = () => {
   const context = useContext(CustomerContext);
   if (!context) {
