@@ -1,18 +1,18 @@
-// frontend/src/contexts/CustomerContext.jsx - FIXED VERSION
-import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
-//                                                          🎯 CRITICAL FIX: ADD THIS ^
+// frontend/src/contexts/CustomerContext.jsx - COMPLETE REWRITE
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { apiClient } from '../services/apiClient';
 
 const CustomerContext = createContext();
 
-// Customer state reducer
+// 🎯 FIX: Remove useState dependency entirely
 const customerReducer = (state, action) => {
   switch (action.type) {
     case 'SET_CUSTOMER':
       return {
         ...action.payload,
         isRegistered: true,
-        lastUpdated: Date.now()
+        lastUpdated: Date.now(),
+        isInitialized: true
       };
     case 'UPDATE_CUSTOMER':
       return { 
@@ -21,7 +21,7 @@ const customerReducer = (state, action) => {
         lastUpdated: Date.now()
       };
     case 'CLEAR_CUSTOMER':
-      return null;
+      return { isInitialized: true }; // 🎯 Keep initialized true
     case 'SET_LOADING':
       return { 
         ...state, 
@@ -33,14 +33,25 @@ const customerReducer = (state, action) => {
         error: action.payload,
         isLoading: false 
       };
+    case 'SET_INITIALIZED':
+      return {
+        ...state,
+        isInitialized: true
+      };
     default:
       return state;
   }
 };
 
+const initialState = {
+  customer: null,
+  isInitialized: false,
+  isLoading: false,
+  error: null
+};
+
 export const CustomerProvider = ({ children }) => {
-  const [customer, dispatch] = useReducer(customerReducer, null);
-  const [isInitialized, setIsInitialized] = useState(false); // 🎯 This line needs useState
+  const [state, dispatch] = useReducer(customerReducer, initialState);
 
   // Initialize customer from session
   useEffect(() => {
@@ -56,11 +67,12 @@ export const CustomerProvider = ({ children }) => {
             payload: response.customer 
           });
           console.log('✅ Customer session initialized:', response.customer.phone);
+        } else {
+          dispatch({ type: 'SET_INITIALIZED' });
         }
       } catch (error) {
         console.log('ℹ️ No active customer session or error:', error.message);
-      } finally {
-        setIsInitialized(true);
+        dispatch({ type: 'SET_INITIALIZED' });
       }
     };
 
@@ -117,12 +129,12 @@ export const CustomerProvider = ({ children }) => {
 
   // Add points
   const addPoints = async (points, orderTotal = 0) => {
-    if (!customer?.phone) {
+    if (!state.customer?.phone) {
       throw new Error('No customer available for points addition');
     }
 
     try {
-      const response = await apiClient.post(`/api/customers/${customer.phone}/points`, {
+      const response = await apiClient.post(`/api/customers/${state.customer.phone}/points`, {
         points: points,
         orderTotal: orderTotal
       });
@@ -163,10 +175,10 @@ export const CustomerProvider = ({ children }) => {
 
   // Get customer orders
   const getCustomerOrders = async () => {
-    if (!customer?.phone) return [];
+    if (!state.customer?.phone) return [];
     
     try {
-      const response = await apiClient.get(`/api/customers/${customer.phone}/orders`);
+      const response = await apiClient.get(`/api/customers/${state.customer.phone}/orders`);
       return Array.isArray(response) ? response : [];
     } catch (error) {
       console.error('Failed to get customer orders:', error);
@@ -176,8 +188,10 @@ export const CustomerProvider = ({ children }) => {
 
   const value = {
     // State
-    customer,
-    isInitialized,
+    customer: state.customer,
+    isInitialized: state.isInitialized,
+    isLoading: state.isLoading,
+    error: state.error,
     
     // Actions
     registerCustomer,
@@ -186,9 +200,7 @@ export const CustomerProvider = ({ children }) => {
     getCustomerOrders,
     
     // Computed
-    isRegistered: !!customer,
-    isLoading: customer?.isLoading || false,
-    error: customer?.error
+    isRegistered: !!state.customer
   };
 
   return (
