@@ -133,24 +133,37 @@ export const DigitalMenu = ({
   }, [isCartOpen]);
 
   // Load customer orders
-  useEffect(() => {
-    const loadOrders = async () => {
-      if (selectedTable) {
-        try {
-          await loadTableOrders(selectedTable);
-          
-          if (customer && getCustomerOrders) {
-            const customerOrdersData = await getCustomerOrders();
-            setCustomerOrders(customerOrdersData);
-          }
-        } catch (error) {
-          console.error('Failed to load orders:', error);
-        }
-      }
-    };
+  // In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE THE ORDERS LOADING PART
 
-    loadOrders();
-  }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
+// 🎯 UPDATE: In the load orders useEffect
+useEffect(() => {
+  const loadOrders = async () => {
+    if (selectedTable) {
+      try {
+        console.log(`🔄 Loading orders for table: ${selectedTable}`);
+        await loadTableOrders(selectedTable);
+        
+        // 🎯 IMPROVED: Only load customer orders if customer exists
+        if (customer && getCustomerOrders) {
+          try {
+            const customerOrdersData = await getCustomerOrders();
+            if (Array.isArray(customerOrdersData)) {
+              setCustomerOrders(customerOrdersData);
+            }
+          } catch (customerError) {
+            console.log('ℹ️ No customer orders or error:', customerError.message);
+            // Don't block the UI for this error
+          }
+        }
+      } catch (error) {
+        console.log('ℹ️ Failed to load table orders - this is normal for new tables:', error.message);
+        // 🎯 Don't show error to user for this case
+      }
+    }
+  };
+
+  loadOrders();
+}, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
   // Show registration when table detected
   useEffect(() => {

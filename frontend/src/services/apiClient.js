@@ -5,6 +5,30 @@ class ApiClient {
     this.baseURL = CONFIG.API_BASE_URL;
   }
 
+  // 🎯 NEW: Health check method
+  async healthCheck() {
+    try {
+      const response = await this.request('/api/health');
+      return response.status === 'OK';
+    } catch (error) {
+      console.log('🔴 Backend health check failed:', error.message);
+      return false;
+    }
+  }
+
+  async isBackendAvailable() {
+    try {
+      const response = await fetch(`${this.baseURL}/api/ping`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+
+
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
 

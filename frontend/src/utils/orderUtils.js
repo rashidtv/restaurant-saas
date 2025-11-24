@@ -83,6 +83,55 @@ export class OrderUtils {
       customerName: order.customerName || 'Guest'
     };
   }
+
+  // 🎯 ADD THESE MISSING METHODS that orderService.js expects
+  static isTableMatch(orderTable, targetTable) {
+    if (!orderTable || !targetTable) return false;
+    
+    try {
+      // Handle different table ID formats (T01, 1, "T01", "1")
+      const normalizedOrder = String(orderTable).toUpperCase().replace(/^T/, '');
+      const normalizedTarget = String(targetTable).toUpperCase().replace(/^T/, '');
+      
+      return normalizedOrder === normalizedTarget;
+    } catch (error) {
+      console.warn('Table matching error:', error);
+      return false;
+    }
+  }
+
+  static isValidStatus(status) {
+    const validStatuses = ['pending', 'preparing', 'ready', 'completed', 'cancelled'];
+    return validStatuses.includes(status);
+  }
+
+  static sortOrdersByDate(orders) {
+    if (!Array.isArray(orders)) return [];
+    
+    return orders.sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.orderedAt || a.updatedAt);
+      const dateB = new Date(b.createdAt || b.orderedAt || b.updatedAt);
+      return dateB - dateA; // Descending (newest first)
+    });
+  }
+
+  // 🎯 NEW: Enhanced order validation for orderService
+  static validateOrderData(order) {
+    if (!order) return false;
+    
+    // Basic required fields
+    if (!order._id && !order.orderNumber) return false;
+    if (!order.items || !Array.isArray(order.items)) return false;
+    
+    // Validate items
+    const validItems = order.items.filter(item => 
+      item && 
+      item.quantity > 0 && 
+      typeof item.price === 'number'
+    );
+    
+    return validItems.length > 0;
+  }
 }
 
 // Utility functions (backward compatibility)
