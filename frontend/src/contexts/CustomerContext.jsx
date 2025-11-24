@@ -1,5 +1,6 @@
-// frontend/src/contexts/CustomerContext.jsx - CLEANED UP VERSION
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+// frontend/src/contexts/CustomerContext.jsx - FIXED VERSION
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+//                                                          🎯 CRITICAL FIX: ADD THIS ^
 import { apiClient } from '../services/apiClient';
 
 const CustomerContext = createContext();
@@ -39,7 +40,7 @@ const customerReducer = (state, action) => {
 
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false); // 🎯 This line needs useState
 
   // Initialize customer from session
   useEffect(() => {
@@ -197,7 +198,6 @@ export const CustomerProvider = ({ children }) => {
   );
 };
 
-// 🎯 SINGLE hook definition
 export const useCustomer = () => {
   const context = useContext(CustomerContext);
   if (!context) {
