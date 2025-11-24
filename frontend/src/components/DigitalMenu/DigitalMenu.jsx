@@ -479,6 +479,7 @@ export const DigitalMenu = ({
               <PointsDisplay 
                 points={customer.points || 0}
                 phone={customer.phone}
+                name={customer.name} // 🎯 ADD THIS LINE
                 onClear={clearCustomer}
               />
             )}
