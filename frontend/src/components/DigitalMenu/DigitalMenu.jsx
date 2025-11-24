@@ -276,6 +276,94 @@ useEffect(() => {
 
 // In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE the handleRegistration function
 
+// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - ADD THIS FUNCTION
+
+// 🎯 CRITICAL: Add the missing handlePlaceOrder function
+const handlePlaceOrder = useCallback(async () => {
+  if (cart.length === 0) {
+    alert('Your cart is empty. Please add some items first.');
+    return;
+  }
+
+  if (!selectedTable) {
+    alert('Table number not detected. Please scan the QR code again.');
+    return;
+  }
+
+  if (!customer) {
+    alert('Please register with your phone number to place an order.');
+    setShowRegistration(true);
+    return;
+  }
+
+  setIsPlacingOrder(true);
+  
+  try {
+    const orderData = cart.map(item => ({
+      menuItemId: item.menuItemId || item.id,
+      name: item.name,
+      price: parseFloat(item.price),
+      quantity: item.quantity,
+      category: item.category
+    }));
+
+    const orderTotal = getCartTotal();
+    console.log('🎯 Creating order with customer:', customer.phone);
+
+    let orderResult;
+    
+    if (onCreateOrder) {
+      orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
+        customerPhone: customer.phone,
+        customerName: customer.name 
+      });
+    } else {
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          tableId: selectedTable,
+          items: orderData,
+          orderType: 'dine-in',
+          customerPhone: customer.phone,
+          customerName: customer.name
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to place order');
+      }
+
+      orderResult = await response.json();
+    }
+
+    if (orderResult && (orderResult.success || orderResult.orderNumber)) {
+      clearCart();
+      setIsCartOpen(false);
+      
+      await loadTableOrders(selectedTable);
+      if (getCustomerOrders) {
+        const updatedCustomerOrders = await getCustomerOrders();
+        setCustomerOrders(updatedCustomerOrders);
+      }
+      
+      const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
+      alert(`Order #${orderNumber} placed successfully!`);
+    } else {
+      throw new Error(orderResult?.message || 'Failed to place order');
+    }
+  } catch (error) {
+    console.error('Order placement error:', error);
+    alert(`Failed to place order: ${error.message}`);
+  } finally {
+    setIsPlacingOrder(false);
+  }
+}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
+
 const handleRegistration = useCallback(async (phone, name) => {
   try {
     console.log('📝 Processing registration for:', phone);
