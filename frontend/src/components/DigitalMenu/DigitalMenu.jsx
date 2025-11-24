@@ -30,17 +30,19 @@ export const DigitalMenu = ({
   } = useCustomer();
 
   const { orders, isLoading: ordersLoading, loadTableOrders } = useOrders();
-  const { 
-    cart, 
-    isCartOpen, 
-    setIsCartOpen, 
-    addToCart, 
-    removeFromCart, 
-    updateQuantity, 
-    clearCart, 
-    getCartTotal, 
-    getItemCount 
-  } = useCart();
+ // 🎯 Update the useCart import to NOT include the broken functions
+const { 
+  cart, 
+  isCartOpen, 
+  setIsCartOpen, 
+  addToCart, 
+  removeFromCart, 
+  updateQuantity, 
+  clearCart, 
+  getCartTotal, 
+  getItemCount 
+  // 🎯 REMOVE: getCartForAPI, validateCart - we're using local versions
+} = useCart();
 
   // Local state
   const [selectedTable, setSelectedTable] = useState('');
@@ -269,17 +271,30 @@ export const DigitalMenu = ({
     };
   }, [selectedTable, customer, loadTableOrders, getCustomerOrders]);
 
-  // 🎯 ADD TO CART
-  const handleAddToCart = useCallback((item, quantity = 1) => {
-    console.log('🛒 Adding to cart:', item.name, 'Quantity:', quantity);
-    
-    if (!item || !item.id) {
-      console.error('❌ Invalid item for cart:', item);
-      return;
-    }
-    
-    addToCart(item, quantity);
-  }, [addToCart]);
+// 🎯 ENHANCED: Better add to cart with ID normalization
+const handleAddToCart = useCallback((item, quantity = 1) => {
+  console.log('🛒 Adding to cart:', item.name, 'Quantity:', quantity);
+  
+  if (!item || (!item.id && !item._id && !item.menuItemId)) {
+    console.error('❌ Invalid item for cart - no ID found:', item);
+    alert('This item cannot be added to cart. Please try again.');
+    return;
+  }
+  
+  // 🎯 Ensure the item has all required fields before adding to cart
+  const cartReadyItem = {
+    ...item,
+    // 🎯 Ensure ID consistency
+    id: item.id || item._id || item.menuItemId,
+    _id: item._id,
+    menuItemId: item._id || item.menuItemId,
+    // 🎯 Ensure numeric values
+    price: parseFloat(item.price) || 0,
+    quantity: parseInt(quantity) || 1
+  };
+  
+  addToCart(cartReadyItem, quantity);
+}, [addToCart]);
 
   // 🎯 REGISTRATION HANDLER
   const handleRegistration = useCallback(async (phone, name) => {
@@ -298,10 +313,64 @@ export const DigitalMenu = ({
     }
   }, [registerCustomer]);
 
-  // 🎯 PLACE ORDER HANDLER
+// 🎯 PERMANENT FIX: Cart data preparation inside DigitalMenu
+const prepareCartForAPI = useCallback(() => {
+  return cart.map(item => {
+    // 🎯 Handle all possible ID formats
+    const menuItemId = item._id || item.menuItemId || item.id;
+    
+    if (!menuItemId) {
+      console.error('❌ Cart item missing ID:', item);
+      return null;
+    }
+
+    return {
+      menuItemId: menuItemId,
+      name: item.name || 'Unknown Item',
+      price: parseFloat(item.price) || 0,
+      quantity: parseInt(item.quantity) || 1,
+      category: item.category || 'uncategorized',
+      specialInstructions: item.specialInstructions || '',
+      preparationTime: item.preparationTime || 15
+    };
+  }).filter(Boolean); // Remove any null items
+}, [cart]);
+
+// 🎯 PERMANENT FIX: Cart validation inside DigitalMenu
+const validateCartForOrder = useCallback(() => {
+  if (!Array.isArray(cart) || cart.length === 0) {
+    return { isValid: false, error: 'Your cart is empty. Please add some items first.' };
+  }
+
+  for (const item of cart) {
+    const itemId = item._id || item.menuItemId || item.id;
+    
+    if (!itemId) {
+      return { isValid: false, error: 'Some items are invalid. Please refresh and try again.' };
+    }
+    
+    if (!item.name) {
+      return { isValid: false, error: 'Some items are missing names.' };
+    }
+    
+    const price = parseFloat(item.price);
+    if (isNaN(price) || price < 0) {
+      return { isValid: false, error: `Invalid price for ${item.name}` };
+    }
+    
+    const quantity = parseInt(item.quantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      return { isValid: false, error: `Invalid quantity for ${item.name}` };
+    }
+  }
+
+  return { isValid: true, error: null };
+}, [cart]);
+
+// 🎯 PERMANENT FIX: Updated handlePlaceOrder function
 const handlePlaceOrder = useCallback(async () => {
-  // 🎯 NEW: Validate cart before proceeding
-  const validation = validateCart();
+  // 🎯 Use local validation instead of hook validation
+  const validation = validateCartForOrder();
   if (!validation.isValid) {
     alert(validation.error);
     return;
@@ -321,13 +390,12 @@ const handlePlaceOrder = useCallback(async () => {
   setIsPlacingOrder(true);
   
   try {
-    // 🎯 USE THE NEW METHOD for consistent data format
-    const orderData = getCartForAPI();
+    // 🎯 Use local cart preparation instead of hook function
+    const orderData = prepareCartForAPI();
     const orderTotal = getCartTotal();
     
     console.log('🎯 Creating order with validated items:', orderData);
 
-    // ... rest of your existing order creation code remains EXACTLY THE SAME
     let orderResult;
     
     if (onCreateOrder) {
@@ -380,7 +448,19 @@ const handlePlaceOrder = useCallback(async () => {
   } finally {
     setIsPlacingOrder(false);
   }
-}, [cart, selectedTable, customer, getCartTotal, getCartForAPI, validateCart, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
+}, [
+  cart, 
+  selectedTable, 
+  customer, 
+  getCartTotal, 
+  prepareCartForAPI, 
+  validateCartForOrder, 
+  onCreateOrder, 
+  clearCart, 
+  setIsCartOpen, 
+  loadTableOrders, 
+  getCustomerOrders
+]);
 
   // 🎯 TOGGLE CART
   const toggleCart = useCallback(() => {
@@ -579,15 +659,15 @@ const handlePlaceOrder = useCallback(async () => {
         {/* Cart Panel */}
         <div ref={cartPanelRef}>
           <CartPanel
-            cart={cart}
-            isOpen={isCartOpen}
-            onClose={() => setIsCartOpen(false)}
-            onUpdateQuantity={updateQuantity}
-            onRemoveItem={removeFromCart}
-            onPlaceOrder={handlePlaceOrder}
-            selectedTable={selectedTable}
-            customer={customer}
-            isPlacingOrder={isPlacingOrder}
+             cart={cart}
+  isOpen={isCartOpen}
+  onClose={() => setIsCartOpen(false)}
+  onUpdateQuantity={updateQuantity}
+  onRemoveItem={removeFromCart}
+  onPlaceOrder={handlePlaceOrder} // 🎯 This now uses our fixed function
+  selectedTable={selectedTable}
+  customer={customer}
+  isPlacingOrder={isPlacingOrder}
           />
         </div>
 

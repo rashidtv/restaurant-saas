@@ -1,47 +1,66 @@
 import { useState, useCallback } from 'react';
-import { CartUtils } from '../utils/cartUtils'; // 🎯 Import the utility
 
 export const useCart = () => {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
+  // 🎯 FIX: Normalize item IDs for cart operations
+  const normalizeItemId = (item) => {
+    return item.id || item._id || item.menuItemId;
+  };
+
   const addToCart = useCallback((item, quantity = 1) => {
     setCart(prevCart => {
-      const normalizedItem = CartUtils.normalizeCartItem(item);
+      const itemId = normalizeItemId(item);
       
-      if (!normalizedItem) {
-        console.error('❌ Cannot add invalid item to cart:', item);
+      if (!itemId) {
+        console.error('❌ Invalid item for cart - no ID found:', item);
         return prevCart;
       }
 
-      // Set initial quantity
-      normalizedItem.quantity = quantity;
-
-      const existingItemIndex = prevCart.findIndex(cartItem => 
-        cartItem.id === normalizedItem.id
+      const existingItem = prevCart.find(cartItem => 
+        normalizeItemId(cartItem) === itemId
       );
       
-      if (existingItemIndex !== -1) {
-        const updatedCart = [...prevCart];
-        updatedCart[existingItemIndex] = {
-          ...updatedCart[existingItemIndex],
-          quantity: updatedCart[existingItemIndex].quantity + quantity
-        };
-        return updatedCart;
+      if (existingItem) {
+        return prevCart.map(cartItem =>
+          normalizeItemId(cartItem) === itemId
+            ? { 
+                ...cartItem, 
+                quantity: cartItem.quantity + quantity,
+                // 🎯 Ensure all cart items have consistent structure
+                id: itemId,
+                _id: item._id || cartItem._id
+              }
+            : cartItem
+        );
       } else {
-        return [...prevCart, normalizedItem];
+        // 🎯 Create normalized cart item with all necessary fields
+        const cartItem = {
+          ...item,
+          id: itemId,           // Standardized ID for cart operations
+          _id: item._id,        // Keep MongoDB _id for API calls
+          menuItemId: item._id, // For order creation
+          quantity: quantity,
+          // 🎯 Ensure price is always a number
+          price: parseFloat(item.price) || 0
+        };
+        
+        return [...prevCart, cartItem];
       }
     });
   }, []);
 
   const removeFromCart = useCallback((itemId) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== itemId));
+    setCart(prevCart => prevCart.filter(item => 
+      normalizeItemId(item) !== itemId
+    ));
   }, []);
 
   const updateQuantity = useCallback((itemId, change) => {
     setCart(prevCart =>
       prevCart.map(item => {
-        if (item.id === itemId) {
+        if (normalizeItemId(item) === itemId) {
           const newQuantity = item.quantity + change;
           if (newQuantity <= 0) {
             return null;
@@ -61,21 +80,51 @@ export const useCart = () => {
   }, []);
 
   const getCartTotal = useCallback(() => {
-    return CartUtils.calculateTotal(cart);
+    return cart.reduce((total, item) => {
+      const price = parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 1;
+      return total + (price * quantity);
+    }, 0);
   }, [cart]);
 
   const getItemCount = useCallback(() => {
     return cart.reduce((count, item) => count + (item.quantity || 1), 0);
   }, [cart]);
 
-  // 🎯 NEW: Get cart items in API-ready format
+  // 🎯 FIX: Add the missing getCartForAPI function
   const getCartForAPI = useCallback(() => {
-    return CartUtils.prepareForAPI(cart);
+    return cart.map(item => ({
+      menuItemId: item._id || item.menuItemId || item.id,
+      name: item.name,
+      price: parseFloat(item.price) || 0,
+      quantity: parseInt(item.quantity) || 1,
+      category: item.category,
+      specialInstructions: item.specialInstructions || ''
+    }));
   }, [cart]);
 
-  // 🎯 NEW: Validate cart before submission
+  // 🎯 FIX: Add the missing validateCart function
   const validateCart = useCallback(() => {
-    return CartUtils.validateCart(cart);
+    if (!Array.isArray(cart) || cart.length === 0) {
+      return { isValid: false, error: 'Cart is empty' };
+    }
+
+    for (const item of cart) {
+      if (!item.menuItemId && !item._id) {
+        return { isValid: false, error: `Item missing ID: ${item.name}` };
+      }
+      if (!item.name) {
+        return { isValid: false, error: 'Item missing name' };
+      }
+      if (isNaN(parseFloat(item.price))) {
+        return { isValid: false, error: `Invalid price for: ${item.name}` };
+      }
+      if (parseInt(item.quantity) <= 0) {
+        return { isValid: false, error: `Invalid quantity for: ${item.name}` };
+      }
+    }
+
+    return { isValid: true, error: null };
   }, [cart]);
 
   return {
@@ -88,7 +137,7 @@ export const useCart = () => {
     clearCart,
     getCartTotal,
     getItemCount,
-    getCartForAPI,
-    validateCart
+    getCartForAPI, // 🎯 NOW DEFINED
+    validateCart   // 🎯 NOW DEFINED
   };
 };
