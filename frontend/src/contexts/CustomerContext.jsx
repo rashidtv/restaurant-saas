@@ -38,7 +38,7 @@ const customerReducer = (state, action) => {
 
 export const CustomerProvider = ({ children }) => {
   const [customer, dispatch] = useReducer(customerReducer, null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(true);
 
   // 🎯 PRODUCTION: Initialize customer from session
   useEffect(() => {
@@ -58,9 +58,7 @@ export const CustomerProvider = ({ children }) => {
       } catch (error) {
         console.log('ℹ️ No active customer session or error:', error.message);
         // Don't throw error - just means no session exists
-      } finally {
-        setIsInitialized(true);
-      }
+      } 
     };
 
     initializeCustomer();
@@ -180,16 +178,16 @@ export const CustomerProvider = ({ children }) => {
     }
   };
 
-  // 🎯 NEW: Silent session validation
-  const validateSession = async () => {
-    try {
-      const response = await apiClient.get('/api/customers/me');
-      return response.success;
-    } catch (error) {
-      console.log('Session validation failed:', error.message);
-      return false;
-    }
-  };
+// 🎯 SIMPLIFIED: Session validation that won't break
+const validateSession = async () => {
+  try {
+    const response = await apiClient.get('/api/customers/me');
+    return response.success === true;
+  } catch (error) {
+    console.log('Session validation failed - not critical');
+    return false;
+  }
+};
 
   // 🎯 NEW: Get customer orders
   const getCustomerOrders = async () => {

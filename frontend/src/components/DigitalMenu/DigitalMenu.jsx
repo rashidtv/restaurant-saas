@@ -156,13 +156,19 @@ useEffect(() => {
     loadOrders();
   }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
-// SIMPLE: Show registration when table detected and no customer
+// Use this in your DigitalMenu component
 useEffect(() => {
-  if (selectedTable && !customer) {
-    setShowRegistration(true);
-    setShowWelcome(false);
-  }
-}, [selectedTable, customer]);
+  const initializeApp = async () => {
+    if (selectedTable) {
+      const hasValidSession = await validateSession();
+      if (!hasValidSession && !customer) {
+        // Show registration modal if no valid session
+        setShowRegistration(true);
+      }
+    }
+  };
+  initializeApp();
+}, [selectedTable]);
 
   // WebSocket handlers
   useEffect(() => {

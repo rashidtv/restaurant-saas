@@ -15,34 +15,48 @@ class ApiClient {
           'Content-Type': 'application/json',
           ...options.headers,
         },
-        credentials: 'include',
+        credentials: 'include', // 🎯 CRITICAL FIX - This sends cookies
         ...options,
       };
 
+      console.log(`🔗 API Call: ${config.method} ${url}`);
+      
       const response = await fetch(url, config);
 
-      // Handle 401 without breaking
+      // Handle 401 gracefully
       if (response.status === 401) {
+        console.log('🔐 Session expired or invalid');
         return { 
           success: false, 
-          error: 'SESSION_EXPIRED'
+          error: 'SESSION_EXPIRED',
+          message: 'Session expired' 
         };
       }
 
       if (!response.ok) {
-        return {
-          success: false,
-          error: 'REQUEST_FAILED'
-        };
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log(`✅ API Success: ${endpoint}`);
+      return data;
 
     } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error.message);
-      return { 
-        success: false, 
-        error: 'NETWORK_ERROR' 
+      console.error(`🚨 API Error [${endpoint}]:`, error.message);
+      
+      if (error.message.includes('Failed to fetch')) {
+        return {
+          success: false,
+          error: 'NETWORK_ERROR',
+          message: 'Network error. Please check your connection.'
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'REQUEST_FAILED', 
+        message: error.message
       };
     }
   }
@@ -62,6 +76,12 @@ class ApiClient {
     return this.request(endpoint, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  }
+
+  delete(endpoint) {
+    return this.request(endpoint, {
+      method: 'DELETE',
     });
   }
 }

@@ -61,14 +61,10 @@ app.use(express.json());
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
 
 app.use(cors({
-  origin: [
-    "https://restaurant-saas-demo.onrender.com",
-    "http://localhost:5173"
-  ],
-  credentials: true,
+  origin: [FRONTEND_URL, 'http://localhost:5173'], // Explicitly list allowed origins
+  credentials: true, // This is crucial for cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['set-cookie'] // Important for cookies
 }));
 
 // Handle preflight requests
@@ -521,28 +517,18 @@ app.post('/api/customers/register', async (req, res) => {
     
     // 🛠️ FIXED: Production cookie settings
     const isProduction = process.env.NODE_ENV === 'production';
-    const cookieOptions = {
-      httpOnly: true,
-      secure: isProduction, // true in production, false in development
+      res.cookie('customerSession', sessionId, {
+      httpOnly: true,     // Prevents XSS attacks
+      secure: isProduction, // True in production (HTTPS only)
       sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       path: '/',
-    };
-    
-    // Only set domain in production for Render
-    if (isProduction) {
-      cookieOptions.domain = '.onrender.com';
-    }
-    
-    res.cookie('customerSession', sessionId, cookieOptions);
-    
-    console.log('✅ Customer registered with Redis session:', cleanPhone);
-    
-    res.json({
-      success: true,
-      customer: customer
+      // domain: isProduction ? '.onrender.com' : undefined // Uncomment if needed
     });
     
+  
+    
+     res.json({ success: true, customer: customer });
   } catch (error) {
     console.error('❌ Registration error:', error);
     
