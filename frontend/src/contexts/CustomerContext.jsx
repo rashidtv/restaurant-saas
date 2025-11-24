@@ -79,53 +79,57 @@ export const CustomerProvider = ({ children }) => {
     initializeCustomer();
   }, []);
 
-  // Register customer
-  const registerCustomer = async (phone, name = '') => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      if (!phone || phone === 'undefined') {
-        throw new Error('Please enter a valid phone number');
-      }
+// In frontend/src/contexts/CustomerContext.jsx - ADD DEBUG LOGGING
 
-      const cleanPhone = phone.replace(/\D/g, '');
-      
-      const response = await apiClient.post('/api/customers/register', {
-        phone: cleanPhone, 
-        name: name || `Customer-${cleanPhone.slice(-4)}`
-      });
-      
-      if (!response.success) {
-        throw new Error(response.message || 'Registration failed');
-      }
-
-      const customerPayload = {
-        _id: response.customer?._id,
-        phone: cleanPhone,
-        name: name || response.customer?.name,
-        points: response.customer?.points || 0,
-        isRegistered: true
-      };
-      
-      dispatch({ 
-        type: 'SET_CUSTOMER', 
-        payload: customerPayload 
-      });
-      
-      console.log('✅ Customer registered successfully:', cleanPhone);
-      return customerPayload;
-      
-    } catch (error) {
-      console.error('❌ Registration error:', error);
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: error.message 
-      });
-      throw error;
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+// In the registerCustomer function, add more logging:
+const registerCustomer = async (phone, name = '') => {
+  try {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    
+    if (!phone || phone === 'undefined') {
+      throw new Error('Please enter a valid phone number');
     }
-  };
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    const response = await apiClient.post('/api/customers/register', {
+      phone: cleanPhone, 
+      name: name || `Customer-${cleanPhone.slice(-4)}`
+    });
+    
+    if (!response.success) {
+      throw new Error(response.message || 'Registration failed');
+    }
+
+    const customerPayload = {
+      _id: response.customer?._id,
+      phone: cleanPhone,
+      name: name || response.customer?.name,
+      points: response.customer?.points || 0,
+      isRegistered: true
+    };
+    
+    console.log('🎯 CustomerContext: Dispatching SET_CUSTOMER with:', customerPayload);
+    
+    dispatch({ 
+      type: 'SET_CUSTOMER', 
+      payload: customerPayload 
+    });
+    
+    console.log('✅ Customer registered and state updated:', cleanPhone);
+    return customerPayload;
+    
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    dispatch({ 
+      type: 'SET_ERROR', 
+      payload: error.message 
+    });
+    throw error;
+  } finally {
+    dispatch({ type: 'SET_LOADING', payload: false });
+  }
+};
 
   // Add points
   const addPoints = async (points, orderTotal = 0) => {

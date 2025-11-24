@@ -272,110 +272,105 @@ useEffect(() => {
     addToCart(item, quantity);
   }, [addToCart]);
 
-  // Registration handler
-  const handleRegistration = useCallback(async (phone, name) => {
-    try {
-      console.log('📝 Processing registration for:', phone);
-      
-      const registeredCustomer = await registerCustomer(phone, name);
-      
-      if (registeredCustomer) {
-        console.log('✅ Registration successful');
-        setShowRegistration(false);
-        setShowWelcome(false);
-      }
-    } catch (error) {
-      console.error('❌ Registration failed:', error);
-      alert(`Registration failed: ${error.message}`);
-      throw error;
-    }
-  }, [registerCustomer]);
+// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE REGISTRATION HANDLER
 
-  // Place order handler
-  const handlePlaceOrder = useCallback(async () => {
-    if (cart.length === 0) {
-      alert('Your cart is empty. Please add some items first.');
-      return;
-    }
+// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE the handleRegistration function
 
-    if (!selectedTable) {
-      alert('Table number not detected. Please scan the QR code again.');
-      return;
-    }
-
-    if (!customer) {
-      alert('Please register with your phone number to place an order.');
-      setShowRegistration(true);
-      return;
-    }
-
-    setIsPlacingOrder(true);
+const handleRegistration = useCallback(async (phone, name) => {
+  try {
+    console.log('📝 Processing registration for:', phone);
     
-    try {
-      const orderData = cart.map(item => ({
-        menuItemId: item.menuItemId || item.id,
-        name: item.name,
-        price: parseFloat(item.price),
-        quantity: item.quantity,
-        category: item.category
-      }));
-
-      const orderTotal = getCartTotal();
-      console.log('🎯 Creating order with customer:', customer.phone);
-
-      let orderResult;
+    const registeredCustomer = await registerCustomer(phone, name);
+    
+    if (registeredCustomer) {
+      console.log('✅ Registration successful, customer object:', registeredCustomer);
       
-      if (onCreateOrder) {
-        orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
-          customerPhone: customer.phone,
-          customerName: customer.name 
-        });
-      } else {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            tableId: selectedTable,
-            items: orderData,
-            orderType: 'dine-in',
-            customerPhone: customer.phone,
-            customerName: customer.name
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || errorData.message || 'Failed to place order');
-        }
-
-        orderResult = await response.json();
-      }
-
-      if (orderResult && (orderResult.success || orderResult.orderNumber)) {
-        clearCart();
-        setIsCartOpen(false);
-        
-        await loadTableOrders(selectedTable);
-        if (getCustomerOrders) {
-          const updatedCustomerOrders = await getCustomerOrders();
-          setCustomerOrders(updatedCustomerOrders);
-        }
-        
-        const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
-        alert(`Order #${orderNumber} placed successfully!`);
-      } else {
-        throw new Error(orderResult?.message || 'Failed to place order');
-      }
-    } catch (error) {
-      console.error('Order placement error:', error);
-      alert(`Failed to place order: ${error.message}`);
-    } finally {
-      setIsPlacingOrder(false);
+      // 🎯 The CustomerContext should automatically update the customer state
+      // We just need to close the modals
+      setShowRegistration(false);
+      setShowWelcome(false);
+      
+      // 🎯 Small delay to ensure state propagation
+      setTimeout(() => {
+        console.log('🔄 Registration completed, UI should update automatically');
+      }, 100);
     }
-  }, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
+  } catch (error) {
+    console.error('❌ Registration failed:', error);
+    alert(`Registration failed: ${error.message}`);
+    throw error;
+  }
+}, [registerCustomer]); // 🎯 Simplified dependencies
+
+// In DigitalMenu.jsx - TEMPORARY DEBUG BUTTON
+{customer && (
+  <div style={{ padding: '1rem', background: '#f3f4f6', borderRadius: '8px', margin: '1rem 0' }}>
+    <h4>Debug Info</h4>
+    <p>Customer: {customer.phone}</p>
+    <p>Points: {customer.points}</p>
+    <button 
+      onClick={() => {
+        console.log('🔄 Manual refresh - Customer:', customer);
+        loadTableOrders(selectedTable);
+      }}
+      style={{ padding: '0.5rem 1rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px' }}
+    >
+      Refresh Data
+    </button>
+  </div>
+)}
+
+// 🎯 FIX: Add useEffect to detect customer changes
+useEffect(() => {
+  if (customer) {
+    console.log('🎯 Customer detected in DigitalMenu:', customer.phone);
+    console.log('🎯 Customer points:', customer.points);
+    
+    // 🎯 Force re-render when customer is set
+    setShowWelcome(false);
+    
+    // 🎯 Load customer-specific data
+    if (selectedTable) {
+      loadTableOrders(selectedTable);
+      
+      // Load customer orders
+      if (getCustomerOrders) {
+        getCustomerOrders().then(orders => {
+          if (Array.isArray(orders)) {
+            setCustomerOrders(orders);
+          }
+        });
+      }
+    }
+  }
+}, [customer, selectedTable, loadTableOrders, getCustomerOrders]);
+
+// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - ADD THIS useEffect
+
+// 🎯 ADD: Detect when customer becomes available and update UI
+useEffect(() => {
+  console.log('🎯 Customer state changed in DigitalMenu:', {
+    hasCustomer: !!customer,
+    customerPhone: customer?.phone,
+    customerPoints: customer?.points,
+    showRegistration: showRegistration,
+    showWelcome: showWelcome
+  });
+
+  if (customer) {
+    console.log('✅ Customer detected, updating UI...');
+    // 🎯 Force hide registration and welcome when customer is available
+    setShowRegistration(false);
+    setShowWelcome(false);
+    
+    // 🎯 Refresh orders to show customer-specific data
+    if (selectedTable) {
+      setTimeout(() => {
+        loadTableOrders(selectedTable);
+      }, 100);
+    }
+  }
+}, [customer, selectedTable, loadTableOrders]); // 🎯 Only depend on customer state
 
   const toggleCart = useCallback(() => {
     setIsCartOpen(prev => !prev);

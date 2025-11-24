@@ -9,6 +9,13 @@ export const PointsDisplay = ({ points, phone, onClear }) => {
     return { name: 'Member', color: '#6b7280', icon: '👤' };
   };
 
+  // 🎯 ADD: Guard clause for missing data
+  if (!phone || points === undefined || points === null) {
+    console.log('⚠️ PointsDisplay: Missing required data', { phone, points });
+    return null;
+  }
+
+
   const tier = getTier(points);
 
   return (
