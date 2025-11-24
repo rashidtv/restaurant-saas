@@ -8,35 +8,43 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+  // In frontend/src/components/DigitalMenu/RegistrationModal.jsx - UPDATE HANDLE SUBMIT
 
-    const phoneString = String(phone).trim();
-    const nameString = String(name).trim();
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError('');
 
-    if (!validatePhoneNumber(phoneString)) {
-      setError('Please enter a valid phone number (at least 10 digits)');
-      return;
+  const phoneString = String(phone).trim();
+  const nameString = String(name).trim();
+
+  if (!validatePhoneNumber(phoneString)) {
+    setError('Please enter a valid phone number (at least 10 digits)');
+    return;
+  }
+
+  if (!validateName(nameString)) {
+    setError('Please enter your name (at least 2 characters)');
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    console.log('📝 Registration submitted:', { phone: phoneString, name: nameString });
+    const success = await onRegister(phoneString, nameString);
+    
+    if (success) {
+      console.log('✅ Registration modal: Registration completed successfully');
+      // 🎯 The modal will close automatically via the parent's state update
     }
-
-    if (!validateName(nameString)) {
-      setError('Please enter your name (at least 2 characters)');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      console.log('📝 Registration submitted:', { phone: phoneString, name: nameString });
-      await onRegister(phoneString, nameString);
-    } catch (err) {
-      console.error('Registration error:', err);
-      setError(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error('Registration modal error:', err);
+    setError(err.message || 'Registration failed. Please try again.');
+    // 🎯 DON'T call onClose() here - keep modal open to show error
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handlePhoneChange = (e) => {
     const value = e.target.value;

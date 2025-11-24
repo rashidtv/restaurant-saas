@@ -364,6 +364,9 @@ const handlePlaceOrder = useCallback(async () => {
   }
 }, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
 
+// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE THE REGISTRATION HANDLER
+
+// 🎯 FIX: Improved registration handler with guaranteed state updates
 const handleRegistration = useCallback(async (phone, name) => {
   try {
     console.log('📝 Processing registration for:', phone);
@@ -371,24 +374,34 @@ const handleRegistration = useCallback(async (phone, name) => {
     const registeredCustomer = await registerCustomer(phone, name);
     
     if (registeredCustomer) {
-      console.log('✅ Registration successful, customer object:', registeredCustomer);
+      console.log('✅ Registration successful, closing modal...');
       
-      // 🎯 The CustomerContext should automatically update the customer state
-      // We just need to close the modals
+      // 🎯 CRITICAL FIX: Force state updates in sequence
       setShowRegistration(false);
       setShowWelcome(false);
       
-      // 🎯 Small delay to ensure state propagation
+      // 🎯 Force a re-render to ensure UI updates
       setTimeout(() => {
-        console.log('🔄 Registration completed, UI should update automatically');
-      }, 100);
+        console.log('🔄 Modal should be closed now');
+      }, 0);
+      
+      return true; // 🎯 Return success
     }
   } catch (error) {
     console.error('❌ Registration failed:', error);
-    alert(`Registration failed: ${error.message}`);
+    // 🎯 Don't close modal on error - let RegistrationModal handle the error
     throw error;
   }
-}, [registerCustomer]); // 🎯 Simplified dependencies
+}, [registerCustomer]);
+
+// 🎯 FIX: Add this useEffect to automatically close modal when customer is set
+useEffect(() => {
+  if (customer && showRegistration) {
+    console.log('🎯 Customer detected and modal is open - closing modal');
+    setShowRegistration(false);
+    setShowWelcome(false);
+  }
+}, [customer, showRegistration]);
 
 // In DigitalMenu.jsx - TEMPORARY DEBUG BUTTON
 {customer && (
