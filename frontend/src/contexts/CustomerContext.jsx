@@ -4,36 +4,46 @@ import { apiClient } from '../services/apiClient';
 
 const CustomerContext = createContext();
 
-// 🎯 FIX: Remove useState dependency entirely
+// Action types
+const ACTION_TYPES = {
+  SET_CUSTOMER: 'SET_CUSTOMER',
+  CLEAR_CUSTOMER: 'CLEAR_CUSTOMER',
+  SET_LOADING: 'SET_LOADING',
+  SET_ERROR: 'SET_ERROR',
+  SET_INITIALIZED: 'SET_INITIALIZED'
+};
+
+// Reducer
 const customerReducer = (state, action) => {
   switch (action.type) {
-    case 'SET_CUSTOMER':
+    case ACTION_TYPES.SET_CUSTOMER:
       return {
-        ...action.payload,
-        isRegistered: true,
-        lastUpdated: Date.now(),
-        isInitialized: true
+        ...state,
+        customer: action.payload,
+        isInitialized: true,
+        isLoading: false,
+        error: null
       };
-    case 'UPDATE_CUSTOMER':
-      return { 
-        ...state, 
-        ...action.payload,
-        lastUpdated: Date.now()
+    case ACTION_TYPES.CLEAR_CUSTOMER:
+      return {
+        ...state,
+        customer: null,
+        isInitialized: true,
+        isLoading: false,
+        error: null
       };
-    case 'CLEAR_CUSTOMER':
-      return { isInitialized: true }; // 🎯 Keep initialized true
-    case 'SET_LOADING':
-      return { 
-        ...state, 
-        isLoading: action.payload 
+    case ACTION_TYPES.SET_LOADING:
+      return {
+        ...state,
+        isLoading: action.payload
       };
-    case 'SET_ERROR':
-      return { 
-        ...state, 
+    case ACTION_TYPES.SET_ERROR:
+      return {
+        ...state,
         error: action.payload,
-        isLoading: false 
+        isLoading: false
       };
-    case 'SET_INITIALIZED':
+    case ACTION_TYPES.SET_INITIALIZED:
       return {
         ...state,
         isInitialized: true
@@ -53,83 +63,95 @@ const initialState = {
 export const CustomerProvider = ({ children }) => {
   const [state, dispatch] = useReducer(customerReducer, initialState);
 
-  // Initialize customer from session
+  // Initialize customer session
   useEffect(() => {
     const initializeCustomer = async () => {
       try {
         console.log('🔐 Initializing customer session...');
-        
         const response = await apiClient.get('/api/customers/me');
         
         if (response.success && response.customer) {
-          dispatch({ 
-            type: 'SET_CUSTOMER', 
-            payload: response.customer 
-          });
           console.log('✅ Customer session initialized:', response.customer.phone);
+          dispatch({ type: ACTION_TYPES.SET_CUSTOMER, payload: response.customer });
         } else {
-          dispatch({ type: 'SET_INITIALIZED' });
+          console.log('ℹ️ No active customer session');
+          dispatch({ type: ACTION_TYPES.SET_INITIALIZED });
         }
       } catch (error) {
-        console.log('ℹ️ No active customer session or error:', error.message);
-        dispatch({ type: 'SET_INITIALIZED' });
+        console.log('ℹ️ Session initialization failed:', error.message);
+        dispatch({ type: ACTION_TYPES.SET_INITIALIZED });
       }
     };
 
     initializeCustomer();
   }, []);
 
-// In frontend/src/contexts/CustomerContext.jsx - ADD DEBUG LOGGING
+  // Register customer
+  const registerCustomer = async (phone, name = '') => {
+    try {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
+      
+      if (!phone || phone === 'undefined') {
+        throw new Error('Please enter a valid phone number');
+      }
 
-// In the registerCustomer function, add more logging:
-const registerCustomer = async (phone, name = '') => {
-  try {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
-    if (!phone || phone === 'undefined') {
-      throw new Error('Please enter a valid phone number');
+      const cleanPhone = phone.replace(/\D/g, '');
+      
+      const response = await apiClient.post('/api/customers/register', {
+        phone: cleanPhone, 
+        name: name || `Customer-${cleanPhone.slice(-4)}`
+      });
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Registration failed');
+      }
+
+      const customerPayload = {
+        _id: response.customer?._id,
+        phone: cleanPhone,
+        name: name || response.customer?.name,
+        points: response.customer?.points || 0,
+        isRegistered: true
+      };
+      
+      console.log('🎯 Dispatching SET_CUSTOMER with:', customerPayload);
+      dispatch({ type: ACTION_TYPES.SET_CUSTOMER, payload: customerPayload });
+      
+      console.log('✅ Customer registered successfully:', cleanPhone);
+      return customerPayload;
+      
+    } catch (error) {
+      console.error('❌ Registration error:', error);
+      dispatch({ type: ACTION_TYPES.SET_ERROR, payload: error.message });
+      throw error;
+    } finally {
+      dispatch({ type: ACTION_TYPES.SET_LOADING, payload: false });
     }
+  };
 
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    const response = await apiClient.post('/api/customers/register', {
-      phone: cleanPhone, 
-      name: name || `Customer-${cleanPhone.slice(-4)}`
-    });
-    
-    if (!response.success) {
-      throw new Error(response.message || 'Registration failed');
+  // Clear customer
+  const clearCustomer = async () => {
+    try {
+      await apiClient.post('/api/customers/logout');
+    } catch (error) {
+      console.warn('Logout API call failed:', error);
+    } finally {
+      dispatch({ type: ACTION_TYPES.CLEAR_CUSTOMER });
     }
+  };
 
-    const customerPayload = {
-      _id: response.customer?._id,
-      phone: cleanPhone,
-      name: name || response.customer?.name,
-      points: response.customer?.points || 0,
-      isRegistered: true
-    };
+  // Get customer orders
+  const getCustomerOrders = async () => {
+    if (!state.customer?.phone) return [];
     
-    console.log('🎯 CustomerContext: Dispatching SET_CUSTOMER with:', customerPayload);
-    
-    dispatch({ 
-      type: 'SET_CUSTOMER', 
-      payload: customerPayload 
-    });
-    
-    console.log('✅ Customer registered and state updated:', cleanPhone);
-    return customerPayload;
-    
-  } catch (error) {
-    console.error('❌ Registration error:', error);
-    dispatch({ 
-      type: 'SET_ERROR', 
-      payload: error.message 
-    });
-    throw error;
-  } finally {
-    dispatch({ type: 'SET_LOADING', payload: false });
-  }
-};
+    try {
+      const response = await apiClient.get(`/api/customers/${state.customer.phone}/orders`);
+      return Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.error('Failed to get customer orders:', error);
+      return [];
+    }
+  };
 
   // Add points
   const addPoints = async (points, orderTotal = 0) => {
@@ -147,46 +169,12 @@ const registerCustomer = async (phone, name = '') => {
         throw new Error(response.message || 'Points update failed');
       }
 
-      dispatch({ 
-        type: 'UPDATE_CUSTOMER', 
-        payload: response.customer 
-      });
-      
-      console.log('✅ Points added successfully');
+      dispatch({ type: ACTION_TYPES.SET_CUSTOMER, payload: response.customer });
       return { success: true, ...response };
       
     } catch (error) {
       console.error('❌ Add points error:', error);
-      
-      if (error.message.includes('SESSION_EXPIRED') || error.message.includes('401')) {
-        dispatch({ type: 'CLEAR_CUSTOMER' });
-      }
-      
       return { success: false, message: error.message };
-    }
-  };
-
-  // Clear customer
-  const clearCustomer = async () => {
-    try {
-      await apiClient.post('/api/customers/logout');
-    } catch (error) {
-      console.warn('Logout API call failed:', error);
-    } finally {
-      dispatch({ type: 'CLEAR_CUSTOMER' });
-    }
-  };
-
-  // Get customer orders
-  const getCustomerOrders = async () => {
-    if (!state.customer?.phone) return [];
-    
-    try {
-      const response = await apiClient.get(`/api/customers/${state.customer.phone}/orders`);
-      return Array.isArray(response) ? response : [];
-    } catch (error) {
-      console.error('Failed to get customer orders:', error);
-      return [];
     }
   };
 
@@ -206,6 +194,12 @@ const registerCustomer = async (phone, name = '') => {
     // Computed
     isRegistered: !!state.customer
   };
+
+  console.log('🔄 CustomerContext state:', {
+    customer: state.customer?.phone,
+    isInitialized: state.isInitialized,
+    isLoading: state.isLoading
+  });
 
   return (
     <CustomerContext.Provider value={value}>

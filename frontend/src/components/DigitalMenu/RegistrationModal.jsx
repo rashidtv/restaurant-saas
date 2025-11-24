@@ -10,6 +10,8 @@ export const RegistrationModal = ({ selectedTable, onRegister, onClose }) => {
 
   // In frontend/src/components/DigitalMenu/RegistrationModal.jsx - UPDATE HANDLE SUBMIT
 
+// In frontend/src/components/DigitalMenu/RegistrationModal.jsx - UPDATE SUCCESS HANDLING
+
 const handleSubmit = async (e) => {
   e.preventDefault();
   setError('');
@@ -30,17 +32,16 @@ const handleSubmit = async (e) => {
   setIsLoading(true);
 
   try {
-    console.log('📝 Registration submitted:', { phone: phoneString, name: nameString });
-    const success = await onRegister(phoneString, nameString);
+    console.log('📝 Registration submitted from modal');
+    await onRegister(phoneString, nameString);
     
-    if (success) {
-      console.log('✅ Registration modal: Registration completed successfully');
-      // 🎯 The modal will close automatically via the parent's state update
-    }
+    // 🎯 SUCCESS: Close modal automatically
+    console.log('✅ Registration successful in modal - closing');
+    // The parent's showRegistration state will be updated automatically
+    
   } catch (err) {
-    console.error('Registration modal error:', err);
+    console.error('❌ Registration failed in modal:', err);
     setError(err.message || 'Registration failed. Please try again.');
-    // 🎯 DON'T call onClose() here - keep modal open to show error
   } finally {
     setIsLoading(false);
   }

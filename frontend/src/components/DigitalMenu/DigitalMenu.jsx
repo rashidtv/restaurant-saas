@@ -1,6 +1,5 @@
-// frontend/src/components/DigitalMenu/DigitalMenu.jsx - FIXED VERSION
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useCustomer } from '../../contexts/CustomerContext'; // 🎯 Consistent import
+import { useCustomer } from '../../contexts/CustomerContext';
 import { useOrders } from '../../hooks/useOrders';
 import { useCart } from '../../hooks/useCart';
 import { RegistrationModal } from './RegistrationModal';
@@ -22,13 +21,12 @@ export const DigitalMenu = ({
   // Refs for scrolling
   const cartPanelRef = useRef(null);
   
-  // Custom hooks - 🎯 FIX: Use the context hook
+  // Custom hooks
   const { 
     customer, 
     registerCustomer, 
     clearCustomer,
-    getCustomerOrders,
-    addPoints // 🎯 ADD: Missing function
+    getCustomerOrders 
   } = useCustomer();
 
   const { orders, isLoading: ordersLoading, loadTableOrders } = useOrders();
@@ -54,7 +52,24 @@ export const DigitalMenu = ({
   const [showWelcome, setShowWelcome] = useState(true);
   const [headerSticky, setHeaderSticky] = useState(false);
 
-  // 🎯 FIX: Remove all references to customerHook
+  // 🎯 CUSTOMER STATE MONITORING
+  useEffect(() => {
+    console.log('🎯 DigitalMenu customer state:', {
+      hasCustomer: !!customer,
+      customerPhone: customer?.phone,
+      customerPoints: customer?.points,
+      showRegistration: showRegistration,
+      showWelcome: showWelcome
+    });
+
+    // Auto-close registration when customer is set
+    if (customer && showRegistration) {
+      console.log('✅ Customer detected, closing registration modal');
+      setShowRegistration(false);
+      setShowWelcome(false);
+    }
+  }, [customer, showRegistration, showWelcome]);
+
   // Auto-scroll to top when modal opens
   useEffect(() => {
     if (showRegistration) {
@@ -69,7 +84,7 @@ export const DigitalMenu = ({
     }
   }, [showRegistration]);
 
-  // Table detection with session awareness
+  // 🎯 TABLE DETECTION
   useEffect(() => {
     if (isCustomerView) {
       const detectTableFromURL = () => {
@@ -132,48 +147,44 @@ export const DigitalMenu = ({
     }
   }, [isCartOpen]);
 
-  // Load customer orders
-  // In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE THE ORDERS LOADING PART
-
-// 🎯 UPDATE: In the load orders useEffect
-useEffect(() => {
-  const loadOrders = async () => {
-    if (selectedTable) {
-      try {
-        console.log(`🔄 Loading orders for table: ${selectedTable}`);
-        await loadTableOrders(selectedTable);
-        
-        // 🎯 IMPROVED: Only load customer orders if customer exists
-        if (customer && getCustomerOrders) {
-          try {
-            const customerOrdersData = await getCustomerOrders();
-            if (Array.isArray(customerOrdersData)) {
-              setCustomerOrders(customerOrdersData);
+  // 🎯 LOAD ORDERS
+  useEffect(() => {
+    const loadOrders = async () => {
+      if (selectedTable) {
+        try {
+          console.log(`🔄 Loading orders for table: ${selectedTable}`);
+          await loadTableOrders(selectedTable);
+          
+          // Load customer-specific orders if customer exists
+          if (customer && getCustomerOrders) {
+            try {
+              const customerOrdersData = await getCustomerOrders();
+              if (Array.isArray(customerOrdersData)) {
+                setCustomerOrders(customerOrdersData);
+              }
+            } catch (customerError) {
+              console.log('ℹ️ No customer orders or error:', customerError.message);
             }
-          } catch (customerError) {
-            console.log('ℹ️ No customer orders or error:', customerError.message);
-            // Don't block the UI for this error
           }
+        } catch (error) {
+          console.log('ℹ️ Failed to load table orders:', error.message);
         }
-      } catch (error) {
-        console.log('ℹ️ Failed to load table orders - this is normal for new tables:', error.message);
-        // 🎯 Don't show error to user for this case
       }
-    }
-  };
+    };
 
-  loadOrders();
-}, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
+    loadOrders();
+  }, [selectedTable, customer, getCustomerOrders, loadTableOrders]);
 
-  // Show registration when table detected
+  // 🎯 SHOW REGISTRATION WHEN TABLE DETECTED
   useEffect(() => {
     if (selectedTable && !customer) {
+      console.log('🎯 Table detected, showing registration');
       setShowRegistration(true);
       setShowWelcome(false);
     }
   }, [selectedTable, customer]);
 
-  // WebSocket handlers - 🎯 FIX: Remove customerHook references
+  // 🎯 WEB SOCKET HANDLERS
   useEffect(() => {
     if (!selectedTable || !customer) return;
 
@@ -205,7 +216,6 @@ useEffect(() => {
             .then(freshCustomer => {
               if (freshCustomer && freshCustomer.phone) {
                 console.log('✅ Customer points refreshed:', freshCustomer.points);
-                // 🎯 FIX: Points are automatically updated via context
               }
             })
             .catch(error => {
@@ -233,7 +243,6 @@ useEffect(() => {
           .then(freshCustomer => {
             if (freshCustomer && freshCustomer.phone) {
               console.log('✅ Points updated after payment:', freshCustomer.points);
-              // 🎯 FIX: Points are automatically updated via context
             }
           })
           .catch(error => {
@@ -258,9 +267,9 @@ useEffect(() => {
         console.log('🧹 DigitalMenu WebSocket listeners cleaned up');
       }
     };
-  }, [selectedTable, customer, loadTableOrders, getCustomerOrders]); // 🎯 FIX: Removed customerHook
+  }, [selectedTable, customer, loadTableOrders, getCustomerOrders]);
 
-  // Add to cart function
+  // 🎯 ADD TO CART
   const handleAddToCart = useCallback((item, quantity = 1) => {
     console.log('🛒 Adding to cart:', item.name, 'Quantity:', quantity);
     
@@ -272,211 +281,115 @@ useEffect(() => {
     addToCart(item, quantity);
   }, [addToCart]);
 
-// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE REGISTRATION HANDLER
+  // 🎯 REGISTRATION HANDLER
+  const handleRegistration = useCallback(async (phone, name) => {
+    try {
+      console.log('📝 Processing registration for:', phone);
+      
+      await registerCustomer(phone, name);
+      
+      console.log('✅ Registration completed successfully');
+      // 🎯 Modal will close automatically via customer state change
+      
+    } catch (error) {
+      console.error('❌ Registration failed:', error);
+      alert(`Registration failed: ${error.message}`);
+      throw error;
+    }
+  }, [registerCustomer]);
 
-// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE the handleRegistration function
+  // 🎯 PLACE ORDER HANDLER
+  const handlePlaceOrder = useCallback(async () => {
+    if (cart.length === 0) {
+      alert('Your cart is empty. Please add some items first.');
+      return;
+    }
 
-// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - ADD THIS FUNCTION
+    if (!selectedTable) {
+      alert('Table number not detected. Please scan the QR code again.');
+      return;
+    }
 
-// 🎯 CRITICAL: Add the missing handlePlaceOrder function
-const handlePlaceOrder = useCallback(async () => {
-  if (cart.length === 0) {
-    alert('Your cart is empty. Please add some items first.');
-    return;
-  }
+    if (!customer) {
+      alert('Please register with your phone number to place an order.');
+      setShowRegistration(true);
+      return;
+    }
 
-  if (!selectedTable) {
-    alert('Table number not detected. Please scan the QR code again.');
-    return;
-  }
-
-  if (!customer) {
-    alert('Please register with your phone number to place an order.');
-    setShowRegistration(true);
-    return;
-  }
-
-  setIsPlacingOrder(true);
-  
-  try {
-    const orderData = cart.map(item => ({
-      menuItemId: item.menuItemId || item.id,
-      name: item.name,
-      price: parseFloat(item.price),
-      quantity: item.quantity,
-      category: item.category
-    }));
-
-    const orderTotal = getCartTotal();
-    console.log('🎯 Creating order with customer:', customer.phone);
-
-    let orderResult;
+    setIsPlacingOrder(true);
     
-    if (onCreateOrder) {
-      orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
-        customerPhone: customer.phone,
-        customerName: customer.name 
-      });
-    } else {
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          tableId: selectedTable,
-          items: orderData,
-          orderType: 'dine-in',
+    try {
+      const orderData = cart.map(item => ({
+        menuItemId: item.menuItemId || item.id,
+        name: item.name,
+        price: parseFloat(item.price),
+        quantity: item.quantity,
+        category: item.category
+      }));
+
+      const orderTotal = getCartTotal();
+      console.log('🎯 Creating order with customer:', customer.phone);
+
+      let orderResult;
+      
+      if (onCreateOrder) {
+        orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
           customerPhone: customer.phone,
-          customerName: customer.name
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to place order');
-      }
-
-      orderResult = await response.json();
-    }
-
-    if (orderResult && (orderResult.success || orderResult.orderNumber)) {
-      clearCart();
-      setIsCartOpen(false);
-      
-      await loadTableOrders(selectedTable);
-      if (getCustomerOrders) {
-        const updatedCustomerOrders = await getCustomerOrders();
-        setCustomerOrders(updatedCustomerOrders);
-      }
-      
-      const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
-      alert(`Order #${orderNumber} placed successfully!`);
-    } else {
-      throw new Error(orderResult?.message || 'Failed to place order');
-    }
-  } catch (error) {
-    console.error('Order placement error:', error);
-    alert(`Failed to place order: ${error.message}`);
-  } finally {
-    setIsPlacingOrder(false);
-  }
-}, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
-
-// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - UPDATE THE REGISTRATION HANDLER
-
-// 🎯 FIX: Improved registration handler with guaranteed state updates
-const handleRegistration = useCallback(async (phone, name) => {
-  try {
-    console.log('📝 Processing registration for:', phone);
-    
-    const registeredCustomer = await registerCustomer(phone, name);
-    
-    if (registeredCustomer) {
-      console.log('✅ Registration successful, closing modal...');
-      
-      // 🎯 CRITICAL FIX: Force state updates in sequence
-      setShowRegistration(false);
-      setShowWelcome(false);
-      
-      // 🎯 Force a re-render to ensure UI updates
-      setTimeout(() => {
-        console.log('🔄 Modal should be closed now');
-      }, 0);
-      
-      return true; // 🎯 Return success
-    }
-  } catch (error) {
-    console.error('❌ Registration failed:', error);
-    // 🎯 Don't close modal on error - let RegistrationModal handle the error
-    throw error;
-  }
-}, [registerCustomer]);
-
-// 🎯 FIX: Add this useEffect to automatically close modal when customer is set
-useEffect(() => {
-  if (customer && showRegistration) {
-    console.log('🎯 Customer detected and modal is open - closing modal');
-    setShowRegistration(false);
-    setShowWelcome(false);
-  }
-}, [customer, showRegistration]);
-
-// In DigitalMenu.jsx - TEMPORARY DEBUG BUTTON
-{customer && (
-  <div style={{ padding: '1rem', background: '#f3f4f6', borderRadius: '8px', margin: '1rem 0' }}>
-    <h4>Debug Info</h4>
-    <p>Customer: {customer.phone}</p>
-    <p>Points: {customer.points}</p>
-    <button 
-      onClick={() => {
-        console.log('🔄 Manual refresh - Customer:', customer);
-        loadTableOrders(selectedTable);
-      }}
-      style={{ padding: '0.5rem 1rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px' }}
-    >
-      Refresh Data
-    </button>
-  </div>
-)}
-
-// 🎯 FIX: Add useEffect to detect customer changes
-useEffect(() => {
-  if (customer) {
-    console.log('🎯 Customer detected in DigitalMenu:', customer.phone);
-    console.log('🎯 Customer points:', customer.points);
-    
-    // 🎯 Force re-render when customer is set
-    setShowWelcome(false);
-    
-    // 🎯 Load customer-specific data
-    if (selectedTable) {
-      loadTableOrders(selectedTable);
-      
-      // Load customer orders
-      if (getCustomerOrders) {
-        getCustomerOrders().then(orders => {
-          if (Array.isArray(orders)) {
-            setCustomerOrders(orders);
-          }
+          customerName: customer.name 
         });
+      } else {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            tableId: selectedTable,
+            items: orderData,
+            orderType: 'dine-in',
+            customerPhone: customer.phone,
+            customerName: customer.name
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || errorData.message || 'Failed to place order');
+        }
+
+        orderResult = await response.json();
       }
+
+      if (orderResult && (orderResult.success || orderResult.orderNumber)) {
+        clearCart();
+        setIsCartOpen(false);
+        
+        await loadTableOrders(selectedTable);
+        if (getCustomerOrders) {
+          const updatedCustomerOrders = await getCustomerOrders();
+          setCustomerOrders(updatedCustomerOrders);
+        }
+        
+        const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
+        alert(`Order #${orderNumber} placed successfully!`);
+      } else {
+        throw new Error(orderResult?.message || 'Failed to place order');
+      }
+    } catch (error) {
+      console.error('Order placement error:', error);
+      alert(`Failed to place order: ${error.message}`);
+    } finally {
+      setIsPlacingOrder(false);
     }
-  }
-}, [customer, selectedTable, loadTableOrders, getCustomerOrders]);
+  }, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
 
-// In frontend/src/components/DigitalMenu/DigitalMenu.jsx - ADD THIS useEffect
-
-// 🎯 ADD: Detect when customer becomes available and update UI
-useEffect(() => {
-  console.log('🎯 Customer state changed in DigitalMenu:', {
-    hasCustomer: !!customer,
-    customerPhone: customer?.phone,
-    customerPoints: customer?.points,
-    showRegistration: showRegistration,
-    showWelcome: showWelcome
-  });
-
-  if (customer) {
-    console.log('✅ Customer detected, updating UI...');
-    // 🎯 Force hide registration and welcome when customer is available
-    setShowRegistration(false);
-    setShowWelcome(false);
-    
-    // 🎯 Refresh orders to show customer-specific data
-    if (selectedTable) {
-      setTimeout(() => {
-        loadTableOrders(selectedTable);
-      }, 100);
-    }
-  }
-}, [customer, selectedTable, loadTableOrders]); // 🎯 Only depend on customer state
-
+  // 🎯 TOGGLE CART
   const toggleCart = useCallback(() => {
     setIsCartOpen(prev => !prev);
   }, []);
 
+  // Data processing
   const displayOrders = customerOrders.length > 0 ? customerOrders : orders;
   const activeOrders = displayOrders.filter(order => 
     order && ['pending', 'preparing', 'ready'].includes(order.status)
