@@ -1,5 +1,5 @@
-// frontend/src/hooks/useCart.js - ENSURE THIS EXISTS
 import { useState, useCallback } from 'react';
+import { CartUtils } from '../utils/cartUtils'; // 🎯 Import the utility
 
 export const useCart = () => {
   const [cart, setCart] = useState([]);
@@ -7,16 +7,29 @@ export const useCart = () => {
 
   const addToCart = useCallback((item, quantity = 1) => {
     setCart(prevCart => {
-      const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
+      const normalizedItem = CartUtils.normalizeCartItem(item);
       
-      if (existingItem) {
-        return prevCart.map(cartItem =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + quantity }
-            : cartItem
-        );
+      if (!normalizedItem) {
+        console.error('❌ Cannot add invalid item to cart:', item);
+        return prevCart;
+      }
+
+      // Set initial quantity
+      normalizedItem.quantity = quantity;
+
+      const existingItemIndex = prevCart.findIndex(cartItem => 
+        cartItem.id === normalizedItem.id
+      );
+      
+      if (existingItemIndex !== -1) {
+        const updatedCart = [...prevCart];
+        updatedCart[existingItemIndex] = {
+          ...updatedCart[existingItemIndex],
+          quantity: updatedCart[existingItemIndex].quantity + quantity
+        };
+        return updatedCart;
       } else {
-        return [...prevCart, { ...item, quantity }];
+        return [...prevCart, normalizedItem];
       }
     });
   }, []);
@@ -33,7 +46,10 @@ export const useCart = () => {
           if (newQuantity <= 0) {
             return null;
           }
-          return { ...item, quantity: newQuantity };
+          return { 
+            ...item, 
+            quantity: newQuantity 
+          };
         }
         return item;
       }).filter(Boolean)
@@ -45,11 +61,21 @@ export const useCart = () => {
   }, []);
 
   const getCartTotal = useCallback(() => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return CartUtils.calculateTotal(cart);
   }, [cart]);
 
   const getItemCount = useCallback(() => {
-    return cart.reduce((count, item) => count + item.quantity, 0);
+    return cart.reduce((count, item) => count + (item.quantity || 1), 0);
+  }, [cart]);
+
+  // 🎯 NEW: Get cart items in API-ready format
+  const getCartForAPI = useCallback(() => {
+    return CartUtils.prepareForAPI(cart);
+  }, [cart]);
+
+  // 🎯 NEW: Validate cart before submission
+  const validateCart = useCallback(() => {
+    return CartUtils.validateCart(cart);
   }, [cart]);
 
   return {
@@ -61,6 +87,8 @@ export const useCart = () => {
     updateQuantity,
     clearCart,
     getCartTotal,
-    getItemCount
+    getItemCount,
+    getCartForAPI,
+    validateCart
   };
 };

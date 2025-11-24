@@ -299,90 +299,88 @@ export const DigitalMenu = ({
   }, [registerCustomer]);
 
   // 🎯 PLACE ORDER HANDLER
-  const handlePlaceOrder = useCallback(async () => {
-    if (cart.length === 0) {
-      alert('Your cart is empty. Please add some items first.');
-      return;
-    }
+const handlePlaceOrder = useCallback(async () => {
+  // 🎯 NEW: Validate cart before proceeding
+  const validation = validateCart();
+  if (!validation.isValid) {
+    alert(validation.error);
+    return;
+  }
 
-    if (!selectedTable) {
-      alert('Table number not detected. Please scan the QR code again.');
-      return;
-    }
+  if (!selectedTable) {
+    alert('Table number not detected. Please scan the QR code again.');
+    return;
+  }
 
-    if (!customer) {
-      alert('Please register with your phone number to place an order.');
-      setShowRegistration(true);
-      return;
-    }
+  if (!customer) {
+    alert('Please register with your phone number to place an order.');
+    setShowRegistration(true);
+    return;
+  }
 
-    setIsPlacingOrder(true);
+  setIsPlacingOrder(true);
+  
+  try {
+    // 🎯 USE THE NEW METHOD for consistent data format
+    const orderData = getCartForAPI();
+    const orderTotal = getCartTotal();
     
-    try {
-      const orderData = cart.map(item => ({
-        menuItemId: item.menuItemId || item.id,
-        name: item.name,
-        price: parseFloat(item.price),
-        quantity: item.quantity,
-        category: item.category
-      }));
+    console.log('🎯 Creating order with validated items:', orderData);
 
-      const orderTotal = getCartTotal();
-      console.log('🎯 Creating order with customer:', customer.phone);
-
-      let orderResult;
-      
-      if (onCreateOrder) {
-        orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
+    // ... rest of your existing order creation code remains EXACTLY THE SAME
+    let orderResult;
+    
+    if (onCreateOrder) {
+      orderResult = await onCreateOrder(selectedTable, orderData, 'dine-in', { 
+        customerPhone: customer.phone,
+        customerName: customer.name 
+      });
+    } else {
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          tableId: selectedTable,
+          items: orderData,
+          orderType: 'dine-in',
           customerPhone: customer.phone,
-          customerName: customer.name 
-        });
-      } else {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/api/orders`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            tableId: selectedTable,
-            items: orderData,
-            orderType: 'dine-in',
-            customerPhone: customer.phone,
-            customerName: customer.name
-          })
-        });
+          customerName: customer.name
+        })
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || errorData.message || 'Failed to place order');
-        }
-
-        orderResult = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Failed to place order');
       }
 
-      if (orderResult && (orderResult.success || orderResult.orderNumber)) {
-        clearCart();
-        setIsCartOpen(false);
-        
-        await loadTableOrders(selectedTable);
-        if (getCustomerOrders) {
-          const updatedCustomerOrders = await getCustomerOrders();
-          setCustomerOrders(updatedCustomerOrders);
-        }
-        
-        const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
-        alert(`Order #${orderNumber} placed successfully!`);
-      } else {
-        throw new Error(orderResult?.message || 'Failed to place order');
-      }
-    } catch (error) {
-      console.error('Order placement error:', error);
-      alert(`Failed to place order: ${error.message}`);
-    } finally {
-      setIsPlacingOrder(false);
+      orderResult = await response.json();
     }
-  }, [cart, selectedTable, customer, getCartTotal, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
+
+    if (orderResult && (orderResult.success || orderResult.orderNumber)) {
+      clearCart();
+      setIsCartOpen(false);
+      
+      await loadTableOrders(selectedTable);
+      if (getCustomerOrders) {
+        const updatedCustomerOrders = await getCustomerOrders();
+        setCustomerOrders(updatedCustomerOrders);
+      }
+      
+      const orderNumber = orderResult.orderNumber || orderResult.data?.orderNumber || 'N/A';
+      alert(`Order #${orderNumber} placed successfully!`);
+    } else {
+      throw new Error(orderResult?.message || 'Failed to place order');
+    }
+  } catch (error) {
+    console.error('Order placement error:', error);
+    alert(`Failed to place order: ${error.message}`);
+  } finally {
+    setIsPlacingOrder(false);
+  }
+}, [cart, selectedTable, customer, getCartTotal, getCartForAPI, validateCart, onCreateOrder, clearCart, setIsCartOpen, loadTableOrders, getCustomerOrders]);
 
   // 🎯 TOGGLE CART
   const toggleCart = useCallback(() => {
