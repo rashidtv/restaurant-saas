@@ -186,19 +186,22 @@ const {
     }
   }, [selectedTable, customer]);
 
-// 🎯 PERMANENT FIX: Stable WebSocket connection
+// 🎯 PRODUCTION: Stable WebSocket connection with proper points handling
 useEffect(() => {
-  if (!selectedTable || !customer) return;
+  if (!selectedTable || !customer) {
+    console.log('ℹ️ Production: Skipping WebSocket setup - no customer or table');
+    return;
+  }
 
-  console.log('🔌 Setting up stable WebSocket listeners for customer:', customer.phone);
+  console.log('🔌 Production: Setting up WebSocket listeners for customer:', customer.phone);
 
   const handleOrderUpdated = (updatedOrder) => {
-    if (!updatedOrder || !updatedOrder.orderNumber) {
-      console.warn('⚠️ Received invalid order update via WebSocket');
+    if (!updatedOrder?.orderNumber) {
+      console.warn('⚠️ Production: Invalid order update received');
       return;
     }
     
-    console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
+    console.log('🔄 Production: Order updated via WebSocket:', updatedOrder.orderNumber);
     
     // Only refresh if order belongs to current customer/table
     if (updatedOrder.customerPhone === customer.phone || updatedOrder.tableId === selectedTable) {
@@ -207,69 +210,82 @@ useEffect(() => {
   };
 
   const handlePaymentProcessed = (payment) => {
-    if (!payment || !payment.orderId) {
-      console.warn('⚠️ Received invalid payment via WebSocket');
+    if (!payment?.orderId) {
+      console.warn('⚠️ Production: Invalid payment received');
       return;
     }
     
-    console.log('💰 Payment processed via WebSocket:', payment.orderId);
-    
-    // Refresh orders to show payment status
-    loadTableOrders(selectedTable);
+    console.log('💰 Production: Payment processed via WebSocket:', payment.orderId);
+    loadTableOrders(selectedTable); // Refresh orders to show payment status
   };
 
-// In DigitalMenu.jsx - Fix the handlePointsUpdated function
-const handlePointsUpdated = (pointsData) => {
-  if (!pointsData || !pointsData.customerPhone) {
-    console.warn('⚠️ Received invalid points update via WebSocket');
-    return;
-  }
-  
-  // Only process if it's for the current customer
-  if (customer && pointsData.customerPhone === customer.phone) {
-    console.log('🔄 Points updated via WebSocket:', pointsData);
+  // 🎯 PRODUCTION: Robust points update handler
+  const handlePointsUpdated = async (pointsData) => {
+    if (!pointsData?.customerPhone) {
+      console.warn('⚠️ Production: Invalid points update received');
+      return;
+    }
     
-    // 🎯 USE THE EXISTING METHOD - it's already in customerService
-    customerService.refreshCustomerData(customer.phone)
-      .then(freshCustomer => {
-        if (freshCustomer && freshCustomer.phone) {
-          console.log('✅ Customer points refreshed in real-time:', freshCustomer.points);
-          // The CustomerContext will automatically update PointsDisplay
+    // Only process if it's for the current customer
+    if (pointsData.customerPhone === customer.phone) {
+      console.log('🔄 Production: Points updated via WebSocket:', pointsData);
+      
+      try {
+        // 🎯 USE THE CONTEXT REFRESH METHOD FOR CONSISTENCY
+        const freshCustomer = await refreshCustomer();
+        
+        if (freshCustomer) {
+          console.log('✅ Production: CustomerContext updated with new points:', freshCustomer.points);
+          
+          // 🎯 OPTIONAL: Show visual feedback to user
+          if (pointsData.pointsAdded > 0) {
+            console.log(`🎉 Production: ${pointsData.pointsAdded} points added! Total: ${freshCustomer.points}`);
+          }
+        } else {
+          console.warn('⚠️ Production: Customer refresh returned null');
         }
-      })
-      .catch(error => {
-        console.error('Failed to refresh customer points:', error);
-      });
-  }
-};
+      } catch (error) {
+        console.error('❌ Production: Failed to refresh customer after points update:', error);
+        // 🎯 GRACEFUL DEGRADATION: The next regular poll will update the points
+      }
+    }
+  };
 
-  // 🎯 Setup WebSocket listeners only once
+  // 🎯 Setup WebSocket listeners with error handling
   if (window.socket) {
-    // Remove existing listeners to prevent duplicates
-    window.socket.off('orderUpdated', handleOrderUpdated);
-    window.socket.off('paymentProcessed', handlePaymentProcessed);
-    window.socket.off('pointsUpdated', handlePointsUpdated);
-    
-    // Add stable listeners
-    window.socket.on('orderUpdated', handleOrderUpdated);
-    window.socket.on('paymentProcessed', handlePaymentProcessed);
-    window.socket.on('pointsUpdated', handlePointsUpdated); // 🎯 CRITICAL ADDITION
-    
-    console.log('🔌 Stable WebSocket listeners registered for DigitalMenu');
+    try {
+      // Remove any existing listeners to prevent duplicates
+      window.socket.off('orderUpdated', handleOrderUpdated);
+      window.socket.off('paymentProcessed', handlePaymentProcessed);
+      window.socket.off('pointsUpdated', handlePointsUpdated);
+      
+      // Add production listeners
+      window.socket.on('orderUpdated', handleOrderUpdated);
+      window.socket.on('paymentProcessed', handlePaymentProcessed);
+      window.socket.on('pointsUpdated', handlePointsUpdated);
+      
+      console.log('🔌 Production: WebSocket listeners registered successfully');
+    } catch (error) {
+      console.error('❌ Production: Failed to setup WebSocket listeners:', error);
+    }
   } else {
-    console.log('⚠️ Global WebSocket not available');
+    console.log('⚠️ Production: Global WebSocket not available');
   }
 
   // 🎯 Cleanup only on unmount or when customer/table changes
   return () => {
     if (window.socket) {
-      console.log('🧹 Cleaning up WebSocket listeners (component unmounting)');
-      window.socket.off('orderUpdated', handleOrderUpdated);
-      window.socket.off('paymentProcessed', handlePaymentProcessed);
-      window.socket.off('pointsUpdated', handlePointsUpdated);
+      try {
+        window.socket.off('orderUpdated', handleOrderUpdated);
+        window.socket.off('paymentProcessed', handlePaymentProcessed);
+        window.socket.off('pointsUpdated', handlePointsUpdated);
+        console.log('🧹 Production: WebSocket listeners cleaned up');
+      } catch (error) {
+        console.error('❌ Production: Error during WebSocket cleanup:', error);
+      }
     }
   };
-}, [selectedTable, customer, loadTableOrders]); // 🎯 FIXED: Remove unnecessary dependencies
+}, [selectedTable, customer, loadTableOrders, refreshCustomer]); // 🎯 PROPER DEPENDENCIES
 
   
 

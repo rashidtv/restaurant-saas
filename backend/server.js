@@ -1031,7 +1031,7 @@ app.get('/api/payments', async (req, res) => {
 
 app.post('/api/payments', async (req, res) => {
   try {
-    console.log('💰 Payment request received:', req.body);
+    console.log('💰 Production: Payment request received:', req.body);
     
     if (!db) {
       return res.status(503).json({ 
@@ -1049,8 +1049,9 @@ app.post('/api/payments', async (req, res) => {
       });
     }
 
-    console.log('🔍 Processing payment for order:', orderId);
+    console.log('🔍 Production: Processing payment for order:', orderId);
 
+    // 🎯 PRODUCTION: Robust order lookup
     let order;
     try {
       order = await db.collection('orders').findOne({ orderNumber: orderId });
@@ -1059,11 +1060,15 @@ app.post('/api/payments', async (req, res) => {
         try {
           order = await db.collection('orders').findOne({ _id: new ObjectId(orderId) });
         } catch (idError) {
-          console.log('⚠️ Invalid order ID format:', orderId);
+          console.log('⚠️ Production: Invalid order ID format:', orderId);
+          return res.status(400).json({ 
+            success: false,
+            message: 'Invalid order ID format' 
+          });
         }
       }
     } catch (dbError) {
-      console.error('❌ Database query error:', dbError);
+      console.error('❌ Production: Database query error:', dbError);
       return res.status(500).json({ 
         success: false,
         message: 'Database error while finding order' 
@@ -1071,7 +1076,7 @@ app.post('/api/payments', async (req, res) => {
     }
 
     if (!order) {
-      console.error('❌ Order not found:', orderId);
+      console.error('❌ Production: Order not found:', orderId);
       return res.status(404).json({ 
         success: false,
         message: 'Order not found' 
@@ -1080,6 +1085,9 @@ app.post('/api/payments', async (req, res) => {
 
     const now = new Date();
     const paymentAmount = amount || order.total;
+
+    // 🎯 PRODUCTION: Define points at proper scope
+    let pointsAwarded = 0;
 
     const payment = {
       _id: new ObjectId(),
@@ -1092,10 +1100,7 @@ app.post('/api/payments', async (req, res) => {
       createdAt: now
     };
 
-    console.log('💾 Saving payment record:', payment);
-
-    // 🎯 FIX: Define pointsAwarded at proper scope
-    let pointsAwarded = 0;
+    console.log('💾 Production: Saving payment record:', payment);
 
     try {
       await db.collection('payments').insertOne(payment);
@@ -1112,18 +1117,17 @@ app.post('/api/payments', async (req, res) => {
         { returnDocument: 'after' }
       );
 
-      // 🎯 PERMANENT FIX: AWARD POINTS AFTER PAYMENT
+      // 🎯 PRODUCTION: Award points after successful payment
       if (order.customerPhone && paymentAmount > 0) {
         try {
-          console.log(`🎯 Calculating points for customer: ${order.customerPhone}, amount: ${paymentAmount}`);
+          console.log(`🎯 Production: Calculating points for customer: ${order.customerPhone}, amount: ${paymentAmount}`);
           
           // Calculate points (1 point per ringgit, floor value)
           pointsAwarded = Math.floor(paymentAmount);
           
           if (pointsAwarded > 0) {
-            console.log(`➕ Adding ${pointsAwarded} points to customer: ${order.customerPhone}`);
+            console.log(`➕ Production: Adding ${pointsAwarded} points to customer: ${order.customerPhone}`);
             
-            // Use your existing customer update function
             const updatedCustomer = await createOrUpdateCustomer(
               order.customerPhone, 
               order.customerName || '', 
@@ -1131,9 +1135,9 @@ app.post('/api/payments', async (req, res) => {
               paymentAmount
             );
             
-            console.log(`✅ Points awarded successfully. Total points: ${updatedCustomer.points}`);
+            console.log(`✅ Production: Points awarded successfully. Total points: ${updatedCustomer.points}`);
             
-            // 🎯 Emit specific points update event
+            // 🎯 PRODUCTION: Emit points update event
             safeEmit('pointsUpdated', {
               customerPhone: order.customerPhone,
               pointsAdded: pointsAwarded,
@@ -1143,8 +1147,8 @@ app.post('/api/payments', async (req, res) => {
             });
           }
         } catch (pointsError) {
-          console.error('❌ Points calculation failed:', pointsError);
-          // Don't fail payment if points fail
+          console.error('❌ Production: Points calculation failed:', pointsError);
+          // 🎯 GRACEFUL DEGRADATION: Payment succeeds even if points fail
         }
       }
 
@@ -1161,7 +1165,7 @@ app.post('/api/payments', async (req, res) => {
         }
       }
 
-      // 🎯 EMIT EVENTS
+      // 🎯 PRODUCTION: Emit events
       safeEmit('paymentProcessed', {
         ...payment,
         pointsAwarded: pointsAwarded,
@@ -1170,9 +1174,9 @@ app.post('/api/payments', async (req, res) => {
       
       safeEmit('orderUpdated', updatedOrder.value);
 
-      console.log('✅ Payment processed successfully for order:', order.orderNumber);
+      console.log('✅ Production: Payment processed successfully for order:', order.orderNumber);
       
-      // 🎯 FIX: Use the properly scoped variable
+      // 🎯 PRODUCTION: Success response
       res.json({
         success: true,
         payment: payment,
@@ -1181,18 +1185,18 @@ app.post('/api/payments', async (req, res) => {
       });
 
     } catch (dbWriteError) {
-      console.error('❌ Database write error:', dbWriteError);
+      console.error('❌ Production: Database write error:', dbWriteError);
       return res.status(500).json({ 
         success: false,
-        message: 'Failed to save payment: ' + dbWriteError.message 
+        message: 'Failed to save payment' 
       });
     }
     
   } catch (error) {
-    console.error('💥 Payment endpoint error:', error);
+    console.error('💥 Production: Payment endpoint error:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Payment processing failed: ' + error.message 
+      message: 'Payment processing failed' 
     });
   }
 });
