@@ -1034,7 +1034,6 @@ app.post('/api/payments', async (req, res) => {
     console.log('💰 Payment request received:', req.body);
     
     if (!db) {
-      console.error('❌ Database not connected in payment endpoint');
       return res.status(503).json({ 
         success: false,
         message: 'Database not connected' 
@@ -1095,6 +1094,9 @@ app.post('/api/payments', async (req, res) => {
 
     console.log('💾 Saving payment record:', payment);
 
+    // 🎯 FIX: Define pointsAwarded at proper scope
+    let pointsAwarded = 0;
+
     try {
       await db.collection('payments').insertOne(payment);
       
@@ -1116,37 +1118,34 @@ app.post('/api/payments', async (req, res) => {
           console.log(`🎯 Calculating points for customer: ${order.customerPhone}, amount: ${paymentAmount}`);
           
           // Calculate points (1 point per ringgit, floor value)
-          const pointsToAdd = Math.floor(paymentAmount);
+          pointsAwarded = Math.floor(paymentAmount);
           
-          if (pointsToAdd > 0) {
-            console.log(`➕ Adding ${pointsToAdd} points to customer: ${order.customerPhone}`);
+          if (pointsAwarded > 0) {
+            console.log(`➕ Adding ${pointsAwarded} points to customer: ${order.customerPhone}`);
             
             // Use your existing customer update function
             const updatedCustomer = await createOrUpdateCustomer(
               order.customerPhone, 
               order.customerName || '', 
-              pointsToAdd, 
+              pointsAwarded, 
               paymentAmount
             );
             
             console.log(`✅ Points awarded successfully. Total points: ${updatedCustomer.points}`);
             
-            // 🎯 Emit points update event for real-time frontend refresh
+            // 🎯 Emit specific points update event
             safeEmit('pointsUpdated', {
               customerPhone: order.customerPhone,
-              pointsAdded: pointsToAdd,
+              pointsAdded: pointsAwarded,
               totalPoints: updatedCustomer.points,
-              orderId: order.orderNumber
+              orderId: order.orderNumber,
+              timestamp: now.toISOString()
             });
-          } else {
-            console.log('ℹ️ No points to add (order amount too small)');
           }
         } catch (pointsError) {
           console.error('❌ Points calculation failed:', pointsError);
-          // Don't fail the payment if points calculation fails
+          // Don't fail payment if points fail
         }
-      } else {
-        console.log('ℹ️ No customer phone associated with order, skipping points');
       }
 
       // Table cleanup
@@ -1162,16 +1161,23 @@ app.post('/api/payments', async (req, res) => {
         }
       }
 
-      safeEmit('paymentProcessed', payment);
+      // 🎯 EMIT EVENTS
+      safeEmit('paymentProcessed', {
+        ...payment,
+        pointsAwarded: pointsAwarded,
+        customerPhone: order.customerPhone
+      });
+      
       safeEmit('orderUpdated', updatedOrder.value);
 
       console.log('✅ Payment processed successfully for order:', order.orderNumber);
       
+      // 🎯 FIX: Use the properly scoped variable
       res.json({
         success: true,
         payment: payment,
         order: updatedOrder.value,
-        pointsAwarded: pointsToAdd || 0 // 🎯 Include points info in response
+        pointsAwarded: pointsAwarded
       });
 
     } catch (dbWriteError) {

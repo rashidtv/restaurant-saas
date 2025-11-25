@@ -186,109 +186,92 @@ const {
     }
   }, [selectedTable, customer]);
 
-  // 🎯 WEB SOCKET HANDLERS
-  useEffect(() => {
-    if (!selectedTable || !customer) return;
-
-    const handleOrderUpdated = (updatedOrder) => {
-      if (!updatedOrder || !updatedOrder.orderNumber) {
-        console.warn('⚠️ Received invalid order update via WebSocket');
-        return;
-      }
-      
-      console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
-      
-      if (selectedTable) {
-        loadTableOrders(selectedTable);
-      }
-      
-      if (customer && updatedOrder.customerPhone === customer.phone) {
-        console.log('🎯 Order belongs to current customer, refreshing data...');
-        
-        getCustomerOrders().then(orders => {
-          if (Array.isArray(orders)) {
-            setCustomerOrders(orders);
-          }
-        }).catch(error => {
-          console.error('Failed to refresh customer orders:', error);
-        });
-        
-        if (customer.phone && customer.phone !== 'undefined') {
-          customerService.refreshCustomerData(customer.phone)
-            .then(freshCustomer => {
-              if (freshCustomer && freshCustomer.phone) {
-                console.log('✅ Customer points refreshed:', freshCustomer.points);
-              }
-            })
-            .catch(error => {
-              console.error('Failed to refresh customer data:', error);
-            });
-        }
-      }
-    };
-
-    const handlePaymentProcessed = (payment) => {
-      if (!payment || !payment.orderId) {
-        console.warn('⚠️ Received invalid payment via WebSocket');
-        return;
-      }
-      
-      console.log('💰 Payment processed via WebSocket:', payment.orderId);
-      
-      if (selectedTable) {
-        loadTableOrders(selectedTable);
-      }
-      
-      if (customer && customer.phone && customer.phone !== 'undefined') {
-        console.log('💰 Payment completed, refreshing customer data...');
-        customerService.refreshCustomerData(customer.phone)
-          .then(freshCustomer => {
-            if (freshCustomer && freshCustomer.phone) {
-              console.log('✅ Points updated after payment:', freshCustomer.points);
-            }
-          })
-          .catch(error => {
-            console.error('Failed to refresh customer after payment:', error);
-          });
-      }
-    };
-
-    if (window.socket) {
-      window.socket.on('orderUpdated', handleOrderUpdated);
-      window.socket.on('paymentProcessed', handlePaymentProcessed);
-      
-      console.log('🔌 DigitalMenu WebSocket listeners registered');
-    } else {
-      console.log('⚠️ Global WebSocket not available, real-time updates disabled');
-    }
-
-    return () => {
-      if (window.socket) {
-        window.socket.off('orderUpdated', handleOrderUpdated);
-        window.socket.off('paymentProcessed', handlePaymentProcessed);
-        console.log('🧹 DigitalMenu WebSocket listeners cleaned up');
-      }
-    };
-  }, [selectedTable, customer, loadTableOrders, getCustomerOrders]);
-
-  // Add to your DigitalMenu.jsx WebSocket listeners
+// 🎯 PERMANENT FIX: Stable WebSocket connection
 useEffect(() => {
-  if (window.socket) {
-    window.socket.on('pointsUpdated', (data) => {
-      if (data.customerPhone === customer?.phone) {
-        console.log('🔄 Points updated via WebSocket:', data);
-        // Refresh customer data to show updated points
-        refreshCustomerData();
-      }
-    });
-  }
+  if (!selectedTable || !customer) return;
 
-  return () => {
-    if (window.socket) {
-      window.socket.off('pointsUpdated');
+  console.log('🔌 Setting up stable WebSocket listeners for customer:', customer.phone);
+
+  const handleOrderUpdated = (updatedOrder) => {
+    if (!updatedOrder || !updatedOrder.orderNumber) {
+      console.warn('⚠️ Received invalid order update via WebSocket');
+      return;
+    }
+    
+    console.log('🔄 Order updated via WebSocket:', updatedOrder.orderNumber);
+    
+    // Only refresh if order belongs to current customer/table
+    if (updatedOrder.customerPhone === customer.phone || updatedOrder.tableId === selectedTable) {
+      loadTableOrders(selectedTable);
     }
   };
-}, [customer]);
+
+  const handlePaymentProcessed = (payment) => {
+    if (!payment || !payment.orderId) {
+      console.warn('⚠️ Received invalid payment via WebSocket');
+      return;
+    }
+    
+    console.log('💰 Payment processed via WebSocket:', payment.orderId);
+    
+    // Refresh orders to show payment status
+    loadTableOrders(selectedTable);
+  };
+
+// In DigitalMenu.jsx - Fix the handlePointsUpdated function
+const handlePointsUpdated = (pointsData) => {
+  if (!pointsData || !pointsData.customerPhone) {
+    console.warn('⚠️ Received invalid points update via WebSocket');
+    return;
+  }
+  
+  // Only process if it's for the current customer
+  if (customer && pointsData.customerPhone === customer.phone) {
+    console.log('🔄 Points updated via WebSocket:', pointsData);
+    
+    // 🎯 USE THE EXISTING METHOD - it's already in customerService
+    customerService.refreshCustomerData(customer.phone)
+      .then(freshCustomer => {
+        if (freshCustomer && freshCustomer.phone) {
+          console.log('✅ Customer points refreshed in real-time:', freshCustomer.points);
+          // The CustomerContext will automatically update PointsDisplay
+        }
+      })
+      .catch(error => {
+        console.error('Failed to refresh customer points:', error);
+      });
+  }
+};
+
+  // 🎯 Setup WebSocket listeners only once
+  if (window.socket) {
+    // Remove existing listeners to prevent duplicates
+    window.socket.off('orderUpdated', handleOrderUpdated);
+    window.socket.off('paymentProcessed', handlePaymentProcessed);
+    window.socket.off('pointsUpdated', handlePointsUpdated);
+    
+    // Add stable listeners
+    window.socket.on('orderUpdated', handleOrderUpdated);
+    window.socket.on('paymentProcessed', handlePaymentProcessed);
+    window.socket.on('pointsUpdated', handlePointsUpdated); // 🎯 CRITICAL ADDITION
+    
+    console.log('🔌 Stable WebSocket listeners registered for DigitalMenu');
+  } else {
+    console.log('⚠️ Global WebSocket not available');
+  }
+
+  // 🎯 Cleanup only on unmount or when customer/table changes
+  return () => {
+    if (window.socket) {
+      console.log('🧹 Cleaning up WebSocket listeners (component unmounting)');
+      window.socket.off('orderUpdated', handleOrderUpdated);
+      window.socket.off('paymentProcessed', handlePaymentProcessed);
+      window.socket.off('pointsUpdated', handlePointsUpdated);
+    }
+  };
+}, [selectedTable, customer, loadTableOrders]); // 🎯 FIXED: Remove unnecessary dependencies
+
+  
 
 // 🎯 ENHANCED: Better add to cart with ID normalization
 const handleAddToCart = useCallback((item, quantity = 1) => {
