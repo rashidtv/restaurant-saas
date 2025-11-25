@@ -271,6 +271,25 @@ const {
     };
   }, [selectedTable, customer, loadTableOrders, getCustomerOrders]);
 
+  // Add to your DigitalMenu.jsx WebSocket listeners
+useEffect(() => {
+  if (window.socket) {
+    window.socket.on('pointsUpdated', (data) => {
+      if (data.customerPhone === customer?.phone) {
+        console.log('🔄 Points updated via WebSocket:', data);
+        // Refresh customer data to show updated points
+        refreshCustomerData();
+      }
+    });
+  }
+
+  return () => {
+    if (window.socket) {
+      window.socket.off('pointsUpdated');
+    }
+  };
+}, [customer]);
+
 // 🎯 ENHANCED: Better add to cart with ID normalization
 const handleAddToCart = useCallback((item, quantity = 1) => {
   console.log('🛒 Adding to cart:', item.name, 'Quantity:', quantity);

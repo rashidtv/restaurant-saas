@@ -583,6 +583,8 @@ app.get('/api/customers/me', validateCustomerSession, async (req, res) => {
   }
 });
 
+
+
 // 🎯 PRODUCTION: Logout Endpoint
 app.post('/api/customers/logout', validateCustomerSession, async (req, res) => {
   try {
@@ -1108,6 +1110,46 @@ app.post('/api/payments', async (req, res) => {
         { returnDocument: 'after' }
       );
 
+      // 🎯 PERMANENT FIX: AWARD POINTS AFTER PAYMENT
+      if (order.customerPhone && paymentAmount > 0) {
+        try {
+          console.log(`🎯 Calculating points for customer: ${order.customerPhone}, amount: ${paymentAmount}`);
+          
+          // Calculate points (1 point per ringgit, floor value)
+          const pointsToAdd = Math.floor(paymentAmount);
+          
+          if (pointsToAdd > 0) {
+            console.log(`➕ Adding ${pointsToAdd} points to customer: ${order.customerPhone}`);
+            
+            // Use your existing customer update function
+            const updatedCustomer = await createOrUpdateCustomer(
+              order.customerPhone, 
+              order.customerName || '', 
+              pointsToAdd, 
+              paymentAmount
+            );
+            
+            console.log(`✅ Points awarded successfully. Total points: ${updatedCustomer.points}`);
+            
+            // 🎯 Emit points update event for real-time frontend refresh
+            safeEmit('pointsUpdated', {
+              customerPhone: order.customerPhone,
+              pointsAdded: pointsToAdd,
+              totalPoints: updatedCustomer.points,
+              orderId: order.orderNumber
+            });
+          } else {
+            console.log('ℹ️ No points to add (order amount too small)');
+          }
+        } catch (pointsError) {
+          console.error('❌ Points calculation failed:', pointsError);
+          // Don't fail the payment if points calculation fails
+        }
+      } else {
+        console.log('ℹ️ No customer phone associated with order, skipping points');
+      }
+
+      // Table cleanup
       if (order.tableId) {
         const updatedTable = await db.collection('tables').findOneAndUpdate(
           { number: order.tableId },
@@ -1128,7 +1170,8 @@ app.post('/api/payments', async (req, res) => {
       res.json({
         success: true,
         payment: payment,
-        order: updatedOrder.value
+        order: updatedOrder.value,
+        pointsAwarded: pointsToAdd || 0 // 🎯 Include points info in response
       });
 
     } catch (dbWriteError) {
