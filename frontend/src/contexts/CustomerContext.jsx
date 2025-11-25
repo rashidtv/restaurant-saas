@@ -1,5 +1,4 @@
-// frontend/src/contexts/CustomerContext.jsx - COMPLETE REWRITE
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react'; // 🎯 FIXED: Add useCallback import
 import { apiClient } from '../services/apiClient';
 
 const CustomerContext = createContext();
@@ -13,7 +12,7 @@ const ACTION_TYPES = {
   SET_INITIALIZED: 'SET_INITIALIZED'
 };
 
-// Reducer
+// Reducer (keep your existing reducer)
 const customerReducer = (state, action) => {
   switch (action.type) {
     case ACTION_TYPES.SET_CUSTOMER:
@@ -60,11 +59,10 @@ const initialState = {
   error: null
 };
 
-// Add this method to your existing CustomerContext
 export const CustomerProvider = ({ children }) => {
   const [state, dispatch] = useReducer(customerReducer, initialState);
 
-  // 🎯 NEW: Production-ready customer refresh method
+  // 🎯 PRODUCTION: Customer refresh method
   const refreshCustomer = useCallback(async () => {
     try {
       console.log('🔄 Production: Refreshing customer context...');
@@ -81,12 +79,34 @@ export const CustomerProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('❌ Production: Failed to refresh customer context:', error);
-      // Don't clear customer on network errors - maintain current state
-      return state.customer;
+      return state.customer; // Return current state on error
     }
   }, []);
 
-  // 🎯 ENHANCE: Update existing registerCustomer to use refresh
+  // Initialize customer session
+  useEffect(() => {
+    const initializeCustomer = async () => {
+      try {
+        console.log('🔐 Initializing customer session...');
+        const response = await apiClient.get('/api/customers/me');
+        
+        if (response.success && response.customer) {
+          console.log('✅ Customer session initialized:', response.customer.phone);
+          dispatch({ type: ACTION_TYPES.SET_CUSTOMER, payload: response.customer });
+        } else {
+          console.log('ℹ️ No active customer session');
+          dispatch({ type: ACTION_TYPES.SET_INITIALIZED });
+        }
+      } catch (error) {
+        console.log('ℹ️ Session initialization failed:', error.message);
+        dispatch({ type: ACTION_TYPES.SET_INITIALIZED });
+      }
+    };
+
+    initializeCustomer();
+  }, []);
+
+  // Register customer
   const registerCustomer = async (phone, name = '') => {
     try {
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
@@ -106,11 +126,11 @@ export const CustomerProvider = ({ children }) => {
         throw new Error(response.message || 'Registration failed');
       }
 
-      // 🎯 Use refresh to get full customer data
+      // Use refresh to get full customer data
       await refreshCustomer();
       
       console.log('✅ Production: Customer registered and context updated:', cleanPhone);
-      return state.customer; // Return the refreshed customer
+      return state.customer;
       
     } catch (error) {
       console.error('❌ Registration error:', error);
@@ -121,7 +141,55 @@ export const CustomerProvider = ({ children }) => {
     }
   };
 
-  // Update the value object
+  // Clear customer
+  const clearCustomer = async () => {
+    try {
+      await apiClient.post('/api/customers/logout');
+    } catch (error) {
+      console.warn('Logout API call failed:', error);
+    } finally {
+      dispatch({ type: ACTION_TYPES.CLEAR_CUSTOMER });
+    }
+  };
+
+  // Get customer orders
+  const getCustomerOrders = async () => {
+    if (!state.customer?.phone) return [];
+    
+    try {
+      const response = await apiClient.get(`/api/customers/${state.customer.phone}/orders`);
+      return Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.error('Failed to get customer orders:', error);
+      return [];
+    }
+  };
+
+  // Add points
+  const addPoints = async (points, orderTotal = 0) => {
+    if (!state.customer?.phone) {
+      throw new Error('No customer available for points addition');
+    }
+
+    try {
+      const response = await apiClient.post(`/api/customers/${state.customer.phone}/points`, {
+        points: points,
+        orderTotal: orderTotal
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || 'Points update failed');
+      }
+
+      dispatch({ type: ACTION_TYPES.SET_CUSTOMER, payload: response.customer });
+      return { success: true, ...response };
+      
+    } catch (error) {
+      console.error('❌ Add points error:', error);
+      return { success: false, message: error.message };
+    }
+  };
+
   const value = {
     // State
     customer: state.customer,
@@ -139,6 +207,12 @@ export const CustomerProvider = ({ children }) => {
     // Computed
     isRegistered: !!state.customer
   };
+
+  console.log('🔄 CustomerContext state:', {
+    customer: state.customer?.phone,
+    isInitialized: state.isInitialized,
+    isLoading: state.isLoading
+  });
 
   return (
     <CustomerContext.Provider value={value}>
