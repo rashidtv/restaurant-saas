@@ -60,15 +60,33 @@ app.use(express.json());
 // CORS configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
 
+const allowedOrigins = [
+  'https://restaurant-saas-demo.onrender.com',
+  'http://localhost:5173',
+  'https://yourdomain.com' // Add your actual domain
+];
+
 app.use(cors({
-  origin: [FRONTEND_URL, 'http://localhost:5173'], // Explicitly list allowed origins
-  credentials: true, // This is crucial for cookies
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Set-Cookie']
 }));
 
 // Handle preflight requests
 app.options('*', cors());
+
 
 const io = new Server(server, {
   cors: {
@@ -517,13 +535,15 @@ app.post('/api/customers/register', async (req, res) => {
     
     // 🛠️ FIXED: Production cookie settings
     const isProduction = process.env.NODE_ENV === 'production';
-      res.cookie('customerSession', sessionId, {
-      httpOnly: true,     // Prevents XSS attacks
-      secure: isProduction, // True in production (HTTPS only)
+    const isLocalhost = req.get('origin')?.includes('localhost');
+    
+    res.cookie('customerSession', sessionId, {
+      httpOnly: true,
+      secure: isProduction && !isLocalhost, // HTTPS in production only
       sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       path: '/',
-      // domain: isProduction ? '.onrender.com' : undefined // Uncomment if needed
+      domain: isProduction ? '.onrender.com' : undefined // Use your actual domain
     });
     
   

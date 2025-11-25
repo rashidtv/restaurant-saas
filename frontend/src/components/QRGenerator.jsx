@@ -7,11 +7,14 @@ const QRGenerator = ({ tables, isMobile, apiConnected }) => {
   const [generatedUrl, setGeneratedUrl] = useState('');
   const qrRef = useRef();
 
-  // FIXED: Generate proper URL that goes directly to menu
+// In your QR generator
 const generateQRUrl = (tableNumber) => {
-  const baseUrl = window.location.origin;
-  // Use path-based routing that works better with deployment
-  return `${baseUrl}/#/menu?table=${encodeURIComponent(tableNumber)}&ts=${Date.now()}`;
+  const baseUrl = 'https://restaurant-saas-demo.onrender.com';
+  const timestamp = Date.now();
+  // Add session indicator to help with mobile issues
+  const qrUrl = `${baseUrl}/#/menu?table=${tableNumber}&ts=${timestamp}&mobile=true`;
+  console.log('🔗 Generated QR URL for mobile:', qrUrl);
+  return qrUrl;
 };
 
   const handleTableSelect = (tableNumber) => {

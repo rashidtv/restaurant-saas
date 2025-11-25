@@ -62,7 +62,7 @@ const initialState = {
 export const CustomerProvider = ({ children }) => {
   const [state, dispatch] = useReducer(customerReducer, initialState);
 
-  // 🎯 PRODUCTION: Customer refresh method
+  // 🎯 KEEP YOUR EXISTING refreshCustomer METHOD
   const refreshCustomer = useCallback(async () => {
     try {
       console.log('🔄 Production: Refreshing customer context...');
@@ -83,11 +83,11 @@ export const CustomerProvider = ({ children }) => {
     }
   }, []);
 
-  // Initialize customer session
+  // 🎯 ENHANCE: Replace JUST the initialization useEffect with retry logic
   useEffect(() => {
-    const initializeCustomer = async () => {
+    const initializeSessionWithRetry = async (retryCount = 0) => {
       try {
-        console.log('🔐 Initializing customer session...');
+        console.log('🔄 Initializing customer session...');
         const response = await apiClient.get('/api/customers/me');
         
         if (response.success && response.customer) {
@@ -96,17 +96,29 @@ export const CustomerProvider = ({ children }) => {
         } else {
           console.log('ℹ️ No active customer session');
           dispatch({ type: ACTION_TYPES.SET_INITIALIZED });
+          
+          // 🎯 NEW: Retry logic for mobile devices
+          if (retryCount < 2) {
+            console.log(`🔄 Retrying session initialization (${retryCount + 1}/2)...`);
+            setTimeout(() => initializeSessionWithRetry(retryCount + 1), 1000);
+          }
         }
       } catch (error) {
         console.log('ℹ️ Session initialization failed:', error.message);
         dispatch({ type: ACTION_TYPES.SET_INITIALIZED });
+        
+        // 🎯 NEW: Retry on network errors (common on mobile)
+        if (retryCount < 3 && error.message.includes('Network')) {
+          console.log(`🔄 Retrying due to network error (${retryCount + 1}/3)...`);
+          setTimeout(() => initializeSessionWithRetry(retryCount + 1), 2000);
+        }
       }
     };
 
-    initializeCustomer();
+    initializeSessionWithRetry();
   }, []);
 
-  // Register customer
+  // 🎯 KEEP YOUR EXISTING registerCustomer method but ENHANCE it
   const registerCustomer = async (phone, name = '') => {
     try {
       dispatch({ type: ACTION_TYPES.SET_LOADING, payload: true });
@@ -126,10 +138,30 @@ export const CustomerProvider = ({ children }) => {
         throw new Error(response.message || 'Registration failed');
       }
 
-      // Use refresh to get full customer data
-      await refreshCustomer();
+      // 🎯 ENHANCED: Session verification for mobile
+      console.log('✅ Registration successful, verifying session...');
       
-      console.log('✅ Production: Customer registered and context updated:', cleanPhone);
+      // Small delay to ensure cookie is set
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Verify session was actually established
+      const sessionResponse = await apiClient.get('/api/customers/me');
+      if (sessionResponse.success && sessionResponse.customer) {
+        dispatch({ type: ACTION_TYPES.SET_CUSTOMER, payload: sessionResponse.customer });
+        console.log('✅ Customer registered and session verified:', cleanPhone);
+      } else {
+        console.warn('⚠️ Session not established after registration, using fallback');
+        // Fallback: Use the customer data from registration response
+        const customerPayload = {
+          _id: response.customer?._id,
+          phone: cleanPhone,
+          name: name || response.customer?.name,
+          points: response.customer?.points || 0,
+          isRegistered: true
+        };
+        dispatch({ type: ACTION_TYPES.SET_CUSTOMER, payload: customerPayload });
+      }
+      
       return state.customer;
       
     } catch (error) {
