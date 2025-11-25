@@ -26,7 +26,8 @@ export const DigitalMenu = ({
     customer, 
     registerCustomer, 
     clearCustomer,
-    getCustomerOrders 
+    getCustomerOrders,
+    refreshCustomer 
   } = useCustomer();
 
   const { orders, isLoading: ordersLoading, loadTableOrders } = useOrders();
