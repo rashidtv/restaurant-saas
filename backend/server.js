@@ -167,13 +167,19 @@ console.log(`✅ Session store: ${useRedis ? 'Redis (Cloud)' : 'In-Memory (Fallb
 // ============================================
 // 📦 MONGODB CONFIGURATION
 // ============================================
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/restaurant_saas?retryWrites=true&w=majority&appName=flavorflow';
+const dns = require('dns');
+// Force IPv4 (helps with some network issues)
+dns.setDefaultResultOrder('ipv4first');
+
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net:27017/restaurant_saas?retryWrites=true&w=majority&appName=flavorflow';
 const DB_NAME = process.env.DB_NAME || 'restaurant_saas';
 
 let db = null;
 let mongoClient = null;
 let connectionAttempts = 0;
 const MAX_CONNECTION_ATTEMPTS = 5;
+
+console.log('📦 MongoDB URI configured (standard format)');
 
 // ============================================
 // 🔧 MIDDLEWARE
