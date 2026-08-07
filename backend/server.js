@@ -1,80 +1,204 @@
-// backend/server.js - PRODUCTION READY WITH REDIS SESSIONS
+// backend/server.js - PRODUCTION READY WITH REDIS FALLBACK
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
 const cookieParser = require('cookie-parser');
-const redis = require('redis');
 
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 
-// 🎯 PRODUCTION: Redis Client Setup
-const redisClient = redis.createClient({
-  url: `redis://:${process.env.REDIS_PASSWORD}@redis-15846.c10.us-east-1-4.ec2.cloud.redislabs.com:15846`,
-  socket: {
-    connectTimeout: 10000,
-    reconnectStrategy: (retries) => Math.min(retries * 100, 3000)
+// ============================================
+// 🎯 REDIS: Optional - Falls back to memory store
+// ============================================
+let redisClient = null;
+let useRedis = false;
+let redisInitialized = false;
+
+// Memory store fallback (used when Redis is unavailable)
+const memoryStore = {
+  sessions: {},
+  get: async (key) => {
+    const sessionKey = key.replace('session:', '');
+    return memoryStore.sessions[sessionKey] || null;
+  },
+  setEx: async (key, expiry, value) => {
+    const sessionKey = key.replace('session:', '');
+    memoryStore.sessions[sessionKey] = value;
+    // Auto-cleanup after expiry
+    setTimeout(() => {
+      delete memoryStore.sessions[sessionKey];
+    }, expiry * 1000);
+  },
+  del: async (key) => {
+    const sessionKey = key.replace('session:', '');
+    delete memoryStore.sessions[sessionKey];
+  },
+  expire: async (key, expiry) => {
+    // Memory store handles expiry via setTimeout
+    return true;
+  },
+  isOpen: true
+};
+
+// Try to connect to Redis
+try {
+  const redis = require('redis');
+  
+  // Check if Redis credentials exist
+  if (process.env.REDIS_PASSWORD || process.env.REDIS_URL) {
+    const redisUrl = process.env.REDIS_URL || 
+      `redis://:${process.env.REDIS_PASSWORD}@redis-15846.c10.us-east-1-4.ec2.cloud.redislabs.com:15846`;
+    
+    console.log('🔄 Attempting Redis connection...');
+    
+    redisClient = redis.createClient({
+      url: redisUrl,
+      socket: {
+        connectTimeout: 5000,
+        reconnectStrategy: (retries) => {
+          if (retries > 2) {
+            console.log('⚠️ Redis unavailable, switching to memory store');
+            return new Error('Redis connection failed');
+          }
+          return Math.min(retries * 100, 1000);
+        }
+      }
+    });
+
+    redisClient.on('error', (err) => {
+      console.warn('⚠️ Redis error (using memory store):', err.message);
+      useRedis = false;
+      redisInitialized = true;
+    });
+
+    redisClient.on('connect', () => {
+      console.log('✅ Connected to Redis Cloud');
+      useRedis = true;
+      redisInitialized = true;
+    });
+
+    redisClient.on('ready', () => {
+      console.log('🎯 Redis ready for production session storage');
+      useRedis = true;
+      redisInitialized = true;
+    });
+
+    // Try to connect
+    redisClient.connect().catch((err) => {
+      console.warn('⚠️ Redis connection failed, using memory store:', err.message);
+      useRedis = false;
+      redisInitialized = true;
+    });
+
+    // Set a timeout for Redis initialization
+    setTimeout(() => {
+      if (!redisInitialized) {
+        console.log('⏱️ Redis connection timeout, using memory store');
+        useRedis = false;
+        redisInitialized = true;
+      }
+    }, 8000);
+    
+  } else {
+    console.log('ℹ️ No Redis configuration found, using memory store');
+    useRedis = false;
+    redisInitialized = true;
   }
-});
+} catch (error) {
+  console.log('ℹ️ Redis module not available, using memory store');
+  useRedis = false;
+  redisInitialized = true;
+}
 
-// Redis event handlers
-redisClient.on('error', (err) => {
-  console.error('❌ Redis Client Error:', err);
-});
-
-redisClient.on('connect', () => {
-  console.log('✅ Connected to Redis Cloud');
-});
-
-redisClient.on('ready', () => {
-  console.log('🎯 Redis ready for production session storage');
-});
-
-// Initialize Redis connection
-(async () => {
-  try {
-    await redisClient.connect();
-    console.log('🔐 Redis Cloud connection established');
-  } catch (error) {
-    console.error('❌ Failed to connect to Redis Cloud:', error);
+// Session store (Redis or Memory)
+const sessionStore = {
+  get: async (key) => {
+    if (useRedis && redisClient && redisClient.isOpen) {
+      try {
+        return await redisClient.get(key);
+      } catch (e) {
+        console.warn('⚠️ Redis get failed, using memory:', e.message);
+        return await memoryStore.get(key);
+      }
+    }
+    return await memoryStore.get(key);
+  },
+  setEx: async (key, expiry, value) => {
+    if (useRedis && redisClient && redisClient.isOpen) {
+      try {
+        await redisClient.setEx(key, expiry, value);
+        return;
+      } catch (e) {
+        console.warn('⚠️ Redis set failed, using memory:', e.message);
+      }
+    }
+    await memoryStore.setEx(key, expiry, value);
+  },
+  del: async (key) => {
+    if (useRedis && redisClient && redisClient.isOpen) {
+      try {
+        await redisClient.del(key);
+        return;
+      } catch (e) {
+        console.warn('⚠️ Redis del failed, using memory:', e.message);
+      }
+    }
+    await memoryStore.del(key);
+  },
+  expire: async (key, expiry) => {
+    if (useRedis && redisClient && redisClient.isOpen) {
+      try {
+        await redisClient.expire(key, expiry);
+        return;
+      } catch (e) {
+        console.warn('⚠️ Redis expire failed, using memory:', e.message);
+      }
+    }
+    await memoryStore.expire(key, expiry);
   }
-})();
+};
 
-// MongoDB Configuration
+console.log(`✅ Session store: ${useRedis ? 'Redis (Cloud)' : 'In-Memory (Fallback)'}`);
+
+// ============================================
+// 📦 MONGODB CONFIGURATION
+// ============================================
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rashhanz_db_user:mawip900@flavorflow.5wxjnlj.mongodb.net/restaurant_saas?retryWrites=true&w=majority&appName=flavorflow';
 const DB_NAME = process.env.DB_NAME || 'restaurant_saas';
 
 let db = null;
 let mongoClient = null;
 let connectionAttempts = 0;
-const MAX_CONNECTION_ATTEMPTS = 3;
+const MAX_CONNECTION_ATTEMPTS = 5;
 
-// Middleware
+// ============================================
+// 🔧 MIDDLEWARE
+// ============================================
 app.use(cookieParser());
 app.use(express.json());
 
-// CORS configuration
+// CORS Configuration
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://restaurant-saas-demo.onrender.com';
 
 const allowedOrigins = [
   'https://restaurant-saas-demo.onrender.com',
   'http://localhost:5173',
-  'https://yourdomain.com' // Add your actual domain
+  'http://localhost:3000',
+  'https://restaurant-saas-frontend.onrender.com'
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
-      console.log('Blocked origin:', origin);
+      console.log('⚠️ Blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -84,10 +208,11 @@ app.use(cors({
   exposedHeaders: ['Set-Cookie']
 }));
 
-// Handle preflight requests
 app.options('*', cors());
 
-
+// ============================================
+// 🔌 SOCKET.IO CONFIGURATION
+// ============================================
 const io = new Server(server, {
   cors: {
     origin: [
@@ -140,7 +265,9 @@ const safeEmit = (event, data) => {
   }
 };
 
-// 🎯 UPDATE existing validateCustomerSession middleware (around line 120)
+// ============================================
+// 🎯 SESSION MIDDLEWARE
+// ============================================
 const validateCustomerSession = async (req, res, next) => {
   try {
     const sessionId = req.cookies.customerSession;
@@ -149,11 +276,12 @@ const validateCustomerSession = async (req, res, next) => {
       return res.status(401).json({ 
         success: false,
         message: 'No active session',
-        code: 'SESSION_REQUIRED'  // 🎯 ADD error code
+        code: 'SESSION_REQUIRED'
       });
     }
     
-    const sessionData = await redisClient.get(`session:${sessionId}`);
+    // Use session store (Redis or memory)
+    const sessionData = await sessionStore.get(`session:${sessionId}`);
     
     if (!sessionData) {
       res.clearCookie('customerSession', {
@@ -166,28 +294,28 @@ const validateCustomerSession = async (req, res, next) => {
       return res.status(401).json({ 
         success: false,
         message: 'Session expired',
-        code: 'SESSION_EXPIRED'  // 🎯 ADD error code
+        code: 'SESSION_EXPIRED'
       });
     }
     
-    const session = JSON.parse(sessionData);
+    const session = typeof sessionData === 'string' ? JSON.parse(sessionData) : sessionData;
     
     // Verify session age (24 hours max)
     const sessionAge = Date.now() - new Date(session.createdAt).getTime();
     const maxAge = 24 * 60 * 60 * 1000;
     
     if (sessionAge > maxAge) {
-      await redisClient.del(`session:${sessionId}`);
+      await sessionStore.del(`session:${sessionId}`);
       res.clearCookie('customerSession');
       return res.status(401).json({ 
         success: false,
         message: 'Session expired',
-        code: 'SESSION_EXPIRED'  // 🎯 ADD error code
+        code: 'SESSION_EXPIRED'
       });
     }
     
-    // 🎯 NEW: Refresh session expiry on activity
-    await redisClient.expire(`session:${sessionId}`, 24 * 60 * 60);
+    // Refresh session expiry on activity
+    await sessionStore.expire(`session:${sessionId}`, 24 * 60 * 60);
     
     req.customerSession = session;
     next();
@@ -197,23 +325,37 @@ const validateCustomerSession = async (req, res, next) => {
     res.status(500).json({ 
       success: false,
       message: 'Session validation failed',
-      code: 'SESSION_ERROR'  // 🎯 ADD error code
+      code: 'SESSION_ERROR'
     });
   }
 };
 
-// Database Functions
+// Database connection check middleware
+app.use((req, res, next) => {
+  if (!db) {
+    return res.status(503).json({ 
+      success: false,
+      error: 'Database connection establishing. Please try again.',
+      retry: true
+    });
+  }
+  next();
+});
+
+// ============================================
+// 📊 DATABASE FUNCTIONS
+// ============================================
 async function initializeDatabase() {
   try {
     connectionAttempts++;
     console.log(`🔗 MongoDB connection attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}...`);
 
     const client = new MongoClient(MONGODB_URI, {
-      serverSelectionTimeoutMS: 15000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 15000,
-      maxPoolSize: 5,
-      minPoolSize: 1,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 60000,
+      connectTimeoutMS: 30000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
       tls: true,
     });
 
@@ -238,6 +380,8 @@ async function initializeDatabase() {
       const retryDelay = Math.min(3000 * connectionAttempts, 15000);
       console.log(`🔄 Retrying in ${retryDelay/1000} seconds...`);
       setTimeout(initializeDatabase, retryDelay);
+    } else {
+      console.error('❌ Max connection attempts reached. Database unavailable.');
     }
   }
 }
@@ -246,11 +390,10 @@ async function createDatabaseIndexes() {
   try {
     console.log('📊 Creating database indexes...');
     
-    // Drop existing indexes first to avoid conflicts
     try {
       await db.collection('customers').dropIndex('phone_1');
     } catch (error) {
-      // Index might not exist, that's fine
+      // Index might not exist
     }
     
     await db.collection('customers').createIndex({ phone: 1 }, { unique: true });
@@ -309,6 +452,9 @@ async function initializeSampleData() {
   }
 }
 
+// ============================================
+// 🔧 HELPER FUNCTIONS
+// ============================================
 function generateOrderNumber() {
   return `MESRA${Date.now().toString().slice(-6)}`;
 }
@@ -333,11 +479,9 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
     
     console.log('🔄 Creating/updating customer:', cleanPhone, 'Points to add:', pointsToAdd);
     
-    // First, try to find existing customer
     const existingCustomer = await db.collection('customers').findOne({ phone: cleanPhone });
     
     if (existingCustomer) {
-      // 🛠️ FIX: UPDATE EXISTING CUSTOMER
       console.log('✅ Customer exists, updating:', cleanPhone);
       
       const updateOperations = {
@@ -347,12 +491,10 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
         }
       };
       
-      // Only update name if it's provided and different from current
       if (name && name !== existingCustomer.name) {
         updateOperations.$set.name = name;
       }
       
-      // Add points if any
       if (pointsToAdd > 0) {
         updateOperations.$inc = {
           points: pointsToAdd,
@@ -373,7 +515,6 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
       return result.value;
       
     } else {
-      // 🛠️ FIX: CREATE NEW CUSTOMER
       console.log('✅ Creating new customer:', cleanPhone);
       
       const newCustomer = {
@@ -401,24 +542,13 @@ async function createOrUpdateCustomer(phone, name = '', pointsToAdd = 0, orderTo
   }
 }
 
-// Database connection check middleware
-app.use((req, res, next) => {
-  if (!db) {
-    return res.status(503).json({ 
-      success: false,
-      error: 'Database connection establishing. Please try again.',
-      retry: true
-    });
-  }
-  next();
-});
-
-// ==================== HEALTH ENDPOINTS ====================
-
+// ============================================
+// 🏥 HEALTH ENDPOINTS
+// ============================================
 app.get('/health', async (req, res) => {
   try {
     const dbStatus = db ? 'connected' : 'connecting';
-    const redisStatus = redisClient.isOpen ? 'connected' : 'disconnected';
+    const redisStatus = useRedis && redisClient?.isOpen ? 'connected' : 'disconnected (using memory)';
     
     if (db) {
       const ordersCount = await db.collection('orders').countDocuments();
@@ -475,9 +605,10 @@ app.get('/api/health', async (req, res) => {
     
     res.json({ 
       status: 'OK', 
-      message: 'Restaurant SaaS API is running with Redis Sessions',
+      message: 'Restaurant SaaS API is running',
       timestamp: new Date().toISOString(),
-      redis: redisClient.isOpen ? 'connected' : 'disconnected',
+      redis: useRedis && redisClient?.isOpen ? 'connected' : 'disconnected (using memory)',
+      sessionStore: useRedis ? 'Redis' : 'Memory',
       data: {
         menuItems: menuItemsCount,
         tables: tablesCount,
@@ -491,9 +622,18 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// ==================== CUSTOMER ENDPOINTS ====================
+app.get('/api/ping', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Backend is running',
+    timestamp: new Date().toISOString(),
+    sessionStore: useRedis ? 'Redis' : 'Memory'
+  });
+});
 
-// 🎯 PRODUCTION: Customer Registration with Fixed Cookie Settings
+// ============================================
+// 👤 CUSTOMER ENDPOINTS
+// ============================================
 app.post('/api/customers/register', async (req, res) => {
   try {
     console.log('📝 Registration request received:', req.body);
@@ -522,8 +662,8 @@ app.post('/api/customers/register', async (req, res) => {
     // Generate secure session ID
     const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
     
-    // Store session in Redis (24 hour expiry)
-    await redisClient.setEx(
+    // Store session (Redis or memory)
+    await sessionStore.setEx(
       `session:${sessionId}`,
       24 * 60 * 60,
       JSON.stringify({
@@ -533,22 +673,20 @@ app.post('/api/customers/register', async (req, res) => {
       })
     );
     
-    // 🛠️ FIXED: Production cookie settings
     const isProduction = process.env.NODE_ENV === 'production';
     const isLocalhost = req.get('origin')?.includes('localhost');
     
     res.cookie('customerSession', sessionId, {
       httpOnly: true,
-      secure: isProduction && !isLocalhost, // HTTPS in production only
-      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      secure: isProduction && !isLocalhost,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
       path: '/',
-      domain: isProduction ? '.onrender.com' : undefined // Use your actual domain
+      domain: isProduction ? '.onrender.com' : undefined
     });
     
-  
+    res.json({ success: true, customer: customer });
     
-     res.json({ success: true, customer: customer });
   } catch (error) {
     console.error('❌ Registration error:', error);
     
@@ -566,22 +704,12 @@ app.post('/api/customers/register', async (req, res) => {
   }
 });
 
-// Add this endpoint for basic connectivity test
-app.get('/api/ping', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Backend is running',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// 🎯 PRODUCTION: Get Current Customer (Session Validation)
 app.get('/api/customers/me', validateCustomerSession, async (req, res) => {
   try {
     const customer = await getCustomerByPhone(req.customerSession.phone);
     
     if (!customer) {
-      await redisClient.del(`session:${req.cookies.customerSession}`);
+      await sessionStore.del(`session:${req.cookies.customerSession}`);
       res.clearCookie('customerSession');
       return res.status(404).json({ 
         success: false,
@@ -603,14 +731,11 @@ app.get('/api/customers/me', validateCustomerSession, async (req, res) => {
   }
 });
 
-
-
-// 🎯 PRODUCTION: Logout Endpoint
 app.post('/api/customers/logout', validateCustomerSession, async (req, res) => {
   try {
     const sessionId = req.cookies.customerSession;
     
-    await redisClient.del(`session:${sessionId}`);
+    await sessionStore.del(`session:${sessionId}`);
     
     res.clearCookie('customerSession', {
       httpOnly: true,
@@ -635,13 +760,11 @@ app.post('/api/customers/logout', validateCustomerSession, async (req, res) => {
   }
 });
 
-// 🎯 ADD THIS AFTER THE LOGOUT ENDPOINT (around line 400)
 app.post('/api/customers/session/refresh', validateCustomerSession, async (req, res) => {
   try {
     const sessionId = req.cookies.customerSession;
     
-    // Refresh session expiry in Redis (24 hours)
-    await redisClient.expire(`session:${sessionId}`, 24 * 60 * 60);
+    await sessionStore.expire(`session:${sessionId}`, 24 * 60 * 60);
     
     res.json({
       success: true,
@@ -657,7 +780,6 @@ app.post('/api/customers/session/refresh', validateCustomerSession, async (req, 
   }
 });
 
-// 🎯 PRODUCTION: Protected Points Endpoint
 app.post('/api/customers/:phone/points', validateCustomerSession, async (req, res) => {
   try {
     const { phone } = req.params;
@@ -701,7 +823,6 @@ app.post('/api/customers/:phone/points', validateCustomerSession, async (req, re
   }
 });
 
-// Existing customer endpoints
 app.get('/api/customers', async (req, res) => {
   try {
     if (!db) {
@@ -758,8 +879,9 @@ app.get('/api/customers/:phone/orders', async (req, res) => {
   }
 });
 
-// ==================== MENU ENDPOINTS ====================
-
+// ============================================
+// 📋 MENU ENDPOINTS
+// ============================================
 app.get('/api/menu', async (req, res) => {
   try {
     if (!db) {
@@ -772,8 +894,9 @@ app.get('/api/menu', async (req, res) => {
   }
 });
 
-// ==================== TABLES ENDPOINTS ====================
-
+// ============================================
+// 🪑 TABLES ENDPOINTS
+// ============================================
 app.get('/api/tables', async (req, res) => {
   try {
     if (!db) {
@@ -847,8 +970,9 @@ app.put('/api/tables/:id', async (req, res) => {
   }
 });
 
-// ==================== ORDERS ENDPOINTS ====================
-
+// ============================================
+// 📦 ORDERS ENDPOINTS
+// ============================================
 app.get('/api/orders', async (req, res) => {
   try {
     if (!db) {
@@ -926,8 +1050,6 @@ app.post('/api/orders', async (req, res) => {
     console.log('💾 Saving order to database:', order.orderNumber);
     
     await db.collection('orders').insertOne(order);
-    
-    console.log('ℹ️ Points will be added during payment processing, not order creation');
     
     const updatedTable = await db.collection('tables').findOneAndUpdate(
       { number: tableId },
@@ -1035,194 +1157,6 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// ==================== PAYMENTS ENDPOINTS ====================
-
-app.get('/api/payments', async (req, res) => {
-  try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const payments = await db.collection('payments').find().sort({ paidAt: -1 }).toArray();
-    res.json(payments);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/payments', async (req, res) => {
-  try {
-    console.log('💰 Production: Payment request received:', req.body);
-    
-    if (!db) {
-      return res.status(503).json({ 
-        success: false,
-        message: 'Database not connected' 
-      });
-    }
-    
-    const { orderId, amount, method = 'cash' } = req.body;
-    
-    if (!orderId) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Order ID is required' 
-      });
-    }
-
-    console.log('🔍 Production: Processing payment for order:', orderId);
-
-    // 🎯 PRODUCTION: Robust order lookup
-    let order;
-    try {
-      order = await db.collection('orders').findOne({ orderNumber: orderId });
-      
-      if (!order) {
-        try {
-          order = await db.collection('orders').findOne({ _id: new ObjectId(orderId) });
-        } catch (idError) {
-          console.log('⚠️ Production: Invalid order ID format:', orderId);
-          return res.status(400).json({ 
-            success: false,
-            message: 'Invalid order ID format' 
-          });
-        }
-      }
-    } catch (dbError) {
-      console.error('❌ Production: Database query error:', dbError);
-      return res.status(500).json({ 
-        success: false,
-        message: 'Database error while finding order' 
-      });
-    }
-
-    if (!order) {
-      console.error('❌ Production: Order not found:', orderId);
-      return res.status(404).json({ 
-        success: false,
-        message: 'Order not found' 
-      });
-    }
-
-    const now = new Date();
-    const paymentAmount = amount || order.total;
-
-    // 🎯 PRODUCTION: Define points at proper scope
-    let pointsAwarded = 0;
-
-    const payment = {
-      _id: new ObjectId(),
-      orderId: order.orderNumber,
-      orderInternalId: order._id,
-      amount: paymentAmount,
-      method: method,
-      status: 'completed',
-      paidAt: now,
-      createdAt: now
-    };
-
-    console.log('💾 Production: Saving payment record:', payment);
-
-    try {
-      await db.collection('payments').insertOne(payment);
-      
-      const updatedOrder = await db.collection('orders').findOneAndUpdate(
-        { _id: order._id },
-        { 
-          $set: { 
-            paymentStatus: 'paid', 
-            paymentMethod: method,
-            updatedAt: now
-          } 
-        },
-        { returnDocument: 'after' }
-      );
-
-      // 🎯 PRODUCTION: Award points after successful payment
-      if (order.customerPhone && paymentAmount > 0) {
-        try {
-          console.log(`🎯 Production: Calculating points for customer: ${order.customerPhone}, amount: ${paymentAmount}`);
-          
-          // Calculate points (1 point per ringgit, floor value)
-          pointsAwarded = Math.floor(paymentAmount);
-          
-          if (pointsAwarded > 0) {
-            console.log(`➕ Production: Adding ${pointsAwarded} points to customer: ${order.customerPhone}`);
-            
-            const updatedCustomer = await createOrUpdateCustomer(
-              order.customerPhone, 
-              order.customerName || '', 
-              pointsAwarded, 
-              paymentAmount
-            );
-            
-            console.log(`✅ Production: Points awarded successfully. Total points: ${updatedCustomer.points}`);
-            
-            // 🎯 PRODUCTION: Emit points update event
-            safeEmit('pointsUpdated', {
-              customerPhone: order.customerPhone,
-              pointsAdded: pointsAwarded,
-              totalPoints: updatedCustomer.points,
-              orderId: order.orderNumber,
-              timestamp: now.toISOString()
-            });
-          }
-        } catch (pointsError) {
-          console.error('❌ Production: Points calculation failed:', pointsError);
-          // 🎯 GRACEFUL DEGRADATION: Payment succeeds even if points fail
-        }
-      }
-
-      // Table cleanup
-      if (order.tableId) {
-        const updatedTable = await db.collection('tables').findOneAndUpdate(
-          { number: order.tableId },
-          { $set: { status: 'needs_cleaning', orderId: null, updatedAt: now } },
-          { returnDocument: 'after' }
-        );
-        
-        if (updatedTable.value) {
-          safeEmit('tableUpdated', updatedTable.value);
-        }
-      }
-
-      // 🎯 PRODUCTION: Emit events
-      safeEmit('paymentProcessed', {
-        ...payment,
-        pointsAwarded: pointsAwarded,
-        customerPhone: order.customerPhone
-      });
-      
-      safeEmit('orderUpdated', updatedOrder.value);
-
-      console.log('✅ Production: Payment processed successfully for order:', order.orderNumber);
-      
-      // 🎯 PRODUCTION: Success response
-      res.json({
-        success: true,
-        payment: payment,
-        order: updatedOrder.value,
-        pointsAwarded: pointsAwarded
-      });
-
-    } catch (dbWriteError) {
-      console.error('❌ Production: Database write error:', dbWriteError);
-      return res.status(500).json({ 
-        success: false,
-        message: 'Failed to save payment' 
-      });
-    }
-    
-  } catch (error) {
-    console.error('💥 Production: Payment endpoint error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Payment processing failed' 
-    });
-  }
-});
-
-// ==================== UTILITY ENDPOINTS ====================
-
 app.get('/api/orders/table/:tableId', async (req, res) => {
   try {
     if (!db) {
@@ -1249,7 +1183,187 @@ app.get('/api/orders/table/:tableId', async (req, res) => {
   }
 });
 
-// WebSocket handlers
+// ============================================
+// 💳 PAYMENTS ENDPOINTS
+// ============================================
+app.get('/api/payments', async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+    const payments = await db.collection('payments').find().sort({ paidAt: -1 }).toArray();
+    res.json(payments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/payments', async (req, res) => {
+  try {
+    console.log('💰 Payment request received:', req.body);
+    
+    if (!db) {
+      return res.status(503).json({ 
+        success: false,
+        message: 'Database not connected' 
+      });
+    }
+    
+    const { orderId, amount, method = 'cash' } = req.body;
+    
+    if (!orderId) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Order ID is required' 
+      });
+    }
+
+    console.log('🔍 Processing payment for order:', orderId);
+
+    let order;
+    try {
+      order = await db.collection('orders').findOne({ orderNumber: orderId });
+      
+      if (!order) {
+        try {
+          order = await db.collection('orders').findOne({ _id: new ObjectId(orderId) });
+        } catch (idError) {
+          console.log('⚠️ Invalid order ID format:', orderId);
+          return res.status(400).json({ 
+            success: false,
+            message: 'Invalid order ID format' 
+          });
+        }
+      }
+    } catch (dbError) {
+      console.error('❌ Database query error:', dbError);
+      return res.status(500).json({ 
+        success: false,
+        message: 'Database error while finding order' 
+      });
+    }
+
+    if (!order) {
+      console.error('❌ Order not found:', orderId);
+      return res.status(404).json({ 
+        success: false,
+        message: 'Order not found' 
+      });
+    }
+
+    const now = new Date();
+    const paymentAmount = amount || order.total;
+    let pointsAwarded = 0;
+
+    const payment = {
+      _id: new ObjectId(),
+      orderId: order.orderNumber,
+      orderInternalId: order._id,
+      amount: paymentAmount,
+      method: method,
+      status: 'completed',
+      paidAt: now,
+      createdAt: now
+    };
+
+    console.log('💾 Saving payment record:', payment);
+
+    try {
+      await db.collection('payments').insertOne(payment);
+      
+      const updatedOrder = await db.collection('orders').findOneAndUpdate(
+        { _id: order._id },
+        { 
+          $set: { 
+            paymentStatus: 'paid', 
+            paymentMethod: method,
+            updatedAt: now
+          } 
+        },
+        { returnDocument: 'after' }
+      );
+
+      // Award points after successful payment
+      if (order.customerPhone && paymentAmount > 0) {
+        try {
+          console.log(`🎯 Calculating points for customer: ${order.customerPhone}, amount: ${paymentAmount}`);
+          pointsAwarded = Math.floor(paymentAmount);
+          
+          if (pointsAwarded > 0) {
+            console.log(`➕ Adding ${pointsAwarded} points to customer: ${order.customerPhone}`);
+            
+            const updatedCustomer = await createOrUpdateCustomer(
+              order.customerPhone, 
+              order.customerName || '', 
+              pointsAwarded, 
+              paymentAmount
+            );
+            
+            console.log(`✅ Points awarded successfully. Total points: ${updatedCustomer.points}`);
+            
+            safeEmit('pointsUpdated', {
+              customerPhone: order.customerPhone,
+              pointsAdded: pointsAwarded,
+              totalPoints: updatedCustomer.points,
+              orderId: order.orderNumber,
+              timestamp: now.toISOString()
+            });
+          }
+        } catch (pointsError) {
+          console.error('❌ Points calculation failed:', pointsError);
+        }
+      }
+
+      // Table cleanup
+      if (order.tableId) {
+        const updatedTable = await db.collection('tables').findOneAndUpdate(
+          { number: order.tableId },
+          { $set: { status: 'needs_cleaning', orderId: null, updatedAt: now } },
+          { returnDocument: 'after' }
+        );
+        
+        if (updatedTable.value) {
+          safeEmit('tableUpdated', updatedTable.value);
+        }
+      }
+
+      safeEmit('paymentProcessed', {
+        ...payment,
+        pointsAwarded: pointsAwarded,
+        customerPhone: order.customerPhone
+      });
+      
+      safeEmit('orderUpdated', updatedOrder.value);
+
+      console.log('✅ Payment processed successfully for order:', order.orderNumber);
+      
+      res.json({
+        success: true,
+        payment: payment,
+        order: updatedOrder.value,
+        pointsAwarded: pointsAwarded
+      });
+
+    } catch (dbWriteError) {
+      console.error('❌ Database write error:', dbWriteError);
+      return res.status(500).json({ 
+        success: false,
+        message: 'Failed to save payment' 
+      });
+    }
+    
+  } catch (error) {
+    console.error('💥 Payment endpoint error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Payment processing failed' 
+    });
+  }
+});
+
+// ============================================
+// 🔌 WEBSOCKET HANDLERS
+// ============================================
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   
@@ -1262,14 +1376,45 @@ io.on('connection', (socket) => {
   });
 });
 
+// ============================================
+// 🚀 START SERVER
+// ============================================
 const PORT = process.env.PORT || 10000;
 
-// Start server
 server.listen(PORT, '0.0.0.0', async () => {
-  console.log(`\n🚀 Production Restaurant SaaS Server running on port ${PORT}`);
-  console.log(`🔐 Session Management: Redis Cloud + HTTP-only Cookies`);
-  console.log(`🎯 Customer Persistence: Production Ready`);
-  console.log(`📊 Architecture: Microservices Ready\n`);
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`🚀 Restaurant SaaS Server running on port ${PORT}`);
+  console.log(`🔐 Session Store: ${useRedis ? 'Redis (Cloud)' : 'In-Memory (Fallback)'}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 Frontend URL: ${FRONTEND_URL}`);
+  console.log(`${'='.repeat(60)}\n`);
   
   await initializeDatabase();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
+  
+  if (redisClient && redisClient.isOpen) {
+    await redisClient.quit();
+  }
+  
+  if (mongoClient) {
+    await mongoClient.close();
+  }
+  
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('💥 Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
 });
