@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
 const cookieParser = require('cookie-parser');
+const pool = require('./db');
 
 require('dotenv').config();
 
@@ -642,71 +643,49 @@ app.get('/api/ping', (req, res) => {
 // ============================================
 app.post('/api/customers/register', async (req, res) => {
   try {
-    console.log('📝 Registration request received:', req.body);
-    
     const { phone, name } = req.body;
-    
-    if (!phone) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Phone number is required' 
-      });
-    }
-
     const cleanPhone = phone.replace(/\D/g, '');
     
-    if (cleanPhone.length < 10) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Valid phone number required (at least 10 digits)' 
-      });
+    // Check if customer exists
+    const existing = await pool.query('SELECT * FROM customers WHERE phone = $1', [cleanPhone]);
+    
+    let customer;
+    if (existing.rows.length > 0) {
+      customer = existing.rows[0];
+    } else {
+      const result = await pool.query(
+        'INSERT INTO customers (phone, name) VALUES ($1, $2) RETURNING *',
+        [cleanPhone, name || `Customer-${cleanPhone.slice(-4)}`]
+      );
+      customer = result.rows[0];
     }
-
-    const customerName = name && name.trim() !== '' ? name : '';
-    const customer = await createOrUpdateCustomer(cleanPhone, customerName);
     
-    // Generate secure session ID
+    // Create session (same as before)
     const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
-    
-    // Store session (Redis or memory)
     await sessionStore.setEx(
       `session:${sessionId}`,
       24 * 60 * 60,
       JSON.stringify({
-        customerId: customer._id.toString(),
+        customerId: customer.id,
         phone: customer.phone,
         createdAt: new Date().toISOString()
       })
     );
     
+    // Set cookie (same as before)
     const isProduction = process.env.NODE_ENV === 'production';
-    const isLocalhost = req.get('origin')?.includes('localhost');
-    
     res.cookie('customerSession', sessionId, {
       httpOnly: true,
-      secure: isProduction && !isLocalhost,
+      secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000,
-      path: '/',
-      domain: isProduction ? '.onrender.com' : undefined
+      path: '/'
     });
     
-    res.json({ success: true, customer: customer });
-    
+    res.json({ success: true, customer });
   } catch (error) {
     console.error('❌ Registration error:', error);
-    
-    if (error.code === 11000) {
-      return res.status(409).json({ 
-        success: false,
-        message: 'Phone number already registered' 
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false,
-      message: 'Registration failed: ' + error.message 
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -890,12 +869,10 @@ app.get('/api/customers/:phone/orders', async (req, res) => {
 // ============================================
 app.get('/api/menu', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const menuItems = await db.collection('menuItems').find().sort({ category: 1, name: 1 }).toArray();
-    res.json(menuItems);
+    const result = await pool.query('SELECT * FROM menu_items ORDER BY category, name');
+    res.json(result.rows);
   } catch (error) {
+    console.error('❌ Menu fetch error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -905,12 +882,10 @@ app.get('/api/menu', async (req, res) => {
 // ============================================
 app.get('/api/tables', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const tables = await db.collection('tables').find().sort({ number: 1 }).toArray();
-    res.json(tables);
+    const result = await pool.query('SELECT * FROM tables ORDER BY number');
+    res.json(result.rows);
   } catch (error) {
+    console.error('❌ Tables fetch error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -981,12 +956,17 @@ app.put('/api/tables/:id', async (req, res) => {
 // ============================================
 app.get('/api/orders', async (req, res) => {
   try {
-    if (!db) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-    const orders = await db.collection('orders').find().sort({ createdAt: -1 }).toArray();
-    res.json(orders);
+    const result = await pool.query(`
+      SELECT o.*, 
+             json_agg(oi.*) as items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      GROUP BY o.id
+      ORDER BY o.created_at DESC
+    `);
+    res.json(result.rows);
   } catch (error) {
+    console.error('❌ Orders fetch error:', error);
     res.status(500).json({ error: error.message });
   }
 });
