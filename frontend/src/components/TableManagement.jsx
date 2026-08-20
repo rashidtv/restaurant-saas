@@ -476,7 +476,7 @@ const handleCreateOrder = async () => {
                           {item.name || 'Unnamed Item'}
                         </div>
                         <div className="menu-item-price-modern">
-                          RM {(item.price || 0).toFixed(2)}
+                          RM {(parseFloat(item.price) || 0).toFixed(2)}
                           {item.category && <span className="menu-item-category-modern">({item.category})</span>}
                         </div>
                       </div>
@@ -512,7 +512,7 @@ const handleCreateOrder = async () => {
                   className="btn-modern btn-primary-modern"
                   onClick={handleCreateOrder}
                 >
-                  Create Order (RM {(orderItems.filter(item => item.quantity > 0).reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0)).toFixed(2)})
+                  Create Order (RM {(orderItems.filter(item => item.quantity > 0).reduce((sum, item) => sum + ((parseFloat(item.price) || 0) * item.quantity), 0)).toFixed(2)})
                 </button>
               </div>
             </div>
@@ -566,10 +566,10 @@ const handleCreateOrder = async () => {
                     <div key={index} className="order-item-modern">
                       <div className="item-details-modern">
                         <div className="item-name-modern">{itemQuantity}x {itemName}</div>
-                        <div className="item-price-modern">RM {itemPrice.toFixed(2)} each</div>
+                        <div className="item-price-modern">RM {(parseFloat(itemPrice) || 0).toFixed(2)} each</div>
                       </div>
                       <div className="item-total-modern">
-                        RM {(itemPrice * itemQuantity).toFixed(2)}
+                        RM {(parseFloat(itemPrice * itemQuantity) || 0).toFixed(2)}
                       </div>
                     </div>
                   );
@@ -578,7 +578,7 @@ const handleCreateOrder = async () => {
 
               <div className="order-total-modern">
                 <span>Total Amount:</span>
-                <span>RM {(selectedOrder.total || 0).toFixed(2)}</span>
+                <span>RM {(parseFloat(selectedOrder.total) || 0).toFixed(2)}</span>
               </div>
 
               <div className="modal-actions-modern">

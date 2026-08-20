@@ -103,3 +103,9 @@ INSERT INTO tables (number, status, capacity) VALUES
 ('T07', 'available', 4),
 ('T08', 'available', 8)
 ON CONFLICT (number) DO NOTHING;
+
+-- Make sure prices are stored as DECIMAL/NUMERIC
+ALTER TABLE menu_items ALTER COLUMN price TYPE DECIMAL(10,2);
+ALTER TABLE orders ALTER COLUMN total TYPE DECIMAL(10,2);
+ALTER TABLE order_items ALTER COLUMN price TYPE DECIMAL(10,2);
+ALTER TABLE payments ALTER COLUMN amount TYPE DECIMAL(10,2);

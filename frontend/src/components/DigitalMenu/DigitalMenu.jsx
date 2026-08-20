@@ -504,8 +504,8 @@ const handlePlaceOrder = useCallback(async () => {
             >
               <span className="cart-icon">🛒</span>
               <span className="cart-summary">
-                {getItemCount()} items • RM {getCartTotal().toFixed(2)}
-              </span>
+  {getItemCount()} items • RM {(parseFloat(getCartTotal()) || 0).toFixed(2)}
+</span>
               {getItemCount() > 0 && (
                 <span className="cart-badge" aria-live="polite">
                   {getItemCount()}
@@ -669,7 +669,7 @@ const handlePlaceOrder = useCallback(async () => {
             aria-label={`Open cart with ${getItemCount()} items`}
           >
             <span>🛒</span>
-            <span>{getItemCount()} • RM {getCartTotal().toFixed(2)}</span>
+            <span>{getItemCount()} • RM {(parseFloat(getCartTotal()) || 0).toFixed(2)}</span>
           </button>
         )}
       </div>
