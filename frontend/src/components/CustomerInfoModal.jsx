@@ -1,4 +1,3 @@
-// frontend/src/components/TableManagement/CustomerInfoModal.jsx
 import React, { useState } from 'react';
 
 export const CustomerInfoModal = ({ isOpen, onClose, onConfirm, tableNumber }) => {
