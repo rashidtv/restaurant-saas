@@ -748,7 +748,8 @@ app.post('/api/orders', async (req, res) => {
   try {
     const { tableId, items, orderType, customerPhone, customerName } = req.body;
     
-    console.log('📦 Creating order for table:', tableId, 'Customer:', customerPhone || 'No customer');
+    console.log('📦 Creating order for table:', tableId);
+    console.log('👤 Customer:', customerPhone || 'No customer info');
     
     if (!tableId || tableId === 'undefined') {
       return res.status(400).json({ 
@@ -775,6 +776,40 @@ app.post('/api/orders', async (req, res) => {
     
     await client.query('BEGIN');
     
+    let finalCustomerPhone = null;
+    let finalCustomerName = null;
+    
+    // 🎯 If customer info provided, create/update customer
+    if (customerPhone) {
+      const cleanPhone = customerPhone.replace(/\D/g, '');
+      
+      // Check if customer exists
+      let customerResult = await client.query('SELECT * FROM customers WHERE phone = $1', [cleanPhone]);
+      
+      if (customerResult.rows.length === 0) {
+        // 🎯 Create new customer
+        const customerNameValue = customerName || `Customer-${cleanPhone.slice(-4)}`;
+        await client.query(
+          `INSERT INTO customers (phone, name, points, total_orders, total_spent, first_visit, last_visit, tier)
+           VALUES ($1, $2, 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'member')`,
+          [cleanPhone, customerNameValue]
+        );
+        finalCustomerPhone = cleanPhone;
+        finalCustomerName = customerNameValue;
+        console.log('✅ New customer created:', cleanPhone);
+      } else {
+        // 🎯 Update existing customer's last visit
+        await client.query(
+          `UPDATE customers SET last_visit = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+           WHERE phone = $1`,
+          [cleanPhone]
+        );
+        finalCustomerPhone = cleanPhone;
+        finalCustomerName = customerName || customerResult.rows[0].name;
+        console.log('✅ Existing customer updated:', cleanPhone);
+      }
+    }
+
     // Get table ID from number
     const tableResult = await client.query('SELECT id FROM tables WHERE number = $1', [tableId]);
     let tableIdInt = null;
@@ -782,13 +817,13 @@ app.post('/api/orders', async (req, res) => {
       tableIdInt = tableResult.rows[0].id;
     }
     
-    // Create order
+    // 🎯 Create order with OR without customer
     const orderResult = await client.query(
       `INSERT INTO orders 
        (order_number, table_id, customer_phone, customer_name, total, order_type, ordered_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [orderNumber, tableIdInt, customerPhone || '', customerName || '', total, orderType || 'dine-in', now]
+      [orderNumber, tableIdInt, finalCustomerPhone, finalCustomerName, total, orderType || 'dine-in', now]
     );
     
     const order = orderResult.rows[0];

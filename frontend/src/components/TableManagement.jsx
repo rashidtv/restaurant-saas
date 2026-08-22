@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './TableManagement.css';
 import { useCustomer } from '../contexts/CustomerContext'; // ADD THIS LINE
+import { CustomerInfoModal } from './CustomerInfoModal';
 
 const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, onCompleteOrder, getTimeAgo, isMobile, menu, apiConnected }) => {
   const [selectedTable, setSelectedTable] = useState(null);
@@ -8,6 +9,9 @@ const TableManagement = ({ tables, setTables, orders, setOrders, onCreateOrder, 
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+
+
   
   // 🛠️ FIX: ADD CUSTOMER HOOK
   // 🛠️ FIX: Enhanced registerCustomer with immediate persistence
@@ -148,69 +152,100 @@ const updateTableStatus = async (tableId, newStatus) => {
     setShowOrderModal(true);
   };
 
-// In frontend/src/components/TableManagement/TableManagement.jsx
+/// 🎯 PRODUCTION: Waiter captures customer info
 const handleCreateOrder = async () => {
-  const selectedItems = orderItems 
-    ? orderItems.filter(item => item && item.quantity > 0)
-    : [];
+  const selectedItems = orderItems.filter(item => item.quantity > 0);
 
   if (selectedItems.length === 0) {
     alert('Please select at least one item');
     return;
   }
 
-  console.log('📦 Creating order for table:', selectedTable?.number);
-
-  // Customer registration
+  // 🎯 Waiter asks for customer phone & name
   let customerPhone = null;
   let customerName = null;
   
-  try {
-    customerPhone = `01${selectedTable?.number.replace(/\D/g, '').padStart(8, '0')}`;
-    customerName = `Table-${selectedTable?.number}-Customer`;
-    
-    if (!customer || customer.phone !== customerPhone) {
-      await registerCustomer(customerPhone, customerName);
-      console.log('✅ Customer registered successfully');
+  // Show a simple prompt to the waiter
+  const phoneInput = window.prompt('📱 Enter customer phone number:', '');
+  
+  if (phoneInput !== null) {
+    const cleanPhone = phoneInput.replace(/\D/g, '');
+    if (cleanPhone.length >= 10) {
+      customerPhone = cleanPhone;
+      
+      // Ask for name
+      const nameInput = window.prompt('👤 Enter customer name:', `Customer-${cleanPhone.slice(-4)}`);
+      customerName = nameInput || `Customer-${cleanPhone.slice(-4)}`;
+      
+      console.log('👤 Waiter captured customer:', { customerPhone, customerName });
+    } else {
+      // 🎯 Waiter can proceed without customer info (optional)
+      const proceedWithoutCustomer = window.confirm(
+        'Invalid phone number. Proceed without customer info?\n\n' +
+        'Customer will not earn loyalty points.'
+      );
+      
+      if (!proceedWithoutCustomer) {
+        return; // Cancel order
+      }
+      customerPhone = null;
+      customerName = null;
     }
-  } catch (regError) {
-    console.log('⚠️ Customer registration skipped:', regError.message);
+  } else {
+    // Waiter cancelled - don't create order
+    return;
   }
+
+  console.log('📦 STAFF: Creating order for table:', selectedTable?.number);
 
   const orderData = {
     tableId: selectedTable?.number,
     items: selectedItems.map(item => ({
       menuItemId: item._id || item.id,
       quantity: item.quantity,
-      price: item.price,
+      price: parseFloat(item.price) || 0,
       specialInstructions: ''
     })),
     orderType: 'dine-in',
-    customerPhone: customerPhone, // 🎯 CRITICAL
-    customerName: customerName    // 🎯 CRITICAL
+    customerPhone: customerPhone,
+    customerName: customerName
   };
 
-  console.log('TableManagement - Creating order with customer:', customerPhone);
-
   try {
-    const newOrder = await onCreateOrder(selectedTable?.number, selectedItems, 'dine-in', {
-      customerPhone: customerPhone,
-      customerName: customerName
+    const response = await fetch('https://restaurant-saas-backend-hbdz.onrender.com/api/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(orderData)
     });
-    
-    if (newOrder) {
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create order');
+    }
+
+    const result = await response.json();
+    console.log('✅ Staff order created:', result);
+
+    if (result.success || result.orderNumber) {
+      // Update table status
       setTables(prevTables => prevTables.map(table => 
         table.number === selectedTable?.number
-          ? { ...table, status: 'occupied', orderId: newOrder._id || newOrder.id }
+          ? { ...table, status: 'occupied', orderId: result.order?._id || result.order?.id }
           : table
       ));
+      
+      setShowOrderModal(false);
+      setSelectedTable(null);
+      setOrderItems([]);
+      
+      // 🎯 Show customer info in success message
+      const customerInfo = customerPhone ? `for ${customerName} (${customerPhone})` : '(Anonymous)';
+      alert(`✅ Order #${result.orderNumber} created successfully ${customerInfo}!`);
     }
-    
-    setShowOrderModal(false);
-    setSelectedTable(null);
-    setOrderItems([]);
   } catch (error) {
-    console.error('Failed to create order:', error);
+    console.error('❌ Staff order creation failed:', error);
     alert('Failed to create order: ' + error.message);
   }
 };
@@ -509,11 +544,14 @@ const handleCreateOrder = async () => {
                   Cancel
                 </button>
                 <button 
-                  className="btn-modern btn-primary-modern"
-                  onClick={handleCreateOrder}
-                >
-                  Create Order (RM {(orderItems.filter(item => item.quantity > 0).reduce((sum, item) => sum + ((parseFloat(item.price) || 0) * item.quantity), 0)).toFixed(2)})
-                </button>
+  className="btn-modern btn-primary-modern"
+  onClick={() => {
+    setShowOrderModal(false);
+    setShowCustomerModal(true);
+  }}
+>
+  Create Order (RM {(orderItems.filter(item => item.quantity > 0).reduce((sum, item) => sum + ((item.price || 0) * item.quantity), 0)).toFixed(2)})
+</button>
               </div>
             </div>
           </div>
@@ -601,6 +639,13 @@ const handleCreateOrder = async () => {
           </div>
         </div>
       )}
+      <CustomerInfoModal
+      isOpen={showCustomerModal}
+      onClose={() => setShowCustomerModal(false)}
+      onConfirm={handleCreateOrder}
+      tableNumber={selectedTable?.number}
+    />
+
     </div>
   );
 };
